@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
   --background: #ffffff;
@@ -12,11 +15,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 body {
