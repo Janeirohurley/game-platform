@@ -1,51 +1,123 @@
 # Game Arena
 
-Game Arena is a modern multiplayer gaming platform built around realtime game discovery, matchmaking, communities and interactive game experiences.
+<p align="center">
+  <strong>A realtime multiplayer gaming platform.</strong>
+</p>
 
-The project focuses on a polished, responsive interface combining modern web technologies with lightweight 3D experiences.
+<p align="center">
+  Discover games, find players, join matches and build communities.
+</p>
 
-## Overview
+<p align="center">
+  <a href="#features">Features</a>
+  ·
+  <a href="#tech-stack">Tech Stack</a>
+  ·
+  <a href="#development">Development</a>
+  ·
+  <a href="#roadmap">Roadmap</a>
+</p>
 
-Game Arena provides the foundation for a multiplayer gaming platform where players can:
+---
 
-* Discover available games
-* Join realtime multiplayer matches
-* Meet and interact with other players
-* Explore gaming communities
-* Follow matchmaking and game workflows
-* Access authentication and account flows
-* Experience interactive 3D elements throughout the platform
+![Game Arena Home](./image.png)
 
-The current version establishes the product interface and technical foundation. Realtime backend services, persistent authentication and production matchmaking are planned for later iterations.
+## About
+
+**Game Arena** is a modern multiplayer gaming platform designed around realtime game discovery, matchmaking, communities and interactive game experiences.
+
+The project combines a responsive web interface with lightweight 3D experiences and a realtime-oriented architecture.
+
+The current release focuses on establishing the product foundation: the interface, visual system, navigation, game discovery, community experience, authentication flows and matchmaking workflow.
+
+Realtime services and persistent backend infrastructure will be introduced progressively.
+
+## Features
+
+### Game Discovery
+
+Browse games through a dedicated discovery experience with:
+
+* Search
+* Categories
+* Game cards
+* Live player indicators
+* Interactive 3D elements
+
+### Multiplayer Workflow
+
+Game Arena includes a visual matchmaking workflow built with React Flow.
+
+```text
+Choose Game
+     ↓
+Matchmaking
+     ↓
+Player Found
+     ↓
+Realtime Match
+```
+
+The workflow is node-based rather than relying on manually positioned SVG connections, allowing it to evolve as the multiplayer architecture grows.
+
+### Community
+
+The community experience provides a foundation for:
+
+* Discovering gaming communities
+* Seeing players currently online
+* Following recent activity
+* Exploring social spaces
+* Connecting players around games
+
+### Authentication
+
+The frontend currently includes the complete initial authentication flow:
+
+* Sign in
+* Sign up
+* Forgot password
+* Reset password
+* Email verification
+
+These interfaces are currently frontend-only.
+
+### Interactive 3D
+
+Three.js is used throughout the platform to provide interactive visual elements without turning the interface into a purely decorative 3D experience.
+
+Current objects include:
+
+* Dice
+* Game controller
+* 3D portrait
+* Particle-based game universe
 
 ## Tech Stack
 
 ### Core
 
-* Next.js 16
-* React
-* TypeScript
-* Bun
-* Tailwind CSS
-* Three.js
+| Technology   | Purpose                     |
+| ------------ | --------------------------- |
+| Next.js 16   | Application framework       |
+| React        | UI                          |
+| TypeScript   | Type safety                 |
+| Bun          | Package manager and runtime |
+| Tailwind CSS | Styling                     |
+| Three.js     | 3D experiences              |
 
-### UI
+### UI & Interaction
 
-* shadcn/ui
-* Hugeicons
-* `next-themes`
-* Responsive layouts
-* Dark and light theme support
+| Technology  | Purpose                |
+| ----------- | ---------------------- |
+| shadcn/ui   | Reusable UI primitives |
+| Hugeicons   | Interface icons        |
+| React Flow  | Interactive workflows  |
+| next-themes | Theme management       |
 
-### Visual and interaction
+## Architecture
 
-* Three.js procedural 3D objects
-* React Flow
-* Interactive matchmaking workflow
-* Particle-based background environment
-* Custom animations and transitions
-
-## Project Structure
+The project follows a component-oriented architecture designed around reusable product experiences.
 
 ```text
 src/
@@ -76,68 +148,11 @@ src/
     └── controller-config.ts
 ```
 
-The structure is intentionally component-oriented so that visual systems, game objects and page-level experiences remain reusable.
-
-## Main Experiences
-
-### Home
-
-The landing page introduces Game Arena and establishes the visual identity of the platform with interactive 3D elements and a realtime gaming atmosphere.
-
-### Games
-
-The games catalog allows players to browse available games using search and category filters.
-
-The current interface includes:
-
-* Game discovery
-* Categories
-* Search
-* Game cards
-* Live player indicators
-* Interactive 3D dice
-
-### How It Works
-
-The workflow page explains the multiplayer process from game selection to matchmaking and realtime gameplay.
-
-The matchmaking visualization is implemented with React Flow so that workflow nodes and connections can evolve dynamically rather than relying on manually positioned SVG paths.
-
-### Community
-
-The community experience focuses on:
-
-* Players currently online
-* Recent activity
-* Gaming communities
-* Community discovery
-* Social presence
-
-The visual direction intentionally favors editorial layouts, typography and separators over excessive cards, gradients and glassmorphism.
-
-### Authentication
-
-The initial authentication interface includes:
-
-* Sign in
-* Sign up
-* Forgot password
-* Reset password
-* Email verification
-
-These screens currently provide the frontend experience. Backend authentication is not yet connected.
+The goal is to keep product pages, visual systems and interactive objects independent and reusable.
 
 ## 3D System
 
-Game Arena uses Three.js for interactive visual elements.
-
-Current 3D components include:
-
-* `Dice`
-* `ControllerViewer`
-* `PortraitViewer`
-
-The 3D system is designed to keep objects reusable and configurable instead of embedding Three.js scenes directly inside individual pages.
+Game Arena uses reusable Three.js components rather than embedding complete scenes directly into pages.
 
 For example:
 
@@ -149,65 +164,38 @@ For example:
 />
 ```
 
-The same approach is used for controllers, portraits and future game-related objects.
+This approach makes 3D objects configurable and reusable across different experiences.
 
-## Matchmaking Workflow
-
-The matchmaking interface is built with React Flow.
-
-The current conceptual flow is:
-
-```text
-Choose Game
-    ↓
-Matchmaking
-    ↓
-Player Found
-    ↓
-Realtime Match
-```
-
-Alternative states such as:
-
-```text
-Still Searching
-Waiting
-```
-
-can be represented as independent nodes and connections.
-
-This architecture allows the workflow to evolve into a more dynamic system when the realtime backend is introduced.
+The same architecture is used for the controller viewer and portrait viewer.
 
 ## Design Direction
 
 Game Arena follows a restrained gaming-oriented visual language.
 
-The interface prioritizes:
+The interface is built around:
 
 * Strong typography
-* Editorial composition
 * Clear hierarchy
-* Responsive layouts
+* Editorial layouts
+* Responsive composition
 * Thin borders and separators
 * Controlled use of color
-* Interactive 3D objects
-* Motion with a functional purpose
+* Purposeful motion
+* Interactive 3D accents
 
-The project deliberately avoids relying heavily on:
+The design intentionally avoids relying on:
 
 * Excessive gradients
-* Large glassmorphism surfaces
-* Excessive shadows
-* Overly rounded cards
-* Decorative UI without a functional purpose
+* Heavy glassmorphism
+* Large decorative shadows
+* Overly rounded interfaces
+* Visual effects without a functional purpose
 
-3D and motion are used as visual accents rather than replacing the product interface.
+The goal is to make the product feel like a real gaming platform rather than a collection of promotional UI components.
 
 ## Themes
 
-The application supports light and dark themes through `next-themes`.
-
-The theme is applied using the document class strategy:
+Game Arena supports both light and dark themes through `next-themes`.
 
 ```tsx
 attribute="class"
@@ -216,33 +204,45 @@ enableSystem
 disableTransitionOnChange
 ```
 
+The interface adapts its visual system according to the active theme while keeping the product hierarchy consistent.
+
 ## Development
 
-Install dependencies:
+### Requirements
+
+Make sure you have:
+
+* [Bun](https://bun.sh/)
+* Node.js-compatible environment
+* A modern browser
+
+### Install
 
 ```bash
 bun install
 ```
 
-Start the development server:
+### Start development
 
 ```bash
 bun dev
 ```
 
-Build the application:
+The application will be available locally through the Next.js development server.
+
+### Build
 
 ```bash
 bun run build
 ```
 
-Start the production server:
+### Start production
 
 ```bash
 bun start
 ```
 
-Run linting:
+### Lint
 
 ```bash
 bun run lint
@@ -250,52 +250,54 @@ bun run lint
 
 ## Local Network Development
 
-When testing the application from another device on the local network, the development server can be exposed through the machine's LAN address.
-
-Example:
+To make the development server accessible from another device on the same network:
 
 ```bash
 bun dev --hostname 0.0.0.0
 ```
 
-The Next.js configuration can also allow the development origin used by the local network.
+For LAN development, the Next.js configuration may also need to allow the development origin used by the local network.
 
 ## Current Status
 
-Game Arena is currently in its foundation phase.
+Game Arena is currently in its **foundation phase**.
 
-Implemented:
+### Implemented
 
-* Product landing experience
+* Landing page
 * Responsive navigation
-* Games discovery interface
-* Community interface
-* How-it-works experience
-* Authentication UI flows
+* Games discovery
+* Search and filtering
+* Community experience
+* Matchmaking workflow
+* Authentication UI
 * Legal pages
-* Theme support
+* Light and dark themes
 * Three.js visual system
-* Procedural controller
+* Procedural game controller
 * Interactive dice
 * Procedural portrait viewer
-* Particle universe background
-* React Flow matchmaking visualization
+* Particle background
+* Responsive layouts
 
-Not yet connected to production services:
+### Planned Backend Services
 
-* User authentication backend
+The following systems are not yet connected to production infrastructure:
+
+* Authentication backend
 * Persistent user accounts
-* Realtime matchmaking backend
-* Game servers
-* Player sessions
-* Persistent communities
-* Production database
+* User profiles
 * Realtime presence
+* Matchmaking service
+* Game servers
+* Persistent communities
+* Match sessions
 * Match history
+* Production database
 
 ## Roadmap
 
-The next stages of development are expected to focus on the application backend and realtime infrastructure.
+The platform is intended to evolve incrementally from the frontend foundation into a complete realtime multiplayer system.
 
 ```text
 Frontend Foundation
@@ -306,7 +308,7 @@ User Profiles
         ↓
 Realtime Presence
         ↓
-Matchmaking Service
+Matchmaking
         ↓
 Game Sessions
         ↓
@@ -317,21 +319,42 @@ Communities
 Production Infrastructure
 ```
 
-## Philosophy
+## Project Principles
 
-Game Arena is designed as a product rather than a collection of isolated pages.
+Game Arena is developed as a product rather than a collection of isolated pages.
 
-Each feature should have:
+Each feature should remain:
 
-* A clear responsibility
-* Reusable components
-* Strong TypeScript typing
-* Predictable state management
-* Responsive behavior
-* A consistent visual language
-* A clear path toward realtime functionality
+* Modular
+* Reusable
+* Strongly typed
+* Responsive
+* Predictable
+* Visually consistent
+* Ready for realtime integration
 
-The frontend should remain usable and maintainable as the multiplayer infrastructure grows.
+The frontend should continue to scale without sacrificing maintainability or product quality.
+
+## Versioning
+
+Game Arena follows semantic versioning for releases.
+
+```text
+v0.1.0  Initial frontend foundation
+v0.2.0  Authentication and user accounts
+v0.3.0  Profiles and presence
+v0.4.0  Matchmaking
+v0.5.0  Realtime game sessions
+v1.0.0  First stable production release
+```
+
+See [`CHANGELOG.md`](./CHANGELOG.md) for the complete release history.
+
+## Contributing
+
+Contributions, ideas and technical feedback are welcome.
+
+Before opening a pull request, make sure the project still passes its checks and that new functionality follows the existing architecture and visual language.
 
 ## License
 
