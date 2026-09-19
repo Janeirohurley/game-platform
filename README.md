@@ -348,7 +348,7 @@ v0.5.0  Realtime game sessions
 v1.0.0  First stable production release
 ```
 
-See [`CHANGELOG.md`](./CHANGELOG.md) for the complete release history.
+See [`CHANGELOG.md`](./CHANGLOG.md) for the complete release history.
 
 ## Contributing
 
