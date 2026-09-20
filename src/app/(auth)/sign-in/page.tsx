@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
@@ -11,9 +12,13 @@ import {
   LockPasswordIcon,
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import Dice from "@/components/dice";
 import GameUniverseBackground from "@/components/game-universe-background";
+import { authClient } from "@/lib/auth-client";
+import { signInSchema, type SignInInput } from "@/lib/validation/auth";
 
 const dicePalettes = [
   {
@@ -34,7 +39,49 @@ const dicePalettes = [
 ];
 
 export default function SignInPage() {
+  const router = useRouter();
+
   const [showPassword, setShowPassword] = useState(false);
+
+  const form = useForm<SignInInput>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      rememberMe: false,
+    },
+    mode: "onSubmit",
+  });
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    clearErrors,
+    formState: { errors, isSubmitting },
+  } = form;
+
+  async function onSubmit(data: SignInInput) {
+    clearErrors("root.server");
+
+    const { error } = await authClient.signIn.email({
+      email: data.email,
+      password: data.password,
+      rememberMe: data.rememberMe,
+      callbackURL: "/games",
+    });
+
+    if (error) {
+      setError("root.server", {
+        type: "server",
+        message: error.message || "Unable to sign in. Please try again.",
+      });
+
+      return;
+    }
+
+    router.push("/games");
+  }
 
   return (
     <main className="relative min-h-svh overflow-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
@@ -47,11 +94,7 @@ export default function SignInPage() {
             href="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-950 dark:text-white/55 dark:hover:text-white"
           >
-            <HugeiconsIcon
-              icon={ArrowLeft01Icon}
-              size={17}
-              strokeWidth={1.7}
-            />
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={17} strokeWidth={1.7} />
             Back to Game Arena
           </Link>
         </div>
@@ -96,7 +139,11 @@ export default function SignInPage() {
                 </p>
               </div>
 
-              <form className="space-y-5">
+              <form
+                className="space-y-5"
+                onSubmit={handleSubmit(onSubmit)}
+                noValidate
+              >
                 {/* Email */}
                 <div>
                   <label
@@ -116,13 +163,24 @@ export default function SignInPage() {
 
                     <input
                       id="email"
-                      name="email"
                       type="email"
                       autoComplete="email"
                       placeholder="you@example.com"
-                      className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03] dark:placeholder:text-white/25"
+                      disabled={isSubmitting}
+                      aria-invalid={!!errors.email}
+                      className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-red-400 dark:border-white/10 dark:bg-white/3 dark:placeholder:text-white/25"
+                      {...register("email")}
                     />
                   </div>
+
+                  {errors.email && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-xs text-red-500 dark:text-red-400"
+                    >
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Password */}
@@ -153,66 +211,95 @@ export default function SignInPage() {
 
                     <input
                       id="password"
-                      name="password"
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
                       placeholder="Enter your password"
-                      className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-11 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03] dark:placeholder:text-white/25"
+                      disabled={isSubmitting}
+                      aria-invalid={!!errors.password}
+                      className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-11 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-red-400 dark:border-white/10 dark:bg-white/3 dark:placeholder:text-white/25"
+                      {...register("password")}
                     />
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowPassword((value) => !value)
-                      }
+                      onClick={() => setShowPassword((value) => !value)}
+                      disabled={isSubmitting}
                       aria-label={
-                        showPassword
-                          ? "Hide password"
-                          : "Show password"
+                        showPassword ? "Hide password" : "Show password"
                       }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition hover:text-slate-950 dark:text-white/30 dark:hover:text-white"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/30 dark:hover:text-white"
                     >
                       <HugeiconsIcon
-                        icon={
-                          showPassword
-                            ? EyeOffIcon
-                            : EyeIcon
-                        }
+                        icon={showPassword ? EyeOffIcon : EyeIcon}
                         size={18}
                         strokeWidth={1.7}
                       />
                     </button>
                   </div>
+
+                  {errors.password && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-xs text-red-500 dark:text-red-400"
+                    >
+                      {errors.password.message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Remember */}
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-500 dark:text-white/45">
                   <input
                     type="checkbox"
-                    name="remember"
-                    className="size-4 rounded border-slate-300 accent-cyan-500 dark:border-white/20"
+                    disabled={isSubmitting}
+                    className="size-4 rounded border-slate-300 accent-cyan-500 disabled:cursor-not-allowed dark:border-white/20"
+                    {...register("rememberMe")}
                   />
                   Remember me
                 </label>
 
+                {/* Server error */}
+                {errors.root?.server && (
+                  <p
+                    role="alert"
+                    className="text-sm text-red-500 dark:text-red-400"
+                  >
+                    {errors.root.server.message}
+                  </p>
+                )}
+
                 {/* Submit */}
                 <button
                   type="submit"
-                  className="flex h-12 w-full items-center justify-center rounded-lg bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90"
+                  disabled={isSubmitting}
+                  aria-busy={isSubmitting}
+                  className="flex h-12 w-full items-center justify-center rounded-lg bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-white/90"
                 >
-                  Sign in
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    size={17}
-                    strokeWidth={1.7}
-                    className="ml-2"
-                  />
+                  {isSubmitting ? (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="mr-2 size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                      />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign in
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        size={17}
+                        strokeWidth={1.7}
+                        className="ml-2"
+                      />
+                    </>
+                  )}
                 </button>
               </form>
 
               {/* Signup */}
               <p className="mt-7 text-center text-sm text-slate-400 dark:text-white/35">
-                Don't have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <Link
                   href="/sign-up"
                   className="font-medium text-slate-800 hover:underline dark:text-white/80"
@@ -260,3 +347,60 @@ export default function SignInPage() {
     </main>
   );
 }
+
+// ```ts
+// export const signInSchema = z.object({
+//   email: z
+//     .email("Please enter a valid email address.")
+//     .transform((value) => value.trim().toLowerCase()),
+
+//   password: z
+//     .string()
+//     .min(1, "Password is required."),
+
+//   rememberMe: z.boolean().default(false),
+// });
+
+// export type SignInInput = z.infer<typeof signInSchema>;
+// ```
+
+// Le flux devient propre :
+
+// ```text
+// Email
+// Password
+// Remember me
+//         ↓
+// React Hook Form
+//         ↓
+// Zod
+//         ↓
+// authClient.signIn.email()
+//         ↓
+// Better Auth
+//         ↓
+// Session
+//         ↓
+// /games
+// ```
+
+// Et pour un utilisateur qui n'a pas encore vérifié son email :
+
+// ```text
+// signIn
+//   ↓
+// Better Auth
+//   ↓
+// 403
+//   ↓
+// /verify-email?email=...
+// ```
+
+// Une fois `SignInPage` remplacée, vérifie :
+
+// ```bash
+// bun run typecheck
+// bun run lint
+// ```
+
+// Puis teste successivement un mauvais email, un mauvais mot de passe, un utilisateur non vérifié et enfin un compte vérifié.

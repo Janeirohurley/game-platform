@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
@@ -11,9 +12,16 @@ import {
   EyeOffIcon,
   LockPasswordIcon,
 } from "@hugeicons/core-free-icons";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import Dice from "@/components/dice";
 import GameUniverseBackground from "@/components/game-universe-background";
+import { authClient } from "@/lib/auth-client";
+import {
+  resetPasswordSchema,
+  type ResetPasswordInput,
+} from "@/lib/validation/auth";
 
 const dicePalettes = [
   {
@@ -34,29 +42,83 @@ const dicePalettes = [
 ];
 
 export default function ResetPasswordPage() {
+  const searchParams = useSearchParams();
+
+  const token = searchParams.get("token");
+  const tokenError = searchParams.get("error");
+
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [reset, setReset] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isReset, setIsReset] = useState(false);
+
+  const form = useForm<ResetPasswordInput>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+  });
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setError,
+    formState: { errors, isSubmitting },
+  } = form;
+
+  const password = watch("password");
+  const confirmPassword = watch("confirmPassword");
 
   const passwordsMatch =
     password.length > 0 &&
     confirmPassword.length > 0 &&
     password === confirmPassword;
 
-  const handleSubmit = (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
+  async function onSubmit(data: ResetPasswordInput) {
+    if (!token) {
+      setError("root.server", {
+        type: "server",
+        message:
+          "This password reset link is missing or invalid. Please request a new one.",
+      });
 
-    if (!passwordsMatch) {
       return;
     }
 
-    setReset(true);
-  };
+    if (tokenError) {
+      setError("root.server", {
+        type: "server",
+        message:
+          "This password reset link is invalid or has expired. Please request a new one.",
+      });
+
+      return;
+    }
+
+    setError("root.server", {
+      type: "server",
+      message: "",
+    });
+
+    const { error } = await authClient.resetPassword({
+      newPassword: data.password,
+      token,
+    });
+
+    if (error) {
+      setError("root.server", {
+        type: "server",
+        message:
+          error.message ||
+          "Unable to reset your password. Please request a new reset link.",
+      });
+
+      return;
+    }
+
+    setIsReset(true);
+  }
 
   return (
     <main className="relative min-h-svh overflow-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
@@ -69,11 +131,7 @@ export default function ResetPasswordPage() {
             href="/sign-in"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-950 dark:text-white/55 dark:hover:text-white"
           >
-            <HugeiconsIcon
-              icon={ArrowLeft01Icon}
-              size={17}
-              strokeWidth={1.7}
-            />
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={17} strokeWidth={1.7} />
             Back to sign in
           </Link>
         </div>
@@ -108,7 +166,7 @@ export default function ResetPasswordPage() {
                 <span>Game Arena</span>
               </Link>
 
-              {!reset ? (
+              {!isReset ? (
                 <>
                   <div className="mb-8">
                     <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -120,9 +178,20 @@ export default function ResetPasswordPage() {
                     </p>
                   </div>
 
+                  {tokenError ? (
+                    <div
+                      role="alert"
+                      className="mb-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-600 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-300"
+                    >
+                      This password reset link is invalid or has expired. Please
+                      request a new one.
+                    </div>
+                  ) : null}
+
                   <form
-                    onSubmit={handleSubmit}
+                    onSubmit={handleSubmit(onSubmit)}
                     className="space-y-5"
+                    noValidate
                   >
                     {/* New password */}
                     <div>
@@ -143,52 +212,40 @@ export default function ResetPasswordPage() {
 
                         <input
                           id="password"
-                          name="password"
-                          type={
-                            showPassword
-                              ? "text"
-                              : "password"
-                          }
-                          value={password}
-                          onChange={(event) =>
-                            setPassword(event.target.value)
-                          }
+                          type={showPassword ? "text" : "password"}
                           autoComplete="new-password"
                           placeholder="Enter a new password"
-                          required
-                          minLength={8}
-                          className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-11 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03] dark:placeholder:text-white/25"
+                          disabled={isSubmitting || Boolean(tokenError)}
+                          aria-invalid={Boolean(errors.password)}
+                          {...register("password")}
+                          className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-11 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.03] dark:placeholder:text-white/25"
                         />
 
                         <button
                           type="button"
-                          onClick={() =>
-                            setShowPassword(
-                              (value) => !value,
-                            )
-                          }
+                          onClick={() => setShowPassword((value) => !value)}
                           aria-label={
-                            showPassword
-                              ? "Hide password"
-                              : "Show password"
+                            showPassword ? "Hide password" : "Show password"
                           }
                           className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition hover:text-slate-950 dark:text-white/30 dark:hover:text-white"
                         >
                           <HugeiconsIcon
-                            icon={
-                              showPassword
-                                ? EyeOffIcon
-                                : EyeIcon
-                            }
+                            icon={showPassword ? EyeOffIcon : EyeIcon}
                             size={18}
                             strokeWidth={1.7}
                           />
                         </button>
                       </div>
 
-                      <p className="mt-2 text-xs text-slate-400 dark:text-white/30">
-                        Use at least 8 characters.
-                      </p>
+                      {errors.password ? (
+                        <p className="mt-2 text-xs text-rose-500 dark:text-rose-400">
+                          {errors.password.message}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-slate-400 dark:text-white/30">
+                          Use at least 8 characters.
+                        </p>
+                      )}
                     </div>
 
                     {/* Confirm password */}
@@ -210,26 +267,16 @@ export default function ResetPasswordPage() {
 
                         <input
                           id="confirm-password"
-                          name="confirm-password"
-                          type={
-                            showConfirmPassword
-                              ? "text"
-                              : "password"
-                          }
-                          value={confirmPassword}
-                          onChange={(event) =>
-                            setConfirmPassword(
-                              event.target.value,
-                            )
-                          }
+                          type={showConfirmPassword ? "text" : "password"}
                           autoComplete="new-password"
                           placeholder="Repeat your new password"
-                          required
-                          minLength={8}
+                          disabled={isSubmitting || Boolean(tokenError)}
+                          aria-invalid={Boolean(errors.confirmPassword)}
+                          {...register("confirmPassword")}
                           className={[
-                            "h-12 w-full rounded-lg border bg-white/80 pl-11 pr-11 text-sm outline-none transition placeholder:text-slate-400 dark:bg-white/[0.03] dark:placeholder:text-white/25",
-                            confirmPassword.length > 0 &&
-                            !passwordsMatch
+                            "h-12 w-full rounded-lg border bg-white/80 pl-11 pr-11 text-sm outline-none transition placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white/[0.03] dark:placeholder:text-white/25",
+                            errors.confirmPassword ||
+                            (confirmPassword.length > 0 && !passwordsMatch)
                               ? "border-rose-300 focus:border-rose-400 dark:border-rose-400/30"
                               : "border-slate-200 focus:border-cyan-400 dark:border-white/10",
                           ].join(" ")}
@@ -238,9 +285,7 @@ export default function ResetPasswordPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            setShowConfirmPassword(
-                              (value) => !value,
-                            )
+                            setShowConfirmPassword((value) => !value)
                           }
                           aria-label={
                             showConfirmPassword
@@ -250,25 +295,18 @@ export default function ResetPasswordPage() {
                           className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition hover:text-slate-950 dark:text-white/30 dark:hover:text-white"
                         >
                           <HugeiconsIcon
-                            icon={
-                              showConfirmPassword
-                                ? EyeOffIcon
-                                : EyeIcon
-                            }
+                            icon={showConfirmPassword ? EyeOffIcon : EyeIcon}
                             size={18}
                             strokeWidth={1.7}
                           />
                         </button>
                       </div>
 
-                      {confirmPassword.length > 0 &&
-                        !passwordsMatch && (
-                          <p className="mt-2 text-xs text-rose-500">
-                            Passwords do not match.
-                          </p>
-                        )}
-
-                      {passwordsMatch && (
+                      {errors.confirmPassword ? (
+                        <p className="mt-2 text-xs text-rose-500 dark:text-rose-400">
+                          {errors.confirmPassword.message}
+                        </p>
+                      ) : passwordsMatch ? (
                         <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-300">
                           <HugeiconsIcon
                             icon={CheckmarkCircle02Icon}
@@ -277,23 +315,56 @@ export default function ResetPasswordPage() {
                           />
                           Passwords match.
                         </p>
-                      )}
+                      ) : confirmPassword.length > 0 ? (
+                        <p className="mt-2 text-xs text-rose-500">
+                          Passwords do not match.
+                        </p>
+                      ) : null}
                     </div>
+
+                    {errors.root?.server?.message ? (
+                      <div
+                        role="alert"
+                        className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-600 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-300"
+                      >
+                        {errors.root.server.message}
+                      </div>
+                    ) : null}
 
                     <button
                       type="submit"
-                      disabled={!passwordsMatch}
+                      disabled={
+                        isSubmitting || !passwordsMatch || Boolean(tokenError)
+                      }
                       className="flex h-12 w-full items-center justify-center rounded-lg bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-white/90"
                     >
-                      Reset password
-                      <HugeiconsIcon
-                        icon={ArrowRight01Icon}
-                        size={17}
-                        strokeWidth={1.7}
-                        className="ml-2"
-                      />
+                      {isSubmitting ? (
+                        <>
+                          <span className="mr-2 size-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-black/20 dark:border-t-black" />
+                          Updating password...
+                        </>
+                      ) : (
+                        <>
+                          Reset password
+                          <HugeiconsIcon
+                            icon={ArrowRight01Icon}
+                            size={17}
+                            strokeWidth={1.7}
+                            className="ml-2"
+                          />
+                        </>
+                      )}
                     </button>
                   </form>
+
+                  {tokenError ? (
+                    <Link
+                      href="/forgot-password"
+                      className="mt-5 flex h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-white/70 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:text-white/80 dark:hover:bg-white/[0.06]"
+                    >
+                      Request a new reset link
+                    </Link>
+                  ) : null}
                 </>
               ) : (
                 <div>
@@ -310,8 +381,8 @@ export default function ResetPasswordPage() {
                   </h1>
 
                   <p className="mt-4 text-sm leading-6 text-slate-500 dark:text-white/45">
-                    Your password has been reset successfully. You can
-                    now sign in with your new password.
+                    Your password has been reset successfully. You can now sign
+                    in with your new password.
                   </p>
 
                   <Link
@@ -337,7 +408,6 @@ export default function ResetPasswordPage() {
 
             <div className="relative size-[min(42vw,520px)]">
               <Dice
-                size={5}
                 clickable
                 autoRotate
                 autoRotateSpeed={0.35}

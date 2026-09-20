@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -10,9 +11,16 @@ import {
   Mail01Icon,
   Refresh01Icon,
 } from "@hugeicons/core-free-icons";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import Dice from "@/components/dice";
 import GameUniverseBackground from "@/components/game-universe-background";
+import { authClient } from "@/lib/auth-client";
+import {
+  verifyEmailSchema,
+  type VerifyEmailInput,
+} from "@/lib/validation/auth";
 
 const dicePalettes = [
   {
@@ -33,15 +41,47 @@ const dicePalettes = [
 ];
 
 export default function VerifyEmailPage() {
+  const searchParams = useSearchParams();
+  const emailFromUrl = searchParams.get("email") ?? "";
+
   const [resent, setResent] = useState(false);
 
-  const handleResend = () => {
-    setResent(true);
+  const form = useForm<VerifyEmailInput>({
+    resolver: zodResolver(verifyEmailSchema),
+    defaultValues: {
+      email: emailFromUrl,
+    },
+  });
 
-    window.setTimeout(() => {
-      setResent(false);
-    }, 4000);
-  };
+  const {
+    handleSubmit,
+    setError,
+    clearErrors,
+    formState: { errors, isSubmitting },
+  } = form;
+
+  async function onSubmit(data: VerifyEmailInput) {
+    clearErrors("root.server");
+    setResent(false);
+
+    const { error } = await authClient.sendVerificationEmail({
+      email: data.email,
+      callbackURL: "/games",
+    });
+
+    if (error) {
+      setError("root.server", {
+        type: "server",
+        message: error.message || "Unable to resend the verification email.",
+      });
+
+      return;
+    }
+
+    setResent(true);
+  }
+
+  const email = emailFromUrl || "your email address";
 
   return (
     <main className="relative min-h-svh overflow-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
@@ -54,11 +94,7 @@ export default function VerifyEmailPage() {
             href="/sign-in"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-950 dark:text-white/55 dark:hover:text-white"
           >
-            <HugeiconsIcon
-              icon={ArrowLeft01Icon}
-              size={17}
-              strokeWidth={1.7}
-            />
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={17} strokeWidth={1.7} />
             Back to sign in
           </Link>
         </div>
@@ -110,16 +146,16 @@ export default function VerifyEmailPage() {
               </h1>
 
               <p className="mt-4 text-sm leading-6 text-slate-500 dark:text-white/45">
-                We've sent a verification link to
+                We&apos;ve sent a verification link to
               </p>
 
               <p className="mt-1 break-all text-sm font-medium text-slate-900 dark:text-white/80">
-                player@example.com
+                {email}
               </p>
 
               <p className="mx-auto mt-5 max-w-md text-sm leading-6 text-slate-500 dark:text-white/40">
-                Open the email and click the verification link to activate
-                your Game Arena account.
+                Open the email and click the verification link to activate your
+                Game Arena account.
               </p>
 
               {/* Status */}
@@ -134,12 +170,26 @@ export default function VerifyEmailPage() {
                 </div>
               )}
 
+              {errors.root?.server && (
+                <p
+                  role="alert"
+                  className="mt-6 text-sm text-red-500 dark:text-red-400"
+                >
+                  {errors.root.server.message}
+                </p>
+              )}
+
               {/* Actions */}
-              <div className="mt-8 flex flex-col gap-3">
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                noValidate
+                className="mt-8 flex flex-col gap-3"
+              >
                 <button
-                  type="button"
-                  onClick={handleResend}
-                  className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-white/70 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:text-white/75 dark:hover:bg-white/[0.06]"
+                  type="submit"
+                  disabled={isSubmitting || !emailFromUrl}
+                  aria-busy={isSubmitting}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-white/70 text-sm font-medium text-slate-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/75 dark:hover:bg-white/[0.06]"
                 >
                   <HugeiconsIcon
                     icon={Refresh01Icon}
@@ -147,7 +197,8 @@ export default function VerifyEmailPage() {
                     strokeWidth={1.7}
                     className="mr-2"
                   />
-                  Resend verification email
+
+                  {isSubmitting ? "Sending..." : "Resend verification email"}
                 </button>
 
                 <Link
@@ -162,23 +213,37 @@ export default function VerifyEmailPage() {
                     className="ml-2"
                   />
                 </Link>
-              </div>
+              </form>
+
+              {errors.email && (
+                <p
+                  role="alert"
+                  className="mt-3 text-xs text-red-500 dark:text-red-400"
+                >
+                  {errors.email.message}
+                </p>
+              )}
 
               {/* Help */}
               <div className="mt-8 border-t border-slate-200 pt-6 text-sm text-slate-400 dark:border-white/10 dark:text-white/35">
-                <p>
-                  Didn't receive it?
-                </p>
+                <p>Didn&apos;t receive it?</p>
 
                 <p className="mt-2">
                   Check your spam folder or{" "}
-                  <button
-                    type="button"
-                    onClick={handleResend}
-                    className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-950 dark:text-white/70 dark:hover:text-white"
-                  >
-                    send it again
-                  </button>
+                  {emailFromUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void form.handleSubmit(onSubmit)();
+                      }}
+                      disabled={isSubmitting}
+                      className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white/70 dark:hover:text-white"
+                    >
+                      send it again
+                    </button>
+                  ) : (
+                    <span>return to sign up and try again.</span>
+                  )}
                   .
                 </p>
               </div>
@@ -191,7 +256,6 @@ export default function VerifyEmailPage() {
 
             <div className="relative size-[min(42vw,520px)]">
               <Dice
-                size={5}
                 clickable
                 autoRotate
                 autoRotateSpeed={0.35}
