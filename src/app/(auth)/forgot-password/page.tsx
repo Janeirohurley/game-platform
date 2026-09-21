@@ -9,9 +9,16 @@ import {
   Mail01Icon,
   CheckmarkCircle02Icon,
 } from "@hugeicons/core-free-icons";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import Dice from "@/components/dice";
 import GameUniverseBackground from "@/components/game-universe-background";
+import { authClient } from "@/lib/auth-client";
+import {
+  forgotPasswordSchema,
+  type ForgotPasswordInput,
+} from "@/lib/validation/auth";
 
 const dicePalettes = [
   {
@@ -32,20 +39,56 @@ const dicePalettes = [
 ];
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
+  const form = useForm<ForgotPasswordInput>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
 
-    if (!email.trim()) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = form;
+
+  async function onSubmit(data: ForgotPasswordInput) {
+    setError("root.server", {
+      type: "server",
+      message: "",
+    });
+
+    const { error } = await authClient.requestPasswordReset({
+      email: data.email,
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setError("root.server", {
+        type: "server",
+        message:
+          error.message || "Unable to send the reset link. Please try again.",
+      });
+
       return;
     }
 
+    setSubmittedEmail(data.email);
     setSubmitted(true);
-  };
+  }
+
+  function handleTryAnotherEmail() {
+    setSubmitted(false);
+    setSubmittedEmail("");
+    reset({
+      email: "",
+    });
+  }
 
   return (
     <main className="relative min-h-svh overflow-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
@@ -58,11 +101,7 @@ export default function ForgotPasswordPage() {
             href="/sign-in"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-950 dark:text-white/55 dark:hover:text-white"
           >
-            <HugeiconsIcon
-              icon={ArrowLeft01Icon}
-              size={17}
-              strokeWidth={1.7}
-            />
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={17} strokeWidth={1.7} />
             Back to sign in
           </Link>
         </div>
@@ -105,8 +144,8 @@ export default function ForgotPasswordPage() {
                     </h1>
 
                     <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-white/45">
-                      Enter the email associated with your account and
-                      we'll send you a link to reset your password.
+                      Enter the email associated with your account and we'll
+                      send you a link to reset your password.
                     </p>
                   </>
                 ) : (
@@ -126,7 +165,7 @@ export default function ForgotPasswordPage() {
                     <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-white/45">
                       If an account exists for{" "}
                       <span className="font-medium text-slate-800 dark:text-white/80">
-                        {email}
+                        {submittedEmail}
                       </span>
                       , we've sent instructions to reset your password.
                     </p>
@@ -136,8 +175,9 @@ export default function ForgotPasswordPage() {
 
               {!submitted ? (
                 <form
-                  onSubmit={handleSubmit}
+                  onSubmit={handleSubmit(onSubmit)}
                   className="space-y-5"
+                  noValidate
                 >
                   <div>
                     <label
@@ -157,38 +197,60 @@ export default function ForgotPasswordPage() {
 
                       <input
                         id="email"
-                        name="email"
                         type="email"
-                        value={email}
-                        onChange={(event) =>
-                          setEmail(event.target.value)
-                        }
                         autoComplete="email"
                         placeholder="you@example.com"
-                        required
-                        className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03] dark:placeholder:text-white/25"
+                        disabled={isSubmitting}
+                        aria-invalid={Boolean(errors.email)}
+                        {...register("email")}
+                        className="h-12 w-full rounded-lg border border-slate-200 bg-white/80 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.03] dark:placeholder:text-white/25"
                       />
                     </div>
+
+                    {errors.email ? (
+                      <p className="mt-2 text-xs text-red-500 dark:text-red-400">
+                        {errors.email.message}
+                      </p>
+                    ) : null}
                   </div>
+
+                  {errors.root?.server?.message ? (
+                    <div
+                      role="alert"
+                      className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300"
+                    >
+                      {errors.root.server.message}
+                    </div>
+                  ) : null}
 
                   <button
                     type="submit"
-                    className="flex h-12 w-full items-center justify-center rounded-lg bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90"
+                    disabled={isSubmitting}
+                    className="flex h-12 w-full items-center justify-center rounded-lg bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-white/90"
                   >
-                    Send reset link
-                    <HugeiconsIcon
-                      icon={ArrowRight01Icon}
-                      size={17}
-                      strokeWidth={1.7}
-                      className="ml-2"
-                    />
+                    {isSubmitting ? (
+                      <>
+                        <span className="mr-2 size-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-black/20 dark:border-t-black" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        Send reset link
+                        <HugeiconsIcon
+                          icon={ArrowRight01Icon}
+                          size={17}
+                          strokeWidth={1.7}
+                          className="ml-2"
+                        />
+                      </>
+                    )}
                   </button>
                 </form>
               ) : (
                 <div className="space-y-4">
                   <button
                     type="button"
-                    onClick={() => setSubmitted(false)}
+                    onClick={handleTryAnotherEmail}
                     className="flex h-12 w-full items-center justify-center rounded-lg border border-slate-200 bg-white/70 text-sm font-medium text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:text-white/80 dark:hover:bg-white/[0.06]"
                   >
                     Try another email
@@ -214,7 +276,6 @@ export default function ForgotPasswordPage() {
 
             <div className="relative size-[min(42vw,520px)]">
               <Dice
-                size={5}
                 clickable
                 autoRotate
                 autoRotateSpeed={0.35}
