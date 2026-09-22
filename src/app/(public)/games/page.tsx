@@ -34,6 +34,18 @@ type Game = {
 
 const games: Game[] = [
   {
+    title: "Ludo",
+    slug: "ludo",
+    description: "Fast two-player races through a neon orbital track.",
+    category: "Puzzle",
+    players: 184,
+    maxPlayers: 4,
+    status: "Live",
+    accent: "from-cyan-400 via-sky-500 to-blue-700",
+    glow: "bg-cyan-400/20",
+    icon: "RD",
+  },
+  {
     title: "Neon Drift",
     slug: "neon-drift",
     description: "Fast two-player races through a neon orbital track.",
