@@ -9,7 +9,6 @@ import { Playwrite_BE_WAL } from "next/font/google";
 
 const playwrite = Playwrite_BE_WAL({
   variable: "--font-playwrite",
-  subsets: ["latin"],
 });
 
 const geistSans = Geist({

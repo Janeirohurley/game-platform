@@ -1299,14 +1299,16 @@ export default function ControllerViewer({
 
       const group = new THREE.Group();
 
-      const buttonProfile = [
-        [0.79, 0],
-        [0.79, 0.12],
-        [0.77, 0.24],
-        [0.68, 0.32],
-        [0.5, 0.355],
-        [0, 0.36],
-      ].map((point: [number, number]) => new THREE.Vector2(point[0], point[1]));
+      const buttonProfile = (
+        [
+          [0.79, 0],
+          [0.79, 0.12],
+          [0.77, 0.24],
+          [0.68, 0.32],
+          [0.5, 0.355],
+          [0, 0.36],
+        ] as const
+      ).map((point) => new THREE.Vector2(point[0], point[1]));
 
       const buttonGeometry = new THREE.LatheGeometry(buttonProfile, 48);
 
