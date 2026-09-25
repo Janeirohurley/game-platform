@@ -78,6 +78,22 @@ export const GAMES: readonly GameEntry[] = [
     accent: "from-amber-300 via-orange-500 to-rose-700",
     glow: "bg-amber-400/20",
   },
+  {
+    id: "rally",
+    slug: "rally",
+    title: "Rally",
+    description:
+      "Tennis de table contre l'ordinateur — trois niveaux, coups puissants et échanges qui s'accélèrent. Premier à 11.",
+    category: "Arcade",
+    minPlayers: 1,
+    maxPlayers: 1,
+    status: "live",
+    // Solo against the computer: no realtime room for this one.
+    playableOnline: false,
+    icon: "RA",
+    accent: "from-orange-300 via-red-500 to-emerald-800",
+    glow: "bg-orange-400/20",
+  },
 ] as const;
 
 /** All catalog entries, newest additions last. */
