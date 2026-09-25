@@ -63,6 +63,21 @@ export const GAMES: readonly GameEntry[] = [
     accent: "from-cyan-400 via-sky-500 to-blue-700",
     glow: "bg-cyan-400/20",
   },
+  {
+    id: "checkers",
+    slug: "checkers",
+    title: "Checkers",
+    description:
+      "Le jeu de dames classique — capture obligatoire, rafles et promotion en dame. À deux sur un écran ou en ligne.",
+    category: "Strategy",
+    minPlayers: 2,
+    maxPlayers: 2,
+    status: "live",
+    playableOnline: true,
+    icon: "CH",
+    accent: "from-amber-300 via-orange-500 to-rose-700",
+    glow: "bg-amber-400/20",
+  },
 ] as const;
 
 /** All catalog entries, newest additions last. */

@@ -60,3 +60,25 @@ export interface LudoPlayerView extends LobbyPlayerView {
   finished: number;
   pieces: LudoPieceView[];
 }
+
+/**
+ * Checkers-specific fields of the synchronized state (client view).
+ * Mirrors `server-games/src/games/checkers/checkers-state.ts`.
+ */
+export interface CheckersPlayerView extends LobbyPlayerView {
+  /** "white" or "black"; empty until the match starts. */
+  color: string;
+}
+
+export interface CheckersSnapshot extends LobbySnapshot {
+  /** 64-character board encoding, empty before the match starts. */
+  board: string;
+  turnColor: string;
+  currentTurn: string;
+  turnDeadline: number;
+  idlePlies: number;
+  /** "playing" | "win" | "draw". */
+  outcome: string;
+  outcomeReason: string;
+  winnerUserId: string;
+}
