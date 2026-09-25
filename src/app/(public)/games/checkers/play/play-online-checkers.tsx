@@ -6,6 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 
 import { GameLobby } from "@/components/realtime/lobby";
+import { RoomChat } from "@/components/realtime/chat";
 import { useRoom } from "@/lib/realtime";
 import { CheckersRoomView } from "@/games/checkers/online/checkers-room-view";
 
@@ -93,15 +94,20 @@ export function PlayOnlineCheckers({
   }
 
   return (
-    <GameLobby
-      snapshot={snapshot}
-      viewerUserId={viewerUserId}
-      inviteUrl={inviteUrl}
-      onCopyInvite={handleCopyInvite}
-      onLeave={handleLeave}
-      onStart={handleStart}
-      starting={starting}
-    />
+    <>
+      <GameLobby
+        snapshot={snapshot}
+        viewerUserId={viewerUserId}
+        inviteUrl={inviteUrl}
+        onCopyInvite={handleCopyInvite}
+        onLeave={handleLeave}
+        onStart={handleStart}
+        starting={starting}
+      />
+
+      {/* Players can talk while waiting for an opponent. */}
+      <RoomChat room={room} viewerUserId={viewerUserId} />
+    </>
   );
 }
 

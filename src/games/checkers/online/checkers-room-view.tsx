@@ -4,6 +4,7 @@ import type { Room } from "@colyseus/sdk";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Logout01Icon } from "@hugeicons/core-free-icons";
 
+import { RoomChat } from "@/components/realtime/chat";
 import { CheckersBoard } from "../components/checkers-board";
 import { GameStatus } from "../components/game-status";
 import { useCheckersSelection } from "../use-checkers-selection";
@@ -62,6 +63,9 @@ export function CheckersRoomView({
           En attente du coup adverse…
         </p>
       )}
+
+      {/* Room chat — generic infrastructure, not Checkers-specific. */}
+      <RoomChat room={room} viewerUserId={viewerUserId} />
 
       <button
         type="button"

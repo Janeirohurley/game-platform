@@ -82,3 +82,29 @@ export interface CheckersSnapshot extends LobbySnapshot {
   outcomeReason: string;
   winnerUserId: string;
 }
+
+/**
+ * A chat message exactly as the room created it.
+ * Mirrors `server-games/src/rooms/room-chat.ts` — the client authors
+ * none of these fields, it only ever sends `{ content }`.
+ */
+export interface RoomChatMessage {
+  id: string;
+  /** Room-local and increasing; messages render in this order. */
+  sequence: number;
+  userId: string;
+  username: string;
+  content: string;
+  createdAt: number;
+}
+
+/** Why the room refused a message. Sent only to its sender. */
+export type ChatRejectionReason =
+  | "invalid"
+  | "empty"
+  | "too-long"
+  | "rate-limited"
+  | "not-in-room";
+
+/** Mirrors the server's MAX_CONTENT_LENGTH, for the input's own limit. */
+export const CHAT_MAX_CONTENT_LENGTH = 300;
