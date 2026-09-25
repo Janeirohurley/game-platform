@@ -83,13 +83,12 @@ export const GAMES: readonly GameEntry[] = [
     slug: "rally",
     title: "Rally",
     description:
-      "Tennis de table contre l'ordinateur — trois niveaux, coups puissants et échanges qui s'accélèrent. Premier à 11.",
+      "Tennis de table — seul contre l'ordinateur sur trois niveaux, ou à deux en ligne. Premier à 11 points.",
     category: "Arcade",
     minPlayers: 1,
-    maxPlayers: 1,
+    maxPlayers: 2,
     status: "live",
-    // Solo against the computer: no realtime room for this one.
-    playableOnline: false,
+    playableOnline: true,
     icon: "RA",
     accent: "from-orange-300 via-red-500 to-emerald-800",
     glow: "bg-orange-400/20",

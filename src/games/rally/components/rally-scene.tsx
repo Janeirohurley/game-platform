@@ -5,36 +5,45 @@ import { useFrame } from "@react-three/fiber";
 import type { Group, Mesh } from "three";
 
 import { TABLE } from "../engine/constants";
-import type { RallyMatch } from "../engine/rally-match";
+
+/** Where things are right now, whoever decided it. */
+export interface CourtPositions {
+  ball: { x: number; y: number; z: number };
+  near: { x: number; y: number; vx?: number };
+  far: { x: number; y: number; vx?: number };
+}
 
 /**
  * The court.
  *
- * Reads the match directly every frame through a ref rather than React
- * state: at 120 steps a second, re-rendering the tree would be wasteful
- * and would stutter. The engine owns the numbers, this only draws them.
+ * Reads positions every frame through a getter rather than React state:
+ * at 120 steps a second, re-rendering the tree would be wasteful and
+ * would stutter. It does not care whether the numbers come from a local
+ * engine or from an authoritative server — it only draws them.
  */
-export function RallyScene({ match }: { match: RallyMatch }) {
+export function RallyScene({ read }: { read: () => CourtPositions }) {
   const ball = useRef<Mesh>(null);
   const playerPaddle = useRef<Group>(null);
   const cpuPaddle = useRef<Group>(null);
 
   useFrame(() => {
+    const world = read();
+
     if (ball.current) {
-      ball.current.position.set(match.ball.x, match.ball.y, match.ball.z);
+      ball.current.position.set(world.ball.x, world.ball.y, world.ball.z);
     }
     if (playerPaddle.current) {
       playerPaddle.current.position.set(
-        match.player.x,
-        match.player.y,
-        match.player.z,
+        world.near.x,
+        world.near.y,
+        TABLE.paddleZ,
       );
       // Tilt with the sweep, so a fast move reads as a swing.
-      playerPaddle.current.rotation.z = -match.player.vx * 0.06;
+      playerPaddle.current.rotation.z = -(world.near.vx ?? 0) * 0.06;
     }
     if (cpuPaddle.current) {
-      cpuPaddle.current.position.set(match.cpu.x, match.cpu.y, match.cpu.z);
-      cpuPaddle.current.rotation.z = -match.cpu.vx * 0.06;
+      cpuPaddle.current.position.set(world.far.x, world.far.y, -TABLE.paddleZ);
+      cpuPaddle.current.rotation.z = -(world.far.vx ?? 0) * 0.06;
     }
   });
 
