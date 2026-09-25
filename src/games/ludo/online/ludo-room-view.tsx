@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Room } from "@colyseus/sdk";
 
 import { GameLobby } from "@/components/realtime/lobby";
+import { RoomChat } from "@/components/realtime/chat";
 import type { LudoPlayerView } from "@/lib/realtime/types";
 
 import { OnlineLudoPlay, type ServerLudoSnapshot } from "./online-ludo-play";
@@ -131,6 +132,9 @@ export function LudoRoomView({ room, viewerUserId, onLeave }: LudoRoomViewProps)
           viewerUserId={viewerUserId}
           onLeave={onLeave}
         />
+
+        {/* The board owns the viewport, so the chat floats over it. */}
+        <RoomChat room={room} viewerUserId={viewerUserId} />
       </div>
     );
   }
@@ -145,6 +149,9 @@ export function LudoRoomView({ room, viewerUserId, onLeave }: LudoRoomViewProps)
         onLeave={onLeave}
         onStart={() => room.send("startGame", {})}
       />
+
+      {/* Players can talk while the table fills up. */}
+      <RoomChat room={room} viewerUserId={viewerUserId} />
     </div>
   );
 }
