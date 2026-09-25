@@ -55,6 +55,15 @@ export class RallyMatch {
   /** Whether the player is holding the power shot. */
   private power = false;
 
+  /**
+   * When true, side 1 is a second human rather than the computer: it
+   * takes its aim from `opponentTarget` and returns the ball with the
+   * same formula as side 0. One engine serves both modes.
+   */
+  private readonly opponentIsHuman: boolean;
+  private opponentTarget = 0;
+  private opponentPower = false;
+
   public scores: [number, number] = [0, 0];
   public rally = 0;
   public best = 0;
@@ -75,6 +84,7 @@ export class RallyMatch {
     this.random = options.random ?? Math.random;
     this.onEvent = options.onEvent ?? (() => {});
     this.level = options.level ?? "club";
+    this.opponentIsHuman = options.opponentIsHuman ?? false;
   }
 
   private emit(event: RallyEvent) {
@@ -113,6 +123,38 @@ export class RallyMatch {
     if (this.state !== "ready" || this.server !== 0) return;
     this.player.x = this.targetX;
     this.serve();
+  }
+
+  // --- Side 1, when a second human is playing it ---
+
+  public setOpponentTarget(x: number) {
+    this.opponentTarget = clamp(x, -PADDLE_RANGE, PADDLE_RANGE);
+  }
+
+  public setOpponentPower(on: boolean) {
+    this.opponentPower = on;
+  }
+
+  public opponentServe() {
+    if (this.state !== "ready" || this.server !== 1) return;
+    this.cpu.x = this.opponentTarget;
+    this.serve();
+  }
+
+  /** Route an input to whichever side that player owns. */
+  public setTargetFor(side: Side, x: number) {
+    if (side === 0) this.setTarget(x);
+    else this.setOpponentTarget(x);
+  }
+
+  public setPowerFor(side: Side, on: boolean) {
+    if (side === 0) this.setPower(on);
+    else this.setOpponentPower(on);
+  }
+
+  public serveFor(side: Side) {
+    if (side === 0) this.playerServe();
+    else this.opponentServe();
   }
 
   public start(level: Difficulty = this.level) {
@@ -169,7 +211,9 @@ export class RallyMatch {
     const aimX =
       side === 0
         ? clamp(-this.player.x * 0.72, -1.7, 1.7)
-        : (this.random() * 2 - 1) * 1.7;
+        : this.opponentIsHuman
+          ? clamp(-this.cpu.x * 0.72, -1.7, 1.7)
+          : (this.random() * 2 - 1) * 1.7;
     const travel = (TABLE.paddleZ * 2 - 0.13) / Math.abs(ball.vz);
     ball.vx = (aimX - ball.x) / travel;
 
@@ -195,7 +239,8 @@ export class RallyMatch {
     const ball = this.ball;
     const direction = side === 0 ? 1 : -1;
     const profile = LEVELS[this.level];
-    const powered = side === 0 && this.power;
+    const powered =
+      side === 0 ? this.power : this.opponentIsHuman && this.opponentPower;
 
     // Long rallies get gradually quicker; a power shot cuts the flight.
     const flight = Math.max(
@@ -210,10 +255,11 @@ export class RallyMatch {
       flight;
 
     let aimX: number;
-    if (side === 0) {
-      // The player's aim follows the contact point and their paddle sweep.
+    if (side === 0 || this.opponentIsHuman) {
+      // A human's aim follows the contact point and their paddle sweep.
+      const paddle = side === 0 ? this.player : this.cpu;
       aimX = clamp(
-        -this.player.x * 0.75 + offset * 3.6 + clamp(this.player.vx, -8, 8) * 0.12,
+        -paddle.x * 0.75 + offset * 3.6 + clamp(paddle.vx, -8, 8) * 0.12,
         -2.15,
         2.15,
       );
@@ -234,10 +280,11 @@ export class RallyMatch {
     this.best = Math.max(this.best, this.rally);
     this.aiTarget = aimX + (this.random() * 2 - 1) * profile.error;
 
-    // Sometimes the computer reads the shot wrong and leans the wrong way.
+    // Sometimes the computer reads the shot wrong and leans the wrong
+    // way. Only the computer does — a human is never nudged.
     const misreadChance =
       profile.misread + (powered ? 0.065 : 0) + Math.abs(offset) * 0.07;
-    if (side === 0 && this.random() < misreadChance) {
+    if (side === 0 && !this.opponentIsHuman && this.random() < misreadChance) {
       const wrongWay = aimX > 0 ? -1 : 1;
       this.aiTarget += wrongWay * (0.82 + this.random() * 0.5);
     }
@@ -301,16 +348,22 @@ export class RallyMatch {
     player.x += clamp(this.targetX - player.x, -13 * dt, 13 * dt);
     player.vx = (player.x - previousPlayerX) / dt;
 
-    // Computer paddle moves towards where it believes the ball will be.
     const profile = LEVELS[this.level];
     const previousCpuX = cpu.x;
-    const cpuGoal =
-      this.state === "playing" && ball.vz < 0 && this.now >= this.aiReady
-        ? clamp(this.aiTarget, -2.7, 2.7)
-        : this.state === "ready" && this.server === 1
-          ? 0
-          : cpu.x * 0.996;
-    cpu.x += clamp(cpuGoal - cpu.x, -profile.speed * dt, profile.speed * dt);
+
+    if (this.opponentIsHuman) {
+      // A second human: same responsiveness as side 0, no AI at all.
+      cpu.x += clamp(this.opponentTarget - cpu.x, -13 * dt, 13 * dt);
+    } else {
+      // Computer paddle moves towards where it believes the ball will be.
+      const cpuGoal =
+        this.state === "playing" && ball.vz < 0 && this.now >= this.aiReady
+          ? clamp(this.aiTarget, -2.7, 2.7)
+          : this.state === "ready" && this.server === 1
+            ? 0
+            : cpu.x * 0.996;
+      cpu.x += clamp(cpuGoal - cpu.x, -profile.speed * dt, profile.speed * dt);
+    }
     cpu.vx = (cpu.x - previousCpuX) / dt;
 
     // Paddles rise to meet a ball coming at them.
@@ -324,9 +377,12 @@ export class RallyMatch {
 
     if (this.state === "intro" || this.state === "ready") {
       this.parkBall();
+      // The computer serves itself once the pause is over; a human
+      // opponent serves when they choose to.
       if (
         this.state === "ready" &&
         this.server === 1 &&
+        !this.opponentIsHuman &&
         this.now >= this.nextServe
       ) {
         this.serve();

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { JoystickIcon, TimeIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { Globe02Icon, JoystickIcon, TimeIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
 
 import { getGameBySlug } from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
@@ -62,7 +62,7 @@ export default function RallyPage() {
               <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500 dark:text-white/40">
                 <span className="flex items-center gap-1.5">
                   <HugeiconsIcon icon={UserGroupIcon} size={15} strokeWidth={1.6} />
-                  Solo contre l&apos;ordinateur
+                  Solo ou à deux en ligne
                 </span>
                 <span className="flex items-center gap-1.5">
                   <HugeiconsIcon icon={JoystickIcon} size={15} strokeWidth={1.6} />
@@ -70,13 +70,21 @@ export default function RallyPage() {
                 </span>
               </div>
 
-              <div className="mt-8">
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Link
+                  href="/games/rally/play"
+                  className="inline-flex h-12 items-center gap-2 rounded-xl bg-emerald-600 px-6 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                >
+                  <HugeiconsIcon icon={Globe02Icon} size={17} strokeWidth={1.8} />
+                  Jouer en ligne
+                </Link>
+
                 <Link
                   href="/games/rally/local"
                   className="inline-flex h-12 items-center gap-2 rounded-xl bg-[#d9553a] px-6 text-sm font-semibold text-white transition hover:bg-[#c24b32]"
                 >
                   <HugeiconsIcon icon={JoystickIcon} size={17} strokeWidth={1.8} />
-                  Jouer
+                  Solo contre l&apos;ordinateur
                 </Link>
               </div>
             </div>

@@ -62,6 +62,11 @@ export interface RallyOptions {
   random?: () => number;
   onEvent?: (event: RallyEvent) => void;
   level?: Difficulty;
+  /**
+   * True when side 1 is a second human. The computer is then switched
+   * off entirely: that side moves and returns exactly like side 0.
+   */
+  opponentIsHuman?: boolean;
 }
 
 /** What the renderer reads each frame. */

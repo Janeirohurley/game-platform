@@ -140,7 +140,13 @@ export function LocalRally() {
       >
         <color attach="background" args={["#e9e7df"]} />
         <fog attach="fog" args={["#e9e7df", 12, 24]} />
-        <RallyScene match={match} />
+        <RallyScene
+          read={() => ({
+            ball: match.ball,
+            near: { x: match.player.x, y: match.player.y, vx: match.player.vx },
+            far: { x: match.cpu.x, y: match.cpu.y, vx: match.cpu.vx },
+          })}
+        />
       </Canvas>
 
       {/* Scoreboard */}
