@@ -1,12 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
 import { GameLobby } from "@/components/realtime/lobby";
-import { REALTIME_URL, useRoom } from "@/lib/realtime";
+import { resolveRealtimeUrl, useRoom } from "@/lib/realtime";
 
 const GAME_ID = "ludo";
+
+/** The realtime URL never changes while the page is open. */
+const NO_SUBSCRIPTION = () => () => {};
+/** Nothing to show while rendering on the server. */
+const SERVER_SNAPSHOT = () => "";
 
 /**
  * Ludo "play online" entry: pick how many players will sit at the table,
@@ -16,6 +21,20 @@ export function PlayOnline({ viewerUserId }: { viewerUserId: string }) {
   const router = useRouter();
   const [requestedPlayers, setRequestedPlayers] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
+
+  /*
+   * The realtime URL depends on the page's own address, which the
+   * server render cannot know. `useSyncExternalStore` is the way to
+   * read a client-only value: it hands the server an empty snapshot and
+   * the browser the real one, with no state written from an effect and
+   * no hydration mismatch. The value never changes, so the subscribe
+   * callback has nothing to do.
+   */
+  const realtimeUrl = useSyncExternalStore(
+    NO_SUBSCRIPTION,
+    resolveRealtimeUrl,
+    SERVER_SNAPSHOT,
+  );
 
   if (requestedPlayers === null) {
     return (
@@ -57,9 +76,11 @@ export function PlayOnline({ viewerUserId }: { viewerUserId: string }) {
           ))}
         </div>
 
-        <p className="text-xs text-neutral-500">
-          Serveur temps réel : {REALTIME_URL}
-        </p>
+        {realtimeUrl && (
+          <p className="text-xs text-neutral-500">
+            Serveur temps réel : {realtimeUrl}
+          </p>
+        )}
       </section>
     );
   }

@@ -2,7 +2,7 @@
 
 import { Client, type Room } from "@colyseus/sdk";
 
-import { REALTIME_TOKEN_ENDPOINT, REALTIME_URL } from "./config";
+import { REALTIME_TOKEN_ENDPOINT, resolveRealtimeUrl } from "./config";
 import type { LobbySnapshot } from "./types";
 
 /**
@@ -18,10 +18,17 @@ import type { LobbySnapshot } from "./types";
  */
 
 let cachedClient: Client | null = null;
+let cachedUrl: string | null = null;
 
 export function getRealtimeClient(): Client {
-  if (!cachedClient) {
-    cachedClient = new Client(REALTIME_URL);
+  // Resolved here, in the browser, rather than at module load: the URL
+  // depends on the address the page was opened from. If that address
+  // changes the client is rebuilt, so a cached one never points at the
+  // wrong host.
+  const url = resolveRealtimeUrl();
+  if (!cachedClient || cachedUrl !== url) {
+    cachedClient = new Client(url);
+    cachedUrl = url;
   }
   return cachedClient;
 }

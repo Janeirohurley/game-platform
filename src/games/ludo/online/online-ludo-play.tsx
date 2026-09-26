@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { Room } from "@colyseus/sdk";
@@ -14,6 +14,7 @@ import { playSound } from "@/lib/sounds";
 import type { LudoPlayerView } from "@/lib/realtime/types";
 
 import LudoBoard from "../components/board/LudoBoard";
+import { GameToasts, useGameToasts } from "./game-toasts";
 
 export interface ServerLudoSnapshot {
   gameId: string;
@@ -55,43 +56,133 @@ export function OnlineLudoPlay({
   viewerUserId,
   onLeave,
 }: OnlineLudoPlayProps) {
-  const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const { toasts, push } = useGameToasts();
 
-  // Tracks whether the dice was already "consumed" for the current roll,
-  // so the local 3D spin animation only plays once per server roll.
-  const animatedDiceRef = useRef<{ value: number; consumed: boolean }>({
-    value: 0,
-    consumed: true,
-  });
+  const boardRef = useRef<{
+    throwDice: () => void;
+    throwDiceWithValue: (value?: number) => void;
+    isDiceAnimating: boolean;
+  }>(null);
 
-  // Capture notifications (used for sound + feedback).
+  // Latest roster, so a notice can name who did what without making the
+  // subscription below re-run on every state patch.
+  const snapshotRef = useRef(snapshot);
   useEffect(() => {
-    const offCaptured = room.onMessage(
-      "pieceCaptured",
-      (message: { byUserId: string }) => {
-        playSound("capture");
-        setLastMessage(
-          message.byUserId === viewerUserId
-            ? "Capture ! Tu rejoues."
-            : "Un de tes pions a été capturé !",
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
+  // Everything the room tells us: rolls, captures, drops, end of match.
+  useEffect(() => {
+    const nameOf = (userId: string) =>
+      snapshotRef.current.players.find((player) => player.userId === userId)
+        ?.name ?? "Quelqu'un";
+
+    /*
+     * The roll arrives as an event, not as a state change.
+     *
+     * State reaches clients as periodic patches, so a roll that leaves
+     * nothing to play — cleared in the same server tick — never shows up
+     * in one. Animating from the event instead means every player sees
+     * the dice turn, and sees the same number.
+     */
+    const offDice = room.onMessage(
+      "diceRolled",
+      (message: {
+        userId: string;
+        name?: string;
+        value: number;
+        playable?: number;
+      }) => {
+        playSound("diceRoll");
+        boardRef.current?.throwDiceWithValue(message.value);
+
+        const mine = message.userId === viewerUserId;
+        const who = mine ? "Tu as fait" : `${message.name ?? nameOf(message.userId)} a fait`;
+        push(
+          message.playable === 0
+            ? `${who} ${message.value} — rien à jouer`
+            : `${who} ${message.value}`,
+          mine ? "good" : "info",
         );
       },
     );
-    const offFinished = room.onMessage("gameFinished", (message: {
-      winnerUserId: string;
-    }) => {
-      playSound("win");
-      setLastMessage(
-        message.winnerUserId === viewerUserId
-          ? "Victoire ! 🎉"
-          : "Partie terminée.",
-      );
-    });
+
+    const offAuto = room.onMessage(
+      "autoMoved",
+      (message: { userId: string }) => {
+        push(
+          message.userId === viewerUserId
+            ? "Un seul coup possible — joué pour toi"
+            : `${nameOf(message.userId)} n'avait qu'un coup`,
+        );
+      },
+    );
+
+    const offCaptured = room.onMessage(
+      "pieceCaptured",
+      (message: { userId: string; byUserId: string }) => {
+        playSound("capture");
+        if (message.byUserId === viewerUserId) {
+          push("Capture ! Tu rejoues.", "good");
+        } else if (message.userId === viewerUserId) {
+          push("Un de tes pions a été capturé !", "bad");
+        } else {
+          push(`${nameOf(message.byUserId)} a capturé un pion`);
+        }
+      },
+    );
+
+    const offDropped = room.onMessage(
+      "playerDisconnected",
+      (message: { userId: string; name?: string }) => {
+        push(
+          `${message.name ?? nameOf(message.userId)} a perdu la connexion…`,
+          "bad",
+        );
+      },
+    );
+
+    const offBack = room.onMessage(
+      "playerReconnected",
+      (message: { userId: string }) => {
+        push(`${nameOf(message.userId)} est de retour`, "good");
+      },
+    );
+
+    const offLeft = room.onMessage(
+      "playerLeft",
+      (message: { userId: string; name?: string }) => {
+        // The name comes with the event: the player is already out of
+        // the roster by the time this runs.
+        push(
+          `${message.name ?? nameOf(message.userId)} a quitté la partie`,
+          "bad",
+        );
+      },
+    );
+
+    const offFinished = room.onMessage(
+      "gameFinished",
+      (message: { winnerUserId: string }) => {
+        playSound("win");
+        const mine = message.winnerUserId === viewerUserId;
+        push(
+          mine ? "Victoire ! 🎉" : `${nameOf(message.winnerUserId)} a gagné`,
+          mine ? "good" : "info",
+        );
+      },
+    );
+
     return () => {
+      offDice();
+      offAuto();
       offCaptured();
+      offDropped();
+      offBack();
+      offLeft();
       offFinished();
     };
-  }, [room, viewerUserId]);
+  }, [room, viewerUserId, push]);
 
   const isMyTurn = snapshot.currentTurn === viewerUserId;
   const dice = snapshot.diceValue;
@@ -167,36 +258,11 @@ export function OnlineLudoPlay({
   }, [room, isMyTurn, dice]);
 
   /**
-   * Cosmetic dice animation: when a fresh server roll arrives, tell the
-   * board to spin and settle on the SERVER's value. The board's own
-   * onDiceResult callback is ignored — the server is the only authority.
+   * The board reports the value its own animation settled on. Ignored:
+   * the server already decided, and the spin was started from its
+   * `diceRolled` event.
    */
-  const handleDiceResult = useCallback(
-    (value: number) => {
-      if (animatedDiceRef.current.consumed) {
-        animatedDiceRef.current = { value, consumed: false };
-      }
-    },
-    [],
-  );
-
-  // Trigger the cosmetic spin once per new server dice value.
-  useEffect(() => {
-    if (dice < 1 || dice > 6) return;
-    if (
-      animatedDiceRef.current.consumed ||
-      animatedDiceRef.current.value !== dice
-    ) {
-      animatedDiceRef.current = { value: dice, consumed: true };
-      boardRef.current?.throwDiceWithValue(dice);
-    }
-  }, [dice]);
-
-  const boardRef = useRef<{
-    throwDice: () => void;
-    throwDiceWithValue: (value?: number) => void;
-    isDiceAnimating: boolean;
-  }>(null);
+  const handleDiceResult = useCallback(() => {}, []);
 
   const handlePieceClick = useCallback(
     (piece: GamePiece) => {
@@ -239,25 +305,23 @@ export function OnlineLudoPlay({
         />
       </Canvas>
 
-      {/* Turn banner */}
-      <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-lg bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-sm">
+      {/* What just happened — queued, animated, self-dismissing. */}
+      <GameToasts toasts={toasts} />
+
+      {/* What to do now. Steady, so it never competes with the toasts. */}
+      <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-sm">
         {snapshot.phase === "finished"
           ? `${winner?.name ?? "Quelqu'un"} a gagné !`
           : isMyTurn
             ? dice === 0
               ? "À toi ! Lance le dé (Entrée)."
               : "Choisis un pion à déplacer."
-            : "Tour de l'adversaire…"}
+            : `Tour de ${
+                snapshot.players.find(
+                  (player) => player.userId === snapshot.currentTurn,
+                )?.name ?? "l'adversaire"
+              }…`}
       </div>
-
-      {lastMessage && (
-        <div
-          className="absolute left-1/2 top-16 z-10 -translate-x-1/2 rounded-md bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-black"
-          onAnimationEnd={() => setLastMessage(null)}
-        >
-          {lastMessage}
-        </div>
-      )}
 
       {/* Leave button */}
       <button

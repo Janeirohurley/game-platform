@@ -23,7 +23,11 @@ FROM oven/bun:1.4.2 AS builder
 
 WORKDIR /app
 
-ARG NEXT_PUBLIC_REALTIME_URL=http://localhost:2567
+# Left empty on purpose. With no value baked in, the browser derives the
+# game server's address from the page it was served from, so one image
+# works behind localhost, a LAN address or a domain. Compose passes a
+# value when a deployment needs to point somewhere else.
+ARG NEXT_PUBLIC_REALTIME_URL=
 ENV NEXT_PUBLIC_REALTIME_URL=${NEXT_PUBLIC_REALTIME_URL}
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production

@@ -11,9 +11,11 @@ import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
  * this file:
  *
  * - `BETTER_AUTH_URL` is always trusted (Better Auth trusts its own base URL);
- * - outside production, every `localhost` / `127.0.0.1` port is trusted — the
- *   dev server runs with `next dev --experimental-https` and its port can
- *   shift (3000, 3001, 3002…);
+ * - outside production, every loopback port is trusted — the dev server
+ *   runs with `next dev --experimental-https` and its port can shift
+ *   (3000, 3001, 3002…);
+ * - a LAN address is trusted too, so the app can be opened from a phone
+ *   or a second machine during development;
  * - `AUTH_TRUSTED_ORIGINS` adds a comma-separated list, wildcards allowed,
  *   e.g. `https://*.trycloudflare.com,http://192.168.1.42:3000`;
  * - `AUTH_ALLOW_ANY_ORIGIN=true` trusts every origin. Testing escape hatch
@@ -36,6 +38,15 @@ const localOrigins = isProduction
       "https://localhost:*",
       "http://127.0.0.1:*",
       "https://127.0.0.1:*",
+      // Private-network ranges, so the app opened from a phone or a
+      // second machine on the same Wi-Fi is trusted without having to
+      // name each address. Development only — this whole list is empty
+      // in production, where BETTER_AUTH_URL and AUTH_TRUSTED_ORIGINS
+      // decide.
+      "http://192.168.*.*:*",
+      "https://192.168.*.*:*",
+      "http://10.*.*.*:*",
+      "https://10.*.*.*:*",
     ];
 
 const configuredOrigins = (process.env.AUTH_TRUSTED_ORIGINS ?? "")

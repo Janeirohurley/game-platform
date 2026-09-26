@@ -1,21 +1,78 @@
+# Dependencies / package manager
 node_modules
+.pnpm-store
+.yarn
+.yarn-cache
+.npm
+.bun
+
+# Next.js
+.next
+out
+dist
+
+# Build / compilation caches
 build
+coverage
+.nyc_output
+.turbo
+.cache
+.parcel-cache
+.vite
+.eslintcache
+*.tsbuildinfo
+
+# Git
 .git
 .gitignore
+.gitattributes
 
+# Environment files
 .env
 .env.*
 !.env.example
 
+# Logs
 *.log
+logs
 
-coverage
-.nyc_output
-
-loadtest
+# Tests
 test
-Dockerfile
-.dockerignore
+tests
+__tests__
+loadtest
+playwright-report
+test-results
+coverage
+
+# Local development / temporary files
+.tmp
+.temp
+tmp
+temp
+.freebuff
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
 *.md
 
-.DS_Store
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+compose.yml
+compose.yaml
+
+# Miscellaneous
+*.bak
+*.tmp
+*.temp
