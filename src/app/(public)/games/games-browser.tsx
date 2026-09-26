@@ -270,7 +270,9 @@ function GameCard({ game }: { game: GameEntry }) {
         </div>
 
         <div className="mt-5 flex gap-2">
-          {game.playableOnline && (
+          {/* Online play only exists for live games — a game in development
+              shows a single "Discover" card pointing at its detail page. */}
+          {game.playableOnline && live && (
             <Link
               href={`/games/${game.slug}/play`}
               className="flex h-11 flex-1 items-center justify-center rounded-lg bg-emerald-600 text-sm font-medium text-white transition hover:bg-emerald-500"
@@ -283,7 +285,7 @@ function GameCard({ game }: { game: GameEntry }) {
             href={`/games/${game.slug}`}
             className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-950 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90"
           >
-            {game.playableOnline ? "Play locally" : "Discover"}
+            {game.playableOnline && live ? "Play locally" : "Discover"}
           </Link>
         </div>
       </div>

@@ -5,9 +5,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 
 import { auth } from "@/lib/auth";
-import { getGameBySlug } from "@/lib/games/registry";
+import { getGameBySlug, isGamePlayableOnline } from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
 import GameUniverseBackground from "@/components/game-universe-background";
+import { GameUnavailableNotice } from "@/components/game-unavailable-notice";
 
 import { PlayOnlineCheckers } from "./play-online-checkers";
 
@@ -23,6 +24,26 @@ export const metadata: Metadata = {
  */
 export default async function CheckersPlayOnlinePage() {
   const game = getGameBySlug("checkers");
+
+  // Server-side gate: a game still in development never reaches its play
+  // flow, even when the URL is typed directly.
+  if (!isGamePlayableOnline("checkers")) {
+    return (
+      <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
+        <GameUniverseBackground />
+        <div className="relative z-20">
+          <Navbar />
+          <div className="mx-auto w-full max-w-2xl px-4 pb-20 pt-16 sm:px-6">
+            <GameUnavailableNotice
+              gameTitle={game?.title ?? "Checkers"}
+              backHref="/games"
+            />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   const session = await auth.api.getSession({ headers: await headers() });
   const viewerUserId = session?.user?.id ?? "";
 

@@ -49,6 +49,9 @@ export function resolveRealtimeUrl(): string {
  */
 export const REALTIME_TOKEN_ISSUER = "game-platform";
 
+/** Guest-token issuer for anonymous spectators; mirrors server-games. */
+export const REALTIME_GUEST_TOKEN_ISSUER = "game-platform-guest";
+
 /** Lifetime of a realtime join token, in seconds. */
 export const REALTIME_TOKEN_TTL_SECONDS = 5 * 60;
 

@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Room } from "@colyseus/sdk";
 import { Canvas } from "@react-three/fiber";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Logout01Icon } from "@hugeicons/core-free-icons";
 
 import { RoomChat } from "@/components/realtime/chat";
 import { RallyScene } from "../components/rally-scene";
@@ -14,7 +12,7 @@ import { useOnlineRally } from "./use-online-rally";
 interface RallyRoomViewProps {
   room: Room;
   viewerUserId: string;
-  onLeave: () => void;
+  onLeave?: () => void;
 }
 
 /**
@@ -27,7 +25,6 @@ interface RallyRoomViewProps {
 export function RallyRoomView({
   room,
   viewerUserId,
-  onLeave,
 }: RallyRoomViewProps) {
   const {
     view,
@@ -213,15 +210,6 @@ export function RallyRoomView({
       </div>
 
       <RoomChat room={room} viewerUserId={viewerUserId} />
-
-      <button
-        type="button"
-        onClick={onLeave}
-        className="flex items-center gap-1.5 text-xs text-slate-400 transition-colors hover:text-red-500 dark:text-white/35 dark:hover:text-red-400"
-      >
-        <HugeiconsIcon icon={Logout01Icon} size={14} strokeWidth={1.8} />
-        Quitter la partie
-      </button>
     </div>
   );
 }

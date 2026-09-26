@@ -4,14 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Room } from "@colyseus/sdk";
 
 import { createRoom as createRoomRequest, joinRoom as joinRoomRequest, reconnectRoom } from "./client";
-import type { LobbyPlayerView, LobbySnapshot, RoomPhase } from "./types";
+import { readLobbySnapshot } from "./snapshot";
+import type { LobbySnapshot, RoomPhase } from "./types";
 
 export type RoomStatus = "idle" | "connecting" | "connected" | "error";
+
+/** How the local user wants to take part in the room. */
+export type JoinMode = "play" | "watch";
 
 interface UseRoomOptions {
   gameId: string;
   roomId?: string;
   targetPlayers?: number;
+  /** "play" requests a seat, "watch" lands as a spectator. Default "play". */
+  joinMode?: JoinMode;
   reconnectionToken?: string;
   onPlaying?: (roomId: string) => void;
 }
@@ -38,43 +44,11 @@ interface UseRoomEnabledOptions extends UseRoomOptions {
   enabled?: boolean;
 }
 
-function readSnapshot(room: Room): LobbySnapshot | null {
-  const state = room.state as unknown as
-    | {
-        gameId: string;
-        gameName: string;
-        minPlayers: number;
-        maxPlayers: number;
-        targetPlayers: number;
-        phase: RoomPhase;
-        hostUserId: string;
-        players: Map<string, LobbyPlayerView>;
-      }
-    | undefined;
-
-  // The SDK resolves create()/joinById() on the join handshake, but the
-  // first full state message can arrive on a later WebSocket frame.
-  // Until it does, `room.state` fields are undefined — return null and
-  // let the onStateChange subscription populate the snapshot instead of
-  // crashing on a half-decoded state.
-  if (!state?.players) return null;
-
-  return {
-    gameId: state.gameId,
-    gameName: state.gameName,
-    minPlayers: state.minPlayers,
-    maxPlayers: state.maxPlayers,
-    targetPlayers: state.targetPlayers,
-    phase: state.phase,
-    hostUserId: state.hostUserId,
-    players: [...state.players.values()].map((player) => ({ ...player })),
-  };
-}
-
 /**
- * Game-agnostic room hook: connect, mirror the lobby state in React,
- * expose lifecycle actions. Games read `snapshot` and, once
- * `phase === "playing"`, hand the connection to their own gameplay view.
+ * Game-agnostic room hook: connect (create, join or reconnect), mirror
+ * the lobby state in React, expose lifecycle actions. Games read
+ * `snapshot` and hand the connection to their own gameplay view once
+ * the match is running.
  *
  * Pass `enabled: false` to hold the connection until the user has made
  * their choices (e.g. table size) — nothing is created before that.
@@ -84,6 +58,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
     gameId,
     roomId,
     targetPlayers,
+    joinMode,
     reconnectionToken,
     onPlaying,
     enabled = true,
@@ -122,19 +97,19 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
       );
       // May be null if the first state frame has not arrived yet —
       // the onStateChange subscription below fills it in.
-      setSnapshot(readSnapshot(joined));
+      setSnapshot(readLobbySnapshot(joined));
       setStatus("connected");
 
       joined.onStateChange(() => {
-        if (!disposed) setSnapshot(readSnapshot(joined));
+        if (!disposed) setSnapshot(readLobbySnapshot(joined));
       });
 
       // Belt and braces: state frames can precede our subscription on
       // very fast connections. Poll briefly until the first snapshot
       // lands so the lobby never stays stuck on the spinner.
-      if (readSnapshot(joined) === null) {
+      if (readLobbySnapshot(joined) === null) {
         const waitForState = window.setInterval(() => {
-          const snapshot = readSnapshot(joined);
+          const snapshot = readLobbySnapshot(joined);
           if (snapshot) {
             window.clearInterval(waitForState);
             if (!disposed) setSnapshot(snapshot);
@@ -164,7 +139,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
         if (reconnectionToken) {
           joined = await reconnectRoom(reconnectionToken);
         } else if (roomId) {
-          joined = await joinRoomRequest(gameId, roomId);
+          joined = await joinRoomRequest(gameId, roomId, joinMode);
         } else {
           joined = await createRoomRequest(gameId, targetPlayers ?? 4);
         }
@@ -193,7 +168,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
         void activeRoom.leave(true);
       }
     };
-  }, [gameId, roomId, targetPlayers, reconnectionToken, enabled]);
+  }, [gameId, roomId, targetPlayers, joinMode, reconnectionToken, enabled]);
 
   const startGame = useCallback(() => {
     room?.send("startGame", {});
@@ -213,4 +188,9 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
     startGame,
     leave,
   };
+}
+
+/** Convenience: which lifecycle phases count as a running or done match. */
+export function isMatchLive(phase: RoomPhase): boolean {
+  return phase === "playing" || phase === "finished";
 }

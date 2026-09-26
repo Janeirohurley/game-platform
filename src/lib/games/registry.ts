@@ -34,6 +34,11 @@ export interface GameEntry {
   /** Player bounds for the realtime rooms (mirrors the server registry). */
   minPlayers: number;
   maxPlayers: number;
+  /**
+   * Table sizes the game supports (mirrors the server registry). The
+   * room creator picks a capacity among these — nothing else is valid.
+   */
+  allowedPlayerCounts?: readonly number[];
   status: GameStatus;
   /** Whether /games/<slug>/play (online rooms) is available. */
   playableOnline: boolean;
@@ -56,6 +61,7 @@ export const GAMES: readonly GameEntry[] = [
     category: "Board",
     minPlayers: 2,
     maxPlayers: 4,
+    allowedPlayerCounts: [2, 3, 4],
     status: "live",
     playableOnline: true,
     image: "/ludo.jpg",
@@ -72,7 +78,7 @@ export const GAMES: readonly GameEntry[] = [
     category: "Strategy",
     minPlayers: 2,
     maxPlayers: 2,
-    status: "live",
+    status: "coming-soon",
     playableOnline: true,
     icon: "CH",
     accent: "from-amber-300 via-orange-500 to-rose-700",
@@ -87,7 +93,7 @@ export const GAMES: readonly GameEntry[] = [
     category: "Arcade",
     minPlayers: 1,
     maxPlayers: 2,
-    status: "live",
+    status: "coming-soon",
     playableOnline: true,
     icon: "RA",
     accent: "from-orange-300 via-red-500 to-emerald-800",
@@ -111,4 +117,21 @@ export function getGameById(id: string): GameEntry | undefined {
 /** Distinct categories present in the registry, for the filter row. */
 export function listCategories(): GameCategory[] {
   return [...new Set(GAMES.map((game) => game.category))];
+}
+
+/**
+ * True when the game is open to everyone. Anything else (e.g.
+ * "coming-soon") hides it from matchmaking and blocks its play routes.
+ */
+export function isGameLive(slug: string): boolean {
+  return getGameBySlug(slug)?.status === "live";
+}
+
+/**
+ * True when the online rooms of a game can be created and joined.
+ * A game can be live locally while its realtime rooms stay closed.
+ */
+export function isGamePlayableOnline(slug: string): boolean {
+  const game = getGameBySlug(slug);
+  return Boolean(game && game.status === "live" && game.playableOnline);
 }

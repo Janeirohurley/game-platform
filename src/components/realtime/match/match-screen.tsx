@@ -1,0 +1,183 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import type { Room } from "@colyseus/sdk";
+
+import { readLobbySnapshot } from "@/lib/realtime/snapshot";
+import type { LobbySnapshot } from "@/lib/realtime/types";
+import type { MatchRole } from "@/lib/realtime/use-match-room";
+import { RoomChat } from "@/components/realtime/chat";
+
+import {
+  JoinRequestsPanel,
+  LeaveConfirmDialog,
+  MatchControls,
+  MatchHud,
+  RoomClosedNotice,
+  WaitingOverlay,
+} from "./index";
+
+export interface MatchScreenProps {
+  room: Room;
+  gameId: string;
+  viewerUserId: string;
+  /** Where "back" leads once the room is closed. */
+  backHref: string;
+  backLabel?: string;
+  /** Fired after a confirmed leave (the double confirmation lives here). */
+  onLeft?: () => void;
+  /** The game board, as the primary visual behind the overlays. */
+  children: ReactNode;
+}
+
+/**
+ * The generic integrated match screen (spec sections 1 and 14).
+ *
+ * The board — passed as `children` — stays the main visual. Overlays
+ * attach around it: match info top-left, join requests bottom-left,
+ * quit / close top-right, pending / spectator banners centre-top, chat
+ * bottom-right. Roles and permissions derive from the server state;
+ * the server re-validates every action anyway.
+ */
+export function MatchScreen({
+  room,
+  gameId,
+  viewerUserId,
+  backHref,
+  backLabel,
+  onLeft,
+  children,
+}: MatchScreenProps) {
+  const [lobby, setLobby] = useState<LobbySnapshot | null>(() =>
+    readLobbySnapshot(room),
+  );
+  const [confirmLeave, setConfirmLeave] = useState(false);
+
+  useEffect(() => {
+    const update = () => setLobby(readLobbySnapshot(room));
+    update();
+    // onStateChange is both a signal and an event object; the callable
+    // form subscribes and returns an unsubscribe function.
+    const unsubscribe = room.onStateChange(update) as unknown as
+      | (() => void)
+      | { remove: () => void };
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+      else unsubscribe.remove();
+    };
+  }, [room]);
+
+  if (!lobby) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-neutral-950 p-6">
+        <p className="text-sm text-neutral-400" role="status">
+          Synchronisation avec la room…
+        </p>
+      </div>
+    );
+  }
+
+  if (lobby.phase === "closed") {
+    return <RoomClosedNotice backHref={backHref} backLabel={backLabel} />;
+  }
+
+  const role: MatchRole = lobby.players.some((p) => p.userId === viewerUserId)
+    ? lobby.hostUserId === viewerUserId
+      ? "admin"
+      : "player"
+    : lobby.pendingPlayerRequests.some((r) => r.userId === viewerUserId)
+      ? "pending"
+      : "spectator";
+
+  const isAdmin = role === "admin";
+  const matchLive = lobby.phase === "playing" || lobby.phase === "finished";
+  // Anonymous viewers (guest tokens) watch only — the server refuses
+  // every seat request from them, so the button must not tease.
+  const canRequestJoin = viewerUserId !== "";
+
+  return (
+    <div className="fixed inset-0 z-50">
+      {/* The board owns the viewport — the game stays the main event.
+          Full-size boards fill the wrapper; column layouts center. */}
+      <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+        {children}
+      </div>
+
+      {/* The HUD stays through EVERY phase — waiting, playing, finished:
+          it is the match's identity card, it must never blink away. */}
+      <MatchHud
+        snapshot={lobby}
+        isAdmin={isAdmin}
+        onStart={() => room.send("startGame", {})}
+      />
+
+      {/* Waiting-only banners (invite link, pending, spectator CTA).
+          They leave the stage once the match is running. */}
+      {!matchLive && (
+        <WaitingOverlay
+          roomId={room.roomId}
+          gameId={gameId}
+          pendingRequest={role === "pending"}
+          isSpectator={role === "spectator"}
+          isAdmin={isAdmin}
+          onCopyInvite={() => {
+            const url = `${window.location.origin}/games/${gameId}/join/${room.roomId}`;
+            if (navigator.clipboard?.writeText) {
+              void navigator.clipboard.writeText(url);
+              return;
+            }
+            const textarea = document.createElement("textarea");
+            textarea.value = url;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+              document.execCommand("copy");
+            } catch {
+              // ignore
+            }
+            document.body.removeChild(textarea);
+          }}
+          onCancelRequest={
+            role === "pending"
+              ? () => room.send("cancelJoinRequest", {})
+              : undefined
+          }
+          onRequestJoin={
+            role === "spectator" && canRequestJoin
+              ? () => room.send("requestJoinAsPlayer", {})
+              : undefined
+          }
+        />
+      )}
+
+      <JoinRequestsPanel
+        snapshot={lobby}
+        role={role}
+        onApprove={(userId) => room.send("approveJoin", { userId })}
+        onReject={(userId) => room.send("rejectJoin", { userId })}
+      />
+
+      <MatchControls
+        isAdmin={isAdmin}
+        onLeaveRequest={() => setConfirmLeave(true)}
+        onCloseRoom={() => room.send("closeRoom", {})}
+      />
+
+      <RoomChat room={room} viewerUserId={viewerUserId} />
+
+      {confirmLeave && (
+        <LeaveConfirmDialog
+          onConfirm={() => {
+            setConfirmLeave(false);
+            room.leave(true);
+            onLeft?.();
+          }}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      )}
+    </div>
+  );
+}

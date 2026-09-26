@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
 import type { Room } from "@colyseus/sdk";
 
 import type {
@@ -15,6 +14,11 @@ import type { LudoPlayerView } from "@/lib/realtime/types";
 
 import LudoBoard from "../components/board/LudoBoard";
 import { GameToasts, useGameToasts } from "./game-toasts";
+import {
+  CameraRig,
+  type CameraViewName,
+} from "./camera-controls";
+import { CameraViewsPanel } from "./camera-views-panel";
 
 export interface ServerLudoSnapshot {
   gameId: string;
@@ -22,7 +26,7 @@ export interface ServerLudoSnapshot {
   minPlayers: number;
   maxPlayers: number;
   targetPlayers: number;
-  phase: "waiting" | "ready" | "playing" | "finished";
+  phase: "waiting" | "ready" | "playing" | "finished" | "closed";
   hostUserId: string;
   players: LudoPlayerView[];
   currentTurn: string;
@@ -35,7 +39,6 @@ export interface OnlineLudoPlayProps {
   room: Room;
   snapshot: ServerLudoSnapshot;
   viewerUserId: string;
-  onLeave: () => void;
 }
 
 const COLOR_ORDER = ["yellow", "red", "blue", "green"] as const;
@@ -54,9 +57,20 @@ export function OnlineLudoPlay({
   room,
   snapshot,
   viewerUserId,
-  onLeave,
 }: OnlineLudoPlayProps) {
   const { toasts, push } = useGameToasts();
+
+  /*
+   * Camera state (spec: "bien positionner la table"). The default is a
+   * stable three-quarter view; named views glide the camera, auto-rotate
+   * is opt-in, and the lock freezes everything for distraction-free
+   * watching. A manual drag clears the active view back to "free".
+   */
+  const [cameraView, setCameraView] = useState<CameraViewName | "free">(
+    "overview",
+  );
+  const [autoRotate, setAutoRotate] = useState(false);
+  const [cameraLocked, setCameraLocked] = useState(false);
 
   const boardRef = useRef<{
     throwDice: () => void;
@@ -297,40 +311,53 @@ export function OnlineLudoPlay({
           onDiceClick={handleRollDice}
         />
 
-        <OrbitControls
-          enablePan={true}
-          enableZoom={true}
-          minDistance={8}
-          maxDistance={40}
+        {/* Table stays centred: no pan, bounded zoom, named views. */}
+        <CameraRig
+          view={cameraView === "free" ? "overview" : cameraView}
+          autoRotate={autoRotate && !cameraLocked}
+          locked={cameraLocked}
+          onUserMove={() => setCameraView("free")}
         />
       </Canvas>
+
+      {/* Camera panel — bottom-right, above the chat bubble. */}
+      <div className="absolute bottom-20 right-4 z-20 sm:bottom-24">
+        <CameraViewsPanel
+          view={cameraView}
+          onViewChange={setCameraView}
+          autoRotate={autoRotate}
+          onAutoRotateChange={setAutoRotate}
+          locked={cameraLocked}
+          onLockedChange={setCameraLocked}
+          onReset={() => {
+            setAutoRotate(false);
+            setCameraLocked(false);
+            setCameraView("overview");
+          }}
+        />
+      </div>
 
       {/* What just happened — queued, animated, self-dismissing. */}
       <GameToasts toasts={toasts} />
 
-      {/* What to do now. Steady, so it never competes with the toasts. */}
-      <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-sm">
-        {snapshot.phase === "finished"
-          ? `${winner?.name ?? "Quelqu'un"} a gagné !`
-          : isMyTurn
-            ? dice === 0
-              ? "À toi ! Lance le dé (Entrée)."
-              : "Choisis un pion à déplacer."
-            : `Tour de ${
-                snapshot.players.find(
-                  (player) => player.userId === snapshot.currentTurn,
-                )?.name ?? "l'adversaire"
-              }…`}
-      </div>
-
-      {/* Leave button */}
-      <button
-        type="button"
-        onClick={onLeave}
-        className="absolute right-4 top-4 z-10 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-red-500/70"
-      >
-        Quitter
-      </button>
+      {/* What to do now. Steady, so it never competes with the toasts.
+          While waiting, the HUD already says whose turn it is not — the
+          hint stays out of the way. */}
+      {snapshot.phase === "playing" || snapshot.phase === "finished" ? (
+        <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/60 px-4 py-2 text-sm text-white backdrop-blur-sm">
+          {snapshot.phase === "finished"
+            ? `${winner?.name ?? "Quelqu'un"} a gagné !`
+            : isMyTurn
+              ? dice === 0
+                ? "À toi ! Lance le dé (Entrée)."
+                : "Choisis un pion à déplacer."
+              : `Tour de ${
+                  snapshot.players.find(
+                    (player) => player.userId === snapshot.currentTurn,
+                  )?.name ?? "l'adversaire"
+                }…`}
+        </div>
+      ) : null}
     </div>
   );
 }

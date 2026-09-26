@@ -1,8 +1,6 @@
 "use client";
 
 import type { Room } from "@colyseus/sdk";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Logout01Icon } from "@hugeicons/core-free-icons";
 
 import { RoomChat } from "@/components/realtime/chat";
 import { CheckersBoard } from "../components/checkers-board";
@@ -26,7 +24,6 @@ interface CheckersRoomViewProps {
 export function CheckersRoomView({
   room,
   viewerUserId,
-  onLeave,
 }: CheckersRoomViewProps) {
   const { state, viewerColor, canPlay, labels, lastMove, sendMove } =
     useOnlineCheckers(room, viewerUserId);
@@ -66,15 +63,6 @@ export function CheckersRoomView({
 
       {/* Room chat — generic infrastructure, not Checkers-specific. */}
       <RoomChat room={room} viewerUserId={viewerUserId} />
-
-      <button
-        type="button"
-        onClick={onLeave}
-        className="flex items-center gap-1.5 text-xs text-slate-400 transition-colors hover:text-red-500 dark:text-white/35 dark:hover:text-red-400"
-      >
-        <HugeiconsIcon icon={Logout01Icon} size={14} strokeWidth={1.8} />
-        Quitter la partie
-      </button>
     </div>
   );
 }

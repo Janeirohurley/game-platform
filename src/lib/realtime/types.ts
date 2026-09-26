@@ -6,7 +6,7 @@
  * imported) because the two sides live in separate codebases.
  */
 
-export type RoomPhase = "waiting" | "ready" | "playing" | "finished";
+export type RoomPhase = "waiting" | "ready" | "playing" | "finished" | "closed";
 
 /** Generic game identity, as declared in the realtime server registry. */
 export interface GameDefinition {
@@ -14,6 +14,8 @@ export interface GameDefinition {
   name: string;
   minPlayers: number;
   maxPlayers: number;
+  /** Table sizes the game supports — the creator picks among these. */
+  allowedPlayerCounts?: readonly number[];
 }
 
 /** A player entry in the generic lobby (server state mirror). */
@@ -23,6 +25,20 @@ export interface LobbyPlayerView {
   sessionId: string;
   seat: number;
   connected: boolean;
+}
+
+/** A read-only onlooker — outside player capacity. */
+export interface LobbySpectatorView {
+  userId: string;
+  name: string;
+  sessionId: string;
+}
+
+/** Someone who asked to play and awaits the admin's decision. */
+export interface LobbyPendingRequestView {
+  userId: string;
+  name: string;
+  requestedAt: number;
 }
 
 /** The lobby fields every game room exposes, generically. */
@@ -35,6 +51,10 @@ export interface LobbySnapshot {
   phase: RoomPhase;
   hostUserId: string;
   players: LobbyPlayerView[];
+  /** Users waiting for admin approval to become players. */
+  pendingPlayerRequests: LobbyPendingRequestView[];
+  /** Read-only onlookers — disjoint from players, outside capacity. */
+  spectators: LobbySpectatorView[];
 }
 
 /** Room listing entry returned by matchmaking queries. */
@@ -46,6 +66,8 @@ export interface RoomListing {
     targetPlayers: number;
     players: number;
     maxPlayers: number;
+    spectators: number;
+    phase: string;
   };
 }
 

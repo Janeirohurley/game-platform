@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
@@ -39,7 +39,27 @@ const dicePalettes = [
 ];
 
 export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-svh bg-slate-50 dark:bg-[#05070b]" />}>
+      <SignInContent />
+    </Suspense>
+  );
+}
+
+function SignInContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  /*
+   * Internal return path, when the visitor came from an auth-required
+   * popup ("Procéder à la connexion"). Only same-origin paths qualify —
+   * an open redirect is never acceptable.
+   */
+  const rawRedirect = searchParams.get("redirect");
+  const redirectTo =
+    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : "/games";
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -68,7 +88,7 @@ export default function SignInPage() {
       email: data.email,
       password: data.password,
       rememberMe: data.rememberMe,
-      callbackURL: "/games",
+      callbackURL: redirectTo,
     });
 
     if (error) {
@@ -80,7 +100,7 @@ export default function SignInPage() {
       return;
     }
 
-    router.push("/games");
+    router.push(redirectTo);
   }
 
   return (

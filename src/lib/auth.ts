@@ -23,13 +23,10 @@ import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
  *   deployment.
  */
 const isProduction = process.env.NODE_ENV === "production";
-const allowAnyOrigin = process.env.AUTH_ALLOW_ANY_ORIGIN === "true";
-
-if (allowAnyOrigin && isProduction) {
-  console.warn(
-    "[auth] AUTH_ALLOW_ANY_ORIGIN=true in a production build: every origin is trusted and the CSRF origin check is off. Unset it before going live.",
-  );
-}
+// "AUTH_ALLOW_ANY_ORIGIN=true" is a dev/test escape hatch: it trusts every
+// origin and disables the CSRF origin check. It is deliberately ignored in
+// production, so a real deployment can never be opened to arbitrary origins.
+const allowAnyOrigin = !isProduction && process.env.AUTH_ALLOW_ANY_ORIGIN === "true";
 
 const localOrigins = isProduction
   ? []

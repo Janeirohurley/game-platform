@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Room } from "@colyseus/sdk";
 
-import { GameLobby } from "@/components/realtime/lobby";
-import { RoomChat } from "@/components/realtime/chat";
+import { MatchScreen } from "@/components/realtime/match";
 import type { LudoPlayerView } from "@/lib/realtime/types";
 
 import { OnlineLudoPlay, type ServerLudoSnapshot } from "./online-ludo-play";
@@ -12,7 +11,8 @@ import { OnlineLudoPlay, type ServerLudoSnapshot } from "./online-ludo-play";
 export interface LudoRoomViewProps {
   room: Room;
   viewerUserId: string;
-  onLeave: () => void;
+  /** Fired after a confirmed leave (the double-confirmation lives in the match screen). */
+  onLeft: () => void;
 }
 
 function readState(room: Room): ServerLudoSnapshot | null {
@@ -58,19 +58,23 @@ function readState(room: Room): ServerLudoSnapshot | null {
 }
 
 /**
- * Ludo-specific room view. Subscribes to the joined room, keeps a local
- * mirror of the server state, and switches between:
- *   - the generic lobby (waiting / ready),
- *   - the 3D board driven by server state (playing),
- *   - the finished screen (finished).
+ * The Ludo match screen: the 3D board as the primary visual, wrapped by
+ * the GENERIC match shell (HUD top-left, join requests bottom-left,
+ * quit/close top-right, pending/spectator banners, chat bottom-right).
+ * The Ludo module only contributes its own state reading and its board;
+ * every room concern lives in the shared components (spec section 17).
  */
-export function LudoRoomView({ room, viewerUserId, onLeave }: LudoRoomViewProps) {
-  const [snapshot, setSnapshot] = useState<ServerLudoSnapshot | null>(() =>
+export function LudoRoomView({
+  room,
+  viewerUserId,
+  onLeft,
+}: LudoRoomViewProps) {
+  const [game, setGame] = useState<ServerLudoSnapshot | null>(() =>
     readState(room),
   );
 
   useEffect(() => {
-    const update = () => setSnapshot(readState(room));
+    const update = () => setGame(readState(room));
     update();
     // onStateChange is both a signal and an event object; the callable
     // form subscribes and returns an unsubscribe function.
@@ -79,38 +83,30 @@ export function LudoRoomView({ room, viewerUserId, onLeave }: LudoRoomViewProps)
       | { remove: () => void };
     // The first state frame may arrive before this subscription — poll
     // briefly until a decodable snapshot shows up.
+    let waitForState = 0;
+    let stopPolling = 0;
     if (readState(room) === null) {
-      const waitForState = window.setInterval(() => {
+      waitForState = window.setInterval(() => {
         const next = readState(room);
         if (next) {
           window.clearInterval(waitForState);
-          setSnapshot(next);
+          setGame(next);
         }
       }, 100);
-      const stopPolling = window.setTimeout(
+      stopPolling = window.setTimeout(
         () => window.clearInterval(waitForState),
         5_000,
       );
-      return () => {
-        if (typeof unsubscribe === "function") unsubscribe();
-        else unsubscribe.remove();
-        window.clearInterval(waitForState);
-        window.clearTimeout(stopPolling);
-      };
     }
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
       else unsubscribe.remove();
+      window.clearInterval(waitForState);
+      window.clearTimeout(stopPolling);
     };
   }, [room]);
 
-  const inviteUrl =
-    typeof window === "undefined"
-      ? ""
-      : `${window.location.origin}/games/ludo/join/${room.roomId}`;
-
-  // State frame not decoded yet — brief loading state.
-  if (!snapshot) {
+  if (!game) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-neutral-950 p-6">
         <p className="text-sm text-neutral-400" role="status">
@@ -120,38 +116,20 @@ export function LudoRoomView({ room, viewerUserId, onLeave }: LudoRoomViewProps)
     );
   }
 
-  if (snapshot.phase === "playing" || snapshot.phase === "finished") {
-    // The 3D board needs a real viewport: mount it fullscreen regardless
-    // of the hosting page layout (entry page, invitation landing…), so
-    // host and guests get the exact same full-size experience.
-    return (
-      <div className="fixed inset-0 z-50">
-        <OnlineLudoPlay
-          room={room}
-          snapshot={snapshot}
-          viewerUserId={viewerUserId}
-          onLeave={onLeave}
-        />
-
-        {/* The board owns the viewport, so the chat floats over it. */}
-        <RoomChat room={room} viewerUserId={viewerUserId} />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-neutral-950 p-6">
-      <GameLobby
-        snapshot={snapshot}
+    <MatchScreen
+      room={room}
+      gameId={game.gameId}
+      viewerUserId={viewerUserId}
+      backHref="/games/ludo/play"
+      backLabel="Retour au Ludo"
+      onLeft={onLeft}
+    >
+      <OnlineLudoPlay
+        room={room}
+        snapshot={game}
         viewerUserId={viewerUserId}
-        inviteUrl={inviteUrl}
-        onCopyInvite={() => void navigator.clipboard.writeText(inviteUrl)}
-        onLeave={onLeave}
-        onStart={() => room.send("startGame", {})}
       />
-
-      {/* Players can talk while the table fills up. */}
-      <RoomChat room={room} viewerUserId={viewerUserId} />
-    </div>
+    </MatchScreen>
   );
 }
