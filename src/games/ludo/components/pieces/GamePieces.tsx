@@ -12,6 +12,8 @@ import { playSound } from "@/lib/sounds";
 const STEP_DURATION = 0.18;
 // Height of the little arc the piece makes while hopping between tiles
 const HOP_HEIGHT = 0.3;
+// Height of the idle hop that marks a piece as pickable
+const BOUNCE_HEIGHT = 0.14;
 
 // A single game piece that animates tile-by-tile instead of teleporting
 // whenever its game position changes.
@@ -21,6 +23,7 @@ function AnimatedGamePiece({
   pieceIndex,
   offset,
   pieceColor,
+  bounce,
   onPieceClick,
 }: {
   piece: GamePiece;
@@ -28,6 +31,8 @@ function AnimatedGamePiece({
   pieceIndex: number;
   offset: [number, number];
   pieceColor: string;
+  /** Hop gently in place to say "this one is yours to pick". */
+  bounce: boolean;
   onPieceClick: (piece: GamePiece) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -112,7 +117,17 @@ function AnimatedGamePiece({
       // Idle: keep the piece settled on its current tile (offset may
       // change between renders as other pieces join/leave the tile).
       const [x, y, z] = currentCoordsRef.current;
-      groupRef.current.position.set(x + ox, y, z + oz);
+
+      // When the roll leaves a real choice, the eligible pieces hop in
+      // place so the player can see at a glance which ones are theirs
+      // to pick. Phase-shifted per piece so they do not move as a block.
+      const lift = bounce
+        ? Math.abs(
+            Math.sin(state.clock.elapsedTime * 4 + pieceIndex * 0.7),
+          ) * BOUNCE_HEIGHT
+        : 0;
+
+      groupRef.current.position.set(x + ox, y + lift, z + oz);
     }
   });
 
@@ -282,6 +297,13 @@ function GamePieces({
               pieceIndex={pieceIndex}
               offset={[dx, dz]}
               pieceColor={pieceColor}
+              // Every piece the roll can actually move hops, whatever
+              // the number. `canMove` already carries the rule: on a 6
+              // that includes the ones still in base, on anything less
+              // only those already on the track. It is also set for the
+              // viewer's own pieces only, so nobody sees the opponent's
+              // options.
+              bounce={piece.canMove}
               onPieceClick={onPieceClick}
             />
           );
