@@ -51,6 +51,20 @@ export interface GameEntry {
   glow?: string;
 }
 
+/**
+ * Every registered game id, as a tuple type + runtime list. Used by the
+ * database layer (game_stats/achievements/game_matches CHECKs and
+ * foreign-ish validation) so a gameId can only ever be one the registry
+ * knows. Add a game above and this follows automatically.
+ */
+export const GAME_IDS = ["ludo", "checkers", "rally"] as const;
+
+export type GameId = (typeof GAME_IDS)[number];
+
+export function isGameId(value: string): value is GameId {
+  return (GAME_IDS as readonly string[]).includes(value);
+}
+
 export const GAMES: readonly GameEntry[] = [
   {
     id: "ludo",
