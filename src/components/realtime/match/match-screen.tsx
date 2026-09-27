@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Room } from "@colyseus/sdk";
 
@@ -9,10 +9,12 @@ import type { LobbySnapshot } from "@/lib/realtime/types";
 import type { MatchRole } from "@/lib/realtime/use-match-room";
 import { RoomChat } from "@/components/realtime/chat";
 
+import { useRoomVoice } from "@/lib/realtime/use-room-voice";
+
 import {
+  CallBar,
   JoinRequestsPanel,
   LeaveConfirmDialog,
-  MatchControls,
   MatchHud,
   RoomClosedNotice,
   WaitingOverlay,
@@ -53,6 +55,73 @@ export function MatchScreen({
     readLobbySnapshot(room),
   );
   const [confirmLeave, setConfirmLeave] = useState(false);
+  /** Transient match events — "Jean a quitté le match" etc. (spec §10). */
+  const [notices, setNotices] = useState<string[]>([]);
+  /** Chat panel + unread badge — driven from the call bar. */
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(0);
+
+  // Voice is part of the generic match infrastructure: roles and the
+  // roster derive from the server state, the mic is requested only on
+  // user auto-action, and cleanup is guaranteed on leave/unmount.
+  const voice = useRoomVoice({ room, snapshot: lobby, viewerUserId });
+
+  // Room events without a dedicated handler (departures, reconnections,
+  // approvals, transfers) surface as transient notices. The wildcard
+  // subscription also silences the SDK's "not registered" warnings.
+  const noticeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  useEffect(() => {
+    const notice = (text: string): void => {
+      setNotices((current) => [...current.slice(-3), text]);
+      const timer = setTimeout(() => {
+        setNotices((current) => current.filter((n) => n !== text));
+      }, 4500);
+      noticeTimers.current.set(text, timer);
+    };
+    const playerName = (userId: string): string => {
+      const inLobby = lobby?.players.find((p) => p.userId === userId);
+      if (inLobby) return inLobby.name;
+      const spectator = lobby?.spectators.find((s) => s.userId === userId);
+      return spectator?.name ?? "Un participant";
+    };
+
+    const unsub = room.onMessage("*", (messageType, payload) => {
+      const data = (payload ?? {}) as { userId?: string; name?: string };
+      switch (messageType) {
+        case "playerLeft":
+          notice(`${data.name ?? playerName(data.userId ?? "")} a quitté le match.`);
+          break;
+        case "playerDisconnected":
+          notice(
+            `${data.name ?? playerName(data.userId ?? "")} est temporairement déconnecté.`,
+          );
+          break;
+        case "playerReconnected":
+          notice(`${playerName(data.userId ?? "")} est de retour.`);
+          break;
+        case "hostTransferred":
+          notice(`${playerName(data.userId ?? "")} dirige maintenant la partie.`);
+          break;
+        case "joinRequestApproved":
+          notice(`${playerName(data.userId ?? "")} a rejoint la partie.`);
+          break;
+        case "spectatorJoined":
+        case "spectatorLeft":
+          break; // counter in the HUD already reflects this in realtime
+        default:
+          break; // chat/game events have their own handlers elsewhere
+      }
+    });
+
+    const timers = noticeTimers.current;
+    return () => {
+      unsub();
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+    // lobby is read through the closure to resolve names; refresh it
+    // whenever it changes so notices never show a stale name.
+  }, [room, lobby]);
 
   useEffect(() => {
     const update = () => setLobby(readLobbySnapshot(room));
@@ -160,13 +229,54 @@ export function MatchScreen({
         onReject={(userId) => room.send("rejectJoin", { userId })}
       />
 
-      <MatchControls
-        isAdmin={isAdmin}
+      {/* Transient match notices (departures, reconnections…), stacked
+          in the bottom-left zone; nudged up when the admin's request
+          panel occupies the corner. */}
+      {notices.length > 0 && (
+        <div
+          className={`pointer-events-none absolute left-3 z-40 flex w-64 max-w-[calc(100vw-1.5rem)] flex-col gap-1.5 sm:left-4 ${
+            role === "admin" && lobby.pendingPlayerRequests.length > 0
+              ? "bottom-52"
+              : "bottom-3 sm:bottom-4"
+          }`}
+          aria-live="polite"
+        >
+          {notices.map((text) => (
+            <p
+              key={text}
+              className="rounded-lg border border-white/10 bg-black/55 px-3 py-1.5 text-[11px] leading-snug text-white/85 shadow-lg backdrop-blur-md"
+            >
+              {text}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* The Zoom-style call bar: mic, participants, chat, quit/close —
+          one icon-only line, bottom-centre, aligned with the chat. */}
+      <CallBar
+        voice={voice}
+        room={room}
+        viewerUserId={viewerUserId}
+        chatOpen={chatOpen}
+        onToggleChat={() => setChatOpen((v) => !v)}
+        unreadChat={unreadChat}
         onLeaveRequest={() => setConfirmLeave(true)}
         onCloseRoom={() => room.send("closeRoom", {})}
+        isAdmin={isAdmin}
       />
 
-      <RoomChat room={room} viewerUserId={viewerUserId} />
+      {/* Chat panel — opens above the call bar, bottom-centre-right. */}
+      <div className="pointer-events-none absolute bottom-16 right-3 z-50 flex justify-end sm:bottom-[4.5rem] sm:right-4">
+        <RoomChat
+          room={room}
+          viewerUserId={viewerUserId}
+          variant="controlled"
+          open={chatOpen}
+          onCloseRequest={() => setChatOpen(false)}
+          onUnreadChange={setUnreadChat}
+        />
+      </div>
 
       {confirmLeave && (
         <LeaveConfirmDialog

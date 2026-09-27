@@ -25,6 +25,10 @@ export interface LobbyPlayerView {
   sessionId: string;
   seat: number;
   connected: boolean;
+  /** Logical mic state, mirrored from the server (`voice:mute`). */
+  voiceMuted?: boolean;
+  /** Admin-imposed mute — the player cannot lift it themselves. */
+  adminMuted?: boolean;
 }
 
 /** A read-only onlooker — outside player capacity. */

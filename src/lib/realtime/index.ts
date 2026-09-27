@@ -19,4 +19,10 @@ export type {
 export { useMatchList, type MatchListController } from "./use-match-list";
 export { useRoomChat } from "./use-room-chat";
 export type { RoomChatController } from "./use-room-chat";
+export { useRoomVoice } from "./use-room-voice";
+export type {
+  RoomVoiceController,
+  VoiceParticipant,
+  VoiceStatus,
+} from "./use-room-voice";
 export type { RoomStatus } from "./use-room";

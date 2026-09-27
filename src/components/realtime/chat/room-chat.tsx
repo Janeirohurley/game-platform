@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import type { Room } from "@colyseus/sdk";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -20,9 +20,16 @@ interface RoomChatProps {
   /**
    * `floating` overlays the game (a bubble that opens a panel) and suits
    * a board that owns the whole viewport. `panel` is a plain block that
-   * a page lays out itself.
+   * a page lays out itself. `controlled` lets a parent (the call bar)
+   * own the open/close state — nothing renders when closed.
    */
-  variant?: "floating" | "panel";
+  variant?: "floating" | "panel" | "controlled";
+  /** `controlled` variant: the parent's open state. */
+  open?: boolean;
+  /** `controlled` variant: close requests from the panel header. */
+  onCloseRequest?: () => void;
+  /** Reports the unread count so a parent badge can display it. */
+  onUnreadChange?: (unread: number) => void;
 }
 
 /**
@@ -35,14 +42,31 @@ export function RoomChat({
   room,
   viewerUserId,
   variant = "floating",
+  open,
+  onCloseRequest,
+  onUnreadChange,
 }: RoomChatProps) {
   const { messages, error, send, dismissError } = useRoomChat(room);
-  const [open, setOpen] = useState(variant === "panel");
+  const [uncontrolledOpen, setOpen] = useState(variant === "panel");
   const [draft, setDraft] = useState("");
-  const [seen, setSeen] = useState(0);
   const inputId = useId();
 
-  const unread = open ? 0 : Math.max(0, messages.length - seen);
+  const isControlled = variant === "controlled";
+  const openNow = isControlled ? open === true : uncontrolledOpen;
+
+  // Opening the panel marks everything as seen — adjusted during render
+  // on prop/state change (React's recommended pattern; an effect would
+  // cascade).
+  const [seen, setSeen] = useState(0);
+  if (openNow && seen !== messages.length) {
+    setSeen(messages.length);
+  }
+  const unread = openNow ? 0 : Math.max(0, messages.length - seen);
+
+  // Report unread so a parent (call-bar badge) can display it.
+  useEffect(() => {
+    onUnreadChange?.(unread);
+  }, [unread, onUnreadChange]);
 
   const handleOpen = useCallback(() => {
     setOpen(true);
@@ -121,10 +145,26 @@ export function RoomChat({
     );
   }
 
+  if (isControlled) {
+    if (!openNow) return null;
+    return (
+      <section
+        aria-label="Chat de la partie"
+        className="pointer-events-auto flex h-[min(55vh,24rem)] w-80 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-neutral-900/95"
+      >
+        <Header
+          onClose={() => onCloseRequest?.()}
+          count={messages.length}
+        />
+        {body}
+      </section>
+    );
+  }
+
   // Floating: a bubble that opens a panel anchored bottom-right.
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-end p-3 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:p-0">
-      {open ? (
+      {openNow ? (
         <section
           aria-label="Chat de la partie"
           className="pointer-events-auto flex h-[min(60vh,26rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl backdrop-blur-xl sm:w-80 dark:border-white/10 dark:bg-neutral-900/95"

@@ -29,7 +29,10 @@ export function readLobbySnapshot(room: Room): LobbySnapshot | null {
         targetPlayers: number;
         phase: RoomPhase;
         hostUserId: string;
-        players: Map<string, LobbyPlayerView>;
+        players: Map<
+          string,
+          LobbyPlayerView & { voiceMuted?: boolean; adminMuted?: boolean }
+        >;
         pendingPlayerRequests: Map<string, LobbyPendingRequestView>;
         spectators: Map<string, LobbySpectatorView>;
       }
@@ -45,7 +48,11 @@ export function readLobbySnapshot(room: Room): LobbySnapshot | null {
     targetPlayers: state.targetPlayers,
     phase: state.phase,
     hostUserId: state.hostUserId,
-    players: [...state.players.values()].map((player) => ({ ...player })),
+    players: [...state.players.values()].map((player) => ({
+      ...player,
+      voiceMuted: player.voiceMuted,
+      adminMuted: player.adminMuted,
+    })),
     pendingPlayerRequests: [
       ...(state.pendingPlayerRequests?.values() ?? []),
     ].map((request) => ({ ...request })),

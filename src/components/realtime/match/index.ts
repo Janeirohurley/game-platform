@@ -21,4 +21,6 @@ export {
   AuthRequiredDialog,
   type AuthRequiredDialogProps,
 } from "./auth-required-dialog";
+export { VoiceControls } from "./voice-controls";
+export { CallBar } from "./call-bar";
 export { MatchScreen, type MatchScreenProps } from "./match-screen";
