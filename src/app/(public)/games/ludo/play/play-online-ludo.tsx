@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon, PlusSignIcon, UserGroupIcon } from "@hugeicons/core-free-icons";
 import type { Room } from "@colyseus/sdk";
@@ -9,9 +9,17 @@ import {
   createRoom,
   fetchRealtimeToken,
   getRealtimeClient,
+  joinRoom,
+  reconnectRoom,
   useMatchList,
   watchRoom,
 } from "@/lib/realtime";
+import {
+  clearRoomSession,
+  persistRoomSession,
+  readRoomIdFromUrl,
+  readRoomSession,
+} from "@/lib/realtime/session-url";
 import {
   AuthRequiredDialog,
   MatchList,
@@ -53,6 +61,7 @@ export function PlayOnlineLudo({
   const [targetPlayers, setTargetPlayers] = useState<number | null>(null);
   const [pendingJoin, setPendingJoin] = useState<PendingJoin | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** "create" | "join" | null — drives the sign-in popup when set. */
   const [authIntent, setAuthIntent] = useState<"create" | "join" | null>(
@@ -60,6 +69,47 @@ export function PlayOnlineLudo({
   );
 
   const matchList = useMatchList(gameId);
+
+  // ------------------------------------------------------------------
+  // Refresh survival: the URL carries the room id, sessionStorage the
+  // reconnection token. On mount, restore instead of bouncing the user
+  // back to the list — the server kept their seat (grace window).
+  // ------------------------------------------------------------------
+  const restoredForRef = useRef<string | null>(null);
+  useEffect(() => {
+    const urlRoomId = readRoomIdFromUrl();
+    if (!urlRoomId || restoredForRef.current === urlRoomId) return;
+    restoredForRef.current = urlRoomId;
+    setRestoring(true);
+    void (async () => {
+      try {
+        const session = readRoomSession(urlRoomId);
+        const mode = session?.mode ?? "watch";
+        const joined = session
+          ? // 1) Preferred: full reconnection (same seat, same role).
+            await reconnectRoom(session.reconnectionToken).catch(() =>
+              // 2) Fallback: fresh join; the server reclaims the seat
+              //    for the same userId or applies its own rules.
+              mode === "watch"
+                ? watchRoom(urlRoomId)
+                : joinRoom(gameId, urlRoomId, mode),
+            )
+          : // Guest/shared link without a stored session: watch.
+            await watchRoom(urlRoomId);
+        persistRoomSession(joined, mode);
+        setRoom(joined);
+      } catch {
+        // Room gone (closed, disposed) or session expired: clean slate.
+        clearRoomSession(urlRoomId);
+        setError(
+          "Cette partie n'est plus disponible. Voici les tables en cours.",
+        );
+      } finally {
+        setRestoring(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleJoin = useCallback((join: PendingJoin) => {
     setError(null);
@@ -75,6 +125,7 @@ export function PlayOnlineLudo({
                 token: await fetchRealtimeToken(),
                 mode: "play",
               });
+        persistRoomSession(joined, join.mode);
         setRoom(joined);
       } catch (joinError) {
         if (isAuthRequiredError(joinError)) {
@@ -101,6 +152,7 @@ export function PlayOnlineLudo({
       void (async () => {
         try {
           const joined = await createRoom(gameId, count);
+          persistRoomSession(joined, "play");
           setRoom(joined);
         } catch (createError) {
           setTargetPlayers(null);
@@ -126,6 +178,7 @@ export function PlayOnlineLudo({
         room={room}
         viewerUserId={viewerUserId}
         onLeft={() => {
+          clearRoomSession(room.roomId);
           setRoom(null);
           setPendingJoin(null);
           setTargetPlayers(null);
@@ -135,7 +188,7 @@ export function PlayOnlineLudo({
     );
   }
 
-  if (pendingJoin || (targetPlayers !== null && !error)) {
+  if (restoring || pendingJoin || (targetPlayers !== null && !error)) {
     return (
       <div
         className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-100/60 dark:border-white/[0.07] dark:bg-white/[0.02]"
@@ -231,7 +284,12 @@ function ConnectedMatch({ room, viewerUserId, onLeft }: ConnectedMatchProps) {
   // re-renders, the state updates are the render's concern.
   useMemo(() => {
     room.onLeave(() => setGone(true));
-    room.onMessage("roomClosed", () => setClosed(true));
+    room.onMessage("roomClosed", () => {
+      // Terminal for everyone: wipe the session markers so a refresh
+      // can never resurrect a dead room.
+      clearRoomSession(room.roomId);
+      setClosed(true);
+    });
   }, [room]);
 
   if (closed) {

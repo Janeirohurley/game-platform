@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Room } from "@colyseus/sdk";
 
 import {
   fetchRealtimeToken,
   getRealtimeClient,
+  reconnectRoom,
   watchRoom,
 } from "@/lib/realtime";
+import {
+  clearRoomSession,
+  persistRoomSession,
+  readRoomSession,
+} from "@/lib/realtime/session-url";
 import { LudoRoomView } from "@/games/ludo/online/ludo-room-view";
 
 export interface JoinOnlineLudoProps {
@@ -28,7 +34,42 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
   const router = useRouter();
   const [choice, setChoice] = useState<JoinChoice>(null);
   const [room, setRoom] = useState<Room | null>(null);
+  // Lazily derived from storage: a session was persisted for THIS room
+  // and this tab, so the component boots straight into restore mode.
+  const [restoring, setRestoring] = useState(
+    () => readRoomSession(roomId) !== null,
+  );
   const [error, setError] = useState<string | null>(null);
+
+  // A refresh on an invite link must not bounce the invitee back to the
+  // choice screen: the reconnection token (sessionStorage) restores the
+  // exact seat/role the server kept for them.
+  useEffect(() => {
+    const session = readRoomSession(roomId);
+    if (!session) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const joined = await reconnectRoom(session.reconnectionToken);
+        if (!cancelled) setRoom(joined);
+      } catch {
+        clearRoomSession(roomId); // gone or expired — back to the choice
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
+
+  if (restoring) {
+    return (
+      <p className="text-sm text-neutral-400" role="status">
+        Reconnexion à la partie…
+      </p>
+    );
+  }
 
   if (!choice) {
     return (
@@ -72,6 +113,7 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
                 token: await fetchRealtimeToken(),
                 mode: "play",
               });
+        persistRoomSession(joined, choice);
         setRoom(joined);
       } catch (joinError) {
         setError(
@@ -112,6 +154,7 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
       room={room}
       viewerUserId={viewerUserId}
       onLeft={() => {
+        clearRoomSession(roomId);
         router.push("/games/ludo");
       }}
     />
