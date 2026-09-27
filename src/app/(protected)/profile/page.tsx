@@ -1,14 +1,15 @@
-import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { profiles } from "@/lib/db/schema/profiles";
+import { ensureProfileForUser } from "@/lib/profile/queries";
+import { readPublicGamerProfile } from "@/lib/profile/read-model";
 import ProfilePageClient from "./profile-page-client";
 
-
-
+/**
+ * Owner profile page — the gamer profile with edit + security tabs.
+ * The owner sees everything; the public sees /profile/[username].
+ */
 export default async function ProfilePage() {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -18,27 +19,14 @@ export default async function ProfilePage() {
     redirect("/sign-in");
   }
 
-  const profileResult = await db
-    .select({
-      username: profiles.username,
-      displayName: profiles.displayName,
-      bio: profiles.bio,
-      avatarUrl: profiles.avatarUrl,
-      countryCode: profiles.countryCode,
-      isPublic: profiles.isPublic,
-      createdAt: profiles.createdAt,
-      updatedAt: profiles.updatedAt,
-    })
-    .from(profiles)
-    .where(eq(profiles.userId, session.user.id))
-    .limit(1);
+  // Old accounts get their gamer profile on first visit — honest
+  // defaults, no fake stats (see ensureProfileForUser).
+  await ensureProfileForUser(session.user.id, session.user.name);
 
-  const profile = profileResult[0] ?? null;
+  const data = await readPublicGamerProfile(session.user.id, {
+    viewerUserId: session.user.id,
+    isOwner: true,
+  });
 
-  return (
-    <ProfilePageClient
-      initialSession={session}
-      initialProfile={profile}
-    />
-  );
+  return <ProfilePageClient data={data} />;
 }

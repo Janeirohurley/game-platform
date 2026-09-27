@@ -18,26 +18,17 @@ import {
   profileSchema,
   type ProfileInput,
 } from "@/lib/validation/profile";
+import { listGames } from "@/lib/games/registry";
+import type { PublicGamerProfileView } from "@/lib/profile/read-model";
 import { saveProfile } from "./actions";
 
-type InitialSession =
-  typeof authClient.$Infer.Session;
+import { GamerProfileHeader } from "@/components/profile/gamer-profile-header";
+import { ProfileStatsStrip } from "@/components/profile/profile-stats-strip";
+import { ProfileGamesPanel } from "@/components/profile/profile-games-panel";
+import { ProfileAchievementsPanel } from "@/components/profile/profile-achievements-panel";
+import { ProfileActivityPanel } from "@/components/profile/profile-activity-panel";
 
-type InitialProfile = {
-  username: string;
-  displayName: string | null;
-  bio: string | null;
-  avatarUrl: string | null;
-  countryCode: string | null;
-  isPublic: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-} | null;
-
-type Props = {
-  initialSession: InitialSession;
-  initialProfile: InitialProfile;
-};
+type Props = { data: PublicGamerProfileView };
 
 type Tab = "overview" | "edit" | "security";
 
@@ -50,15 +41,6 @@ type SecuritySession = {
   ipAddress?: string | null;
   userAgent?: string | null;
 };
-
-function getInitials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 function formatDate(value: Date | string) {
   return new Intl.DateTimeFormat("en", {
@@ -102,49 +84,35 @@ function getDeviceName(userAgent: string | null | undefined) {
   return "Web browser";
 }
 
-export default function ProfilePageClient({
-  initialSession,
-  initialProfile,
-}: Props) {
+export default function ProfilePageClient({ data }: Props) {
   const {
     data: liveSession,
     isPending,
     refetch,
   } = authClient.useSession();
 
-  const session = liveSession ?? initialSession;
+  const session = liveSession ?? null;
 
   const [tab, setTab] = useState<Tab>("overview");
   const [saved, setSaved] = useState(false);
-  const [sessions, setSessions] = useState<
-    SecuritySession[]
-  >([]);
+  const [sessions, setSessions] = useState<SecuritySession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [revoking, setRevoking] = useState(false);
 
-  const profile = initialProfile;
-
   const defaultValues = useMemo<ProfileInput>(
     () => ({
-      username:
-        profile?.username ??
-        session.user.name.toLowerCase().replace(/\s+/g, "_"),
-      displayName:
-        profile?.displayName ??
-        session.user.name ??
-        "",
-      bio: profile?.bio ?? "",
-      avatarUrl:
-        profile?.avatarUrl ??
-        session.user.image ??
-        "",
-      countryCode:
-        profile?.countryCode ?? "",
-      isPublic:
-        profile?.isPublic ?? true,
+      username: data.gamerTag,
+      displayName: data.displayName,
+      bio: data.bio ?? "",
+      avatarUrl: data.avatarUrl ?? "",
+      coverUrl: data.coverUrl ?? "",
+      countryCode: data.country ?? "",
+      languages: data.languages,
+      favoriteGames: data.favoriteGameIds,
+      isPublic: data.isPublic,
     }),
-    [profile, session.user],
+    [data],
   );
 
   const form = useForm<ProfileInput>({
@@ -155,39 +123,31 @@ export default function ProfilePageClient({
   const {
     register,
     handleSubmit,
-    watch,
     reset,
-    formState: {
-      errors,
-      isSubmitting,
-      isDirty,
-    },
+    watch,
+    formState: { errors, isSubmitting, isDirty },
   } = form;
 
   useEffect(() => {
     reset(defaultValues);
   }, [defaultValues, reset]);
 
-  const watchedName = watch("displayName");
-
-  async function onSubmit(data: ProfileInput) {
+  async function onSubmit(formValues: ProfileInput) {
     setSaved(false);
 
-    const result = await saveProfile(data);
+    const result = await saveProfile(formValues);
 
     if (!result.success) {
       form.setError("root.server", {
         type: "server",
         message: result.message,
       });
-
       return;
     }
 
     await refetch();
-
     setSaved(true);
-    reset(data);
+    reset(formValues);
 
     window.setTimeout(() => {
       setSaved(false);
@@ -198,7 +158,7 @@ export default function ProfilePageClient({
     setSessionsLoading(true);
     setSessionError("");
 
-    const { data, error } =
+    const { data: sessionData, error } =
       await authClient.listSessions();
 
     if (error) {
@@ -211,7 +171,7 @@ export default function ProfilePageClient({
     }
 
     setSessions(
-      (data ?? []) as SecuritySession[],
+      (sessionData ?? []) as SecuritySession[],
     );
 
     setSessionsLoading(false);
@@ -267,7 +227,7 @@ export default function ProfilePageClient({
 
   if (isPending && !liveSession) {
     return (
-      <main className="min-h-svh bg-[#05070b] text-white">
+      <main className="min-h-svh bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
         <div className="mx-auto flex min-h-svh max-w-6xl items-center justify-center px-6">
           <div className="text-sm text-white/45">
             Loading profile...
@@ -277,75 +237,13 @@ export default function ProfilePageClient({
     );
   }
 
-  const userName =
-    session.user.name || "Game Arena player";
-
-  const avatarUrl =
-    profile?.avatarUrl || session.user.image;
-
-  const initials = getInitials(userName);
+  const games = listGames();
 
   return (
     <main className="min-h-svh bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <header className="flex flex-col gap-6 border-b border-slate-200 pb-8 dark:border-white/10 md:flex-row md:items-end md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-xl font-semibold text-white dark:bg-white dark:text-black">
-              {avatarUrl ? (
-                <div
-                  aria-label={userName}
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url("${avatarUrl}")`,
-                  }}
-                />
-              ) : (
-                initials
-              )}
-            </div>
-
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                  {userName}
-                </h1>
-
-                {session.user.emailVerified ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
-                    <HugeiconsIcon
-                      icon={CheckmarkCircle02Icon}
-                      size={13}
-                      strokeWidth={1.8}
-                    />
-                    Verified
-                  </span>
-                ) : null}
-              </div>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-white/45">
-                @{profile?.username ?? "player"}
-              </p>
-
-              <p className="mt-2 text-sm text-slate-500 dark:text-white/35">
-                {session.user.email}
-              </p>
-            </div>
-          </div>
-
-          <Link
-            href="/games"
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-black dark:hover:bg-white/90"
-          >
-            Back to games
-            <HugeiconsIcon
-              icon={ArrowRight01Icon}
-              size={16}
-              strokeWidth={1.8}
-              className="ml-2"
-            />
-          </Link>
-        </header>
+        <GamerProfileHeader data={data} isOwner />
+        <ProfileStatsStrip data={data} />
 
         {/* Tabs */}
         <div className="mt-6 flex flex-wrap gap-1 border-b border-slate-200 dark:border-white/10">
@@ -372,106 +270,79 @@ export default function ProfilePageClient({
           ))}
         </div>
 
-        {/* Overview */}
+        {/* Overview — the gamer profile panels, owner edition. */}
         {tab === "overview" ? (
-          <section className="mt-8 grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-            <div className="border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-white/30">
-                    About
-                  </p>
-
-                  <h2 className="mt-2 text-lg font-semibold">
-                    Profile
-                  </h2>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setTab("edit")}
-                  className="text-sm font-medium text-cyan-600 hover:underline dark:text-cyan-300"
-                >
-                  Edit
-                </button>
-              </div>
-
-              <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-white/60">
-                {profile?.bio ||
-                  "Add a short description to tell other players who you are."}
-              </p>
+          <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_420px]">
+            <div className="space-y-6">
+              <ProfileAchievementsPanel achievements={data.achievements} />
+              <ProfileActivityPanel activity={data.activity} />
             </div>
+            <div className="space-y-6">
+              <ProfileGamesPanel games={data.games} />
 
-            <div className="space-y-5">
-              <div className="border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-white/30">
-                  Account
-                </p>
-
-                <div className="mt-5 space-y-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm text-slate-500 dark:text-white/45">
-                      Email
-                    </span>
-
-                    <span className="flex min-w-0 items-center gap-2 text-right text-sm font-medium">
-                      <HugeiconsIcon
-                        icon={Mail01Icon}
-                        size={15}
-                        strokeWidth={1.7}
-                      />
-                      <span className="truncate">
-                        {session.user.email}
-                      </span>
-                    </span>
-                  </div>
-
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/[0.025]">
+                <h2 className="text-xs uppercase tracking-[0.16em] text-slate-400 dark:text-white/30">
+                  Compte
+                </h2>
+                <div className="mt-4 space-y-3">
+                  {session ? (
+                    <>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm text-slate-500 dark:text-white/45">
+                          Email
+                        </span>
+                        <span className="flex min-w-0 items-center gap-2 text-right text-sm font-medium">
+                          <HugeiconsIcon
+                            icon={Mail01Icon}
+                            size={15}
+                            strokeWidth={1.7}
+                          />
+                          <span className="truncate">
+                            {session.user.email}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500 dark:text-white/45">
+                          Email status
+                        </span>
+                        <span className="text-sm font-medium">
+                          {session.user.emailVerified
+                            ? "Verified"
+                            : "Not verified"}
+                        </span>
+                      </div>
+                    </>
+                  ) : null}
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-500 dark:text-white/45">
-                      Email status
+                      Visibilité
                     </span>
-
                     <span className="text-sm font-medium">
-                      {session.user.emailVerified
-                        ? "Verified"
-                        : "Not verified"}
+                      {data.isPublic ? "Public" : "Privé"}
                     </span>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-500 dark:text-white/45">
-                      Visibility
+                      Série actuelle
                     </span>
-
-                    <span className="text-sm font-medium">
-                      {profile?.isPublic
-                        ? "Public"
-                        : "Private"}
+                    <span className="text-sm font-medium tabular-nums">
+                      {data.currentStreak > 0
+                        ? `${data.currentStreak} victoires`
+                        : data.currentStreak < 0
+                          ? `${Math.abs(data.currentStreak)} défaites`
+                          : "—"}
                     </span>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-500 dark:text-white/45">
-                      Member since
+                      Meilleure série
                     </span>
-
-                    <span className="text-sm font-medium">
-                      {formatDate(session.user.createdAt)}
+                    <span className="text-sm font-medium tabular-nums">
+                      {data.bestStreak}
                     </span>
                   </div>
                 </div>
-              </div>
-
-              <div className="border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-white/30">
-                  Game Arena
-                </p>
-
-                <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-white/45">
-                  Your game statistics, achievements and match
-                  history will appear here as those systems are
-                  connected.
-                </p>
               </div>
             </div>
           </section>
@@ -485,14 +356,13 @@ export default function ProfilePageClient({
               className="space-y-6"
               noValidate
             >
-              <div className="border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
                 <div className="mb-7">
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-white/30">
-                    Profile information
+                    Profil de gameur
                   </p>
-
                   <h2 className="mt-2 text-xl font-semibold">
-                    Customize your player profile
+                    Personnalise ton identité de jeu
                   </h2>
                 </div>
 
@@ -502,15 +372,16 @@ export default function ProfilePageClient({
                       htmlFor="username"
                       className="mb-2 block text-sm font-medium"
                     >
-                      Username
+                      Gamer tag
                     </label>
-
                     <input
                       id="username"
                       {...register("username")}
                       className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
                     />
-
+                    <p className="mt-1.5 text-xs text-slate-400 dark:text-white/30">
+                      Ton identité publique en jeu. Unique.
+                    </p>
                     {errors.username ? (
                       <p className="mt-2 text-xs text-rose-500">
                         {errors.username.message}
@@ -523,15 +394,13 @@ export default function ProfilePageClient({
                       htmlFor="displayName"
                       className="mb-2 block text-sm font-medium"
                     >
-                      Display name
+                      Nom d&apos;affichage
                     </label>
-
                     <input
                       id="displayName"
                       {...register("displayName")}
                       className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
                     />
-
                     {errors.displayName ? (
                       <p className="mt-2 text-xs text-rose-500">
                         {errors.displayName.message}
@@ -540,27 +409,48 @@ export default function ProfilePageClient({
                   </div>
                 </div>
 
-                <div className="mt-5">
-                  <label
-                    htmlFor="avatarUrl"
-                    className="mb-2 block text-sm font-medium"
-                  >
-                    Avatar URL
-                  </label>
+                <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="avatarUrl"
+                      className="mb-2 block text-sm font-medium"
+                    >
+                      Avatar (URL)
+                    </label>
+                    <input
+                      id="avatarUrl"
+                      type="url"
+                      placeholder="https://..."
+                      {...register("avatarUrl")}
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
+                    />
+                    {errors.avatarUrl ? (
+                      <p className="mt-2 text-xs text-rose-500">
+                        {errors.avatarUrl.message}
+                      </p>
+                    ) : null}
+                  </div>
 
-                  <input
-                    id="avatarUrl"
-                    type="url"
-                    placeholder="https://..."
-                    {...register("avatarUrl")}
-                    className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
-                  />
-
-                  {errors.avatarUrl ? (
-                    <p className="mt-2 text-xs text-rose-500">
-                      {errors.avatarUrl.message}
-                    </p>
-                  ) : null}
+                  <div>
+                    <label
+                      htmlFor="coverUrl"
+                      className="mb-2 block text-sm font-medium"
+                    >
+                      Couverture (URL)
+                    </label>
+                    <input
+                      id="coverUrl"
+                      type="url"
+                      placeholder="https://..."
+                      {...register("coverUrl")}
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
+                    />
+                    {errors.coverUrl ? (
+                      <p className="mt-2 text-xs text-rose-500">
+                        {errors.coverUrl.message}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="mt-5">
@@ -570,16 +460,14 @@ export default function ProfilePageClient({
                   >
                     Bio
                   </label>
-
                   <textarea
                     id="bio"
-                    rows={5}
+                    rows={4}
                     maxLength={280}
-                    placeholder="Tell the community a little about yourself."
+                    placeholder="Ta vie de joueur en quelques lignes."
                     {...register("bio")}
                     className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm leading-6 outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
                   />
-
                   {errors.bio ? (
                     <p className="mt-2 text-xs text-rose-500">
                       {errors.bio.message}
@@ -593,9 +481,8 @@ export default function ProfilePageClient({
                       htmlFor="countryCode"
                       className="mb-2 block text-sm font-medium"
                     >
-                      Country code
+                      Pays (code)
                     </label>
-
                     <input
                       id="countryCode"
                       placeholder="BI"
@@ -603,7 +490,6 @@ export default function ProfilePageClient({
                       {...register("countryCode")}
                       className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm uppercase outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
                     />
-
                     {errors.countryCode ? (
                       <p className="mt-2 text-xs text-rose-500">
                         {errors.countryCode.message}
@@ -611,23 +497,76 @@ export default function ProfilePageClient({
                     ) : null}
                   </div>
 
-                  <label className="flex min-h-11 items-center gap-3 self-end">
+                  <div>
+                    <label
+                      htmlFor="languages"
+                      className="mb-2 block text-sm font-medium"
+                    >
+                      Langues
+                    </label>
                     <input
-                      type="checkbox"
-                      {...register("isPublic")}
-                      className="size-4 accent-cyan-500"
+                      id="languages"
+                      placeholder="fr, en"
+                      {...register("languages")}
+                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-cyan-400 dark:border-white/10 dark:bg-white/[0.03]"
                     />
-
-                    <span>
-                      <span className="block text-sm font-medium">
-                        Public profile
-                      </span>
-                      <span className="block text-xs text-slate-400 dark:text-white/35">
-                        Allow other players to see your profile.
-                      </span>
-                    </span>
-                  </label>
+                    <p className="mt-1.5 text-xs text-slate-400 dark:text-white/30">
+                      Codes séparés par des virgules (max 5).
+                    </p>
+                    {errors.languages ? (
+                      <p className="mt-2 text-xs text-rose-500">
+                        {errors.languages.message}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
+
+                {/* Favorite games — registry-driven, generic. */}
+                <fieldset className="mt-6">
+                  <legend className="mb-2 block text-sm font-medium">
+                    Jeux favoris
+                  </legend>
+                  <div className="flex flex-wrap gap-2">
+                    {games.map((game) => {
+                      const current = watch("favoriteGames") ?? [];
+                      const checked = current.includes(game.id);
+                      return (
+                        <label
+                          key={game.id}
+                          className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+                            checked
+                              ? "border-cyan-400 bg-cyan-50 text-cyan-700 dark:border-cyan-400/40 dark:bg-cyan-400/10 dark:text-cyan-300"
+                              : "border-slate-200 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.05]"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            value={game.id}
+                            {...register("favoriteGames")}
+                            className="sr-only"
+                          />
+                          {game.title}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <label className="mt-6 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    {...register("isPublic")}
+                    className="size-4 accent-cyan-500"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">
+                      Profil public
+                    </span>
+                    <span className="block text-xs text-slate-400 dark:text-white/35">
+                      Permettre aux autres joueurs de voir ton profil.
+                    </span>
+                  </span>
+                </label>
               </div>
 
               {errors.root?.server?.message ? (
@@ -643,13 +582,13 @@ export default function ProfilePageClient({
                 <div
                   role="status"
                   className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300"
-                >
+              >
                   <HugeiconsIcon
                     icon={CheckmarkCircle02Icon}
                     size={17}
                     strokeWidth={1.7}
                   />
-                  Profile saved successfully.
+                  Profil enregistré.
                 </div>
               ) : null}
 
@@ -663,7 +602,7 @@ export default function ProfilePageClient({
                   disabled={!isDirty || isSubmitting}
                   className="h-11 rounded-lg border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/75 dark:hover:bg-white/[0.06]"
                 >
-                  Discard
+                  Annuler
                 </button>
 
                 <button
@@ -672,8 +611,8 @@ export default function ProfilePageClient({
                   className="h-11 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-white/90"
                 >
                   {isSubmitting
-                    ? "Saving..."
-                    : "Save changes"}
+                    ? "Enregistrement..."
+                    : "Enregistrer"}
                 </button>
               </div>
             </form>
@@ -683,7 +622,7 @@ export default function ProfilePageClient({
         {/* Security */}
         {tab === "security" ? (
           <section className="mt-8 grid gap-5 lg:grid-cols-[1fr_300px]">
-            <div className="border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-white/30">
@@ -691,12 +630,12 @@ export default function ProfilePageClient({
                   </p>
 
                   <h2 className="mt-2 text-xl font-semibold">
-                    Active devices
+                    Appareils actifs
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/45">
-                    Review where your Game Arena account is currently
-                    signed in.
+                    Revois où ton compte Game Arena est actuellement
+                    connecté.
                   </p>
                 </div>
 
@@ -736,7 +675,7 @@ export default function ProfilePageClient({
                   {sessions.map((item) => {
                     const isCurrent =
                       item.token ===
-                      session.session.token;
+                      session?.session.token;
 
                     return (
                       <div
@@ -789,7 +728,7 @@ export default function ProfilePageClient({
             </div>
 
             <div className="space-y-5">
-              <div className="border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
                 <HugeiconsIcon
                   icon={LockPasswordIcon}
                   size={21}
@@ -798,19 +737,19 @@ export default function ProfilePageClient({
                 />
 
                 <h3 className="mt-4 font-semibold">
-                  Password
+                  Mot de passe
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/40">
-                  Use the password reset flow to choose a new
-                  password.
+                  Utilise le flux de réinitialisation pour choisir un
+                  nouveau mot de passe.
                 </p>
 
                 <Link
                   href="/forgot-password"
                   className="mt-5 inline-flex items-center text-sm font-medium text-slate-950 hover:underline dark:text-white"
                 >
-                  Reset password
+                  Réinitialiser le mot de passe
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
                     size={15}
@@ -820,7 +759,7 @@ export default function ProfilePageClient({
                 </Link>
               </div>
 
-              <div className="border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-white/10 dark:bg-white/[0.025]">
                 <HugeiconsIcon
                   icon={EyeIcon}
                   size={21}
@@ -829,15 +768,13 @@ export default function ProfilePageClient({
                 />
 
                 <h3 className="mt-4 font-semibold">
-                  Profile visibility
+                  Visibilité du profil
                 </h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/40">
-                  Your profile is currently{" "}
+                  Ton profil est actuellement{" "}
                   <strong className="font-medium text-slate-700 dark:text-white/70">
-                    {profile?.isPublic
-                      ? "public"
-                      : "private"}
+                    {data.isPublic ? "public" : "privé"}
                   </strong>
                   .
                 </p>
@@ -847,7 +784,7 @@ export default function ProfilePageClient({
                   onClick={() => setTab("edit")}
                   className="mt-5 inline-flex items-center text-sm font-medium text-slate-950 hover:underline dark:text-white"
                 >
-                  Change visibility
+                  Changer la visibilité
                   <HugeiconsIcon
                     icon={ArrowRight01Icon}
                     size={15}

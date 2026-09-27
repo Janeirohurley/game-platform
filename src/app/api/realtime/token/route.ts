@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { ensureProfileForUser, getRealtimeIdentityForUser } from "@/lib/profile/queries";
 import {
   REALTIME_GUEST_TOKEN_ISSUER,
   REALTIME_TOKEN_ISSUER,
@@ -64,7 +65,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const token = await new SignJWT({ name: session.user.name })
+  // Gaming identity in the token: the room roster shows the gamerTag
+  // and avatar. A missing profile (old account) is created on the fly —
+  // honest defaults, no fake stats. Failure degrades to the platform
+  // name: playing must never depend on the profile.
+  let gamerTag = session.user.name;
+  let avatarUrl: string | null | undefined = session.user.image ?? null;
+  try {
+    await ensureProfileForUser(session.user.id, session.user.name);
+    const identity = await getRealtimeIdentityForUser(session.user.id);
+    if (identity) {
+      gamerTag = identity.username;
+      avatarUrl = identity.avatarUrl;
+    }
+  } catch (error) {
+    console.error("[realtime-token] profile lookup failed:", error);
+  }
+
+  const token = await new SignJWT({
+    name: session.user.name,
+    gamerTag,
+    avatarUrl,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(session.user.id)
     .setIssuer(REALTIME_TOKEN_ISSUER)
