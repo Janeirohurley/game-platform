@@ -21,20 +21,55 @@ export interface CameraViewsPanelProps {
   onReset: () => void;
 }
 
-const VIEW_BUTTONS: { name: CameraViewName; label: string }[] = [
-  { name: "overview", label: "Table" },
-  { name: "top", label: "Dessus" },
-  { name: "front", label: "Face" },
-  { name: "left", label: "Gauche" },
-  { name: "right", label: "Droite" },
+const VIEW_BUTTONS: {
+  name: CameraViewName;
+  label: string;
+}[] = [
+  { name: "overview", label: "Vue générale" },
+  { name: "top", label: "Vue dessus" },
+  { name: "front", label: "Vue face" },
+  { name: "left", label: "Vue gauche" },
+  { name: "right", label: "Vue droite" },
 ];
 
-/**
- * The camera panel, bottom-right of the board (spec: "bien positionner
- * la table"). Named views glide the camera, auto-rotate is opt-in, the
- * lock freezes the view entirely, Reset restores the default framing.
- * Collapsible so it never covers the board on small screens.
- */
+function CameraActionTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="group/tooltip relative flex items-center">
+      {children}
+
+      <div
+        className="
+          pointer-events-none
+          absolute bottom-full left-1/2
+          mb-2
+          -translate-x-1/2 translate-y-1
+          whitespace-nowrap
+          rounded-md
+          border border-white/10
+          bg-black/90
+          px-2.5 py-1.5
+          text-[11px] font-medium
+          text-white
+          opacity-0
+          shadow-lg
+          backdrop-blur-md
+          transition-all duration-150
+          group-hover/tooltip:translate-y-0
+          group-hover/tooltip:opacity-100
+        "
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
+
 export function CameraViewsPanel({
   view,
   onViewChange,
@@ -44,88 +79,226 @@ export function CameraViewsPanel({
   onLockedChange,
   onReset,
 }: CameraViewsPanelProps) {
-  const [open, setOpen] = useState(true);
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Ouvrir les vues caméra"
-        className="pointer-events-auto flex items-center gap-1.5 rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-xs font-medium text-white/85 shadow-lg backdrop-blur-md transition hover:bg-black/75"
-      >
-        <HugeiconsIcon icon={CameraIcon} size={14} strokeWidth={1.8} />
-        Caméra
-      </button>
-    );
-  }
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="pointer-events-auto w-44 rounded-xl border border-white/10 bg-black/70 p-3 text-white shadow-xl backdrop-blur-md">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">
-          Vues caméra
-        </p>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          aria-label="Replier les vues caméra"
-          className="rounded-md px-1.5 py-0.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+    <div className="pointer-events-auto flex items-center">
+      {/* Actions horizontales */}
+      <div
+        className={`
+          overflow-visible
+          transition-all
+          duration-300
+          ease-[cubic-bezier(.4,0,.2,1)]
+          ${
+            open
+              ? "mr-2 w-auto translate-x-0 opacity-100"
+              : "pointer-events-none mr-0 w-0 translate-x-4 opacity-0"
+          }
+        `}
+      >
+        <div
+          className="
+            flex h-11
+            items-center
+            gap-1
+            rounded-xl
+            border border-white/10
+            bg-black/70
+            px-2
+            shadow-xl
+            backdrop-blur-xl
+          "
         >
-          <HugeiconsIcon icon={EyeOffIcon} size={13} strokeWidth={1.8} />
-        </button>
-      </div>
+          {/* Vues */}
+          {VIEW_BUTTONS.map(({ name, label }, index) => (
+            <CameraActionTooltip key={name} label={label}>
+              <button
+                type="button"
+                onClick={() => onViewChange(name)}
+                aria-label={label}
+                aria-pressed={view === name}
+                className={`
+                  flex size-8
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-lg
+                  transition-all
+                  duration-200
+                  ${
+                    view === name
+                      ? "bg-white text-slate-950"
+                      : "text-white/60 hover:bg-white/10 hover:text-white"
+                  }
+                `}
+              >
+                <HugeiconsIcon
+                  icon={EyeIcon}
+                  size={15}
+                  strokeWidth={1.8}
+                  className={
+                    index === 1
+                      ? "rotate-180"
+                      : index === 2
+                        ? "-rotate-90"
+                        : index === 4
+                          ? "rotate-90"
+                          : ""
+                  }
+                />
+              </button>
+            </CameraActionTooltip>
+          ))}
 
-      <div className="mt-2.5 grid grid-cols-2 gap-1.5">
-        {VIEW_BUTTONS.map(({ name, label }) => (
-          <button
-            key={name}
-            type="button"
-            onClick={() => onViewChange(name)}
-            aria-pressed={view === name}
-            className={`rounded-lg px-2 py-1.5 text-[11px] font-medium transition ${
-              view === name
-                ? "bg-white text-slate-950"
-                : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
-            }`}
+          <div className="mx-1 h-5 w-px bg-white/10" />
+
+          {/* Rotation automatique */}
+          <CameraActionTooltip
+            label={
+              autoRotate
+                ? "Désactiver la rotation automatique"
+                : "Activer la rotation automatique"
+            }
           >
-            {label}
-          </button>
-        ))}
+            <button
+              type="button"
+              onClick={() => onAutoRotateChange(!autoRotate)}
+              aria-label={
+                autoRotate
+                  ? "Désactiver la rotation automatique"
+                  : "Activer la rotation automatique"
+              }
+              aria-pressed={autoRotate}
+              className={`
+                flex size-8
+                shrink-0
+                items-center
+                justify-center
+                rounded-lg
+                transition
+                ${
+                  autoRotate
+                    ? "bg-amber-400 text-slate-950"
+                    : "text-white/60 hover:bg-white/10 hover:text-white"
+                }
+              `}
+            >
+              <HugeiconsIcon
+                icon={RefreshIcon}
+                size={15}
+                strokeWidth={1.8}
+                className={autoRotate ? "animate-spin" : ""}
+              />
+            </button>
+          </CameraActionTooltip>
 
-        <button
-          type="button"
-          onClick={() => onAutoRotateChange(!autoRotate)}
-          aria-pressed={autoRotate}
-          className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium transition"
-        >
-          <span
-            className={`size-2 rounded-full ${
-              autoRotate ? "bg-amber-400" : "bg-white/25"
-            }`}
-          />
-          {autoRotate ? "Rotation auto ON" : "Rotation auto OFF"}
-        </button>
+          {/* Reset */}
+          <CameraActionTooltip label="Réinitialiser la caméra">
+            <button
+              type="button"
+              onClick={onReset}
+              aria-label="Réinitialiser la caméra"
+              className="
+                flex size-8
+                shrink-0
+                items-center
+                justify-center
+                rounded-lg
+                text-white/60
+                transition
+                hover:bg-white/10
+                hover:text-white
+              "
+            >
+              <HugeiconsIcon
+                icon={RefreshIcon}
+                size={15}
+                strokeWidth={1.8}
+              />
+            </button>
+          </CameraActionTooltip>
+
+          {/* Verrouillage */}
+          <CameraActionTooltip
+            label={
+              locked
+                ? "Déverrouiller la caméra"
+                : "Verrouiller la caméra"
+            }
+          >
+            <button
+              type="button"
+              onClick={() => onLockedChange(!locked)}
+              aria-label={
+                locked
+                  ? "Déverrouiller la caméra"
+                  : "Verrouiller la caméra"
+              }
+              aria-pressed={locked}
+              className={`
+                flex size-8
+                shrink-0
+                items-center
+                justify-center
+                rounded-lg
+                transition
+                ${
+                  locked
+                    ? "bg-white text-slate-950"
+                    : "text-white/60 hover:bg-white/10 hover:text-white"
+                }
+              `}
+            >
+              <HugeiconsIcon
+                icon={locked ? EyeOffIcon : EyeIcon}
+                size={15}
+                strokeWidth={1.8}
+              />
+            </button>
+          </CameraActionTooltip>
+        </div>
       </div>
 
+      {/* Bouton caméra */}
       <button
         type="button"
-        onClick={onReset}
-        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-red-500/90 px-2 py-1.5 text-[11px] font-semibold text-white transition hover:bg-red-500"
+        onClick={() => setOpen((current) => !current)}
+        aria-label={
+          open
+            ? "Fermer les contrôles caméra"
+            : "Ouvrir les contrôles caméra"
+        }
+        aria-expanded={open}
+        className="
+          relative
+          z-10
+          flex size-11
+          shrink-0
+          items-center
+          justify-center
+          rounded-xl
+          border border-white/10
+          bg-black/70
+          text-white/80
+          shadow-xl
+          backdrop-blur-xl
+          transition
+          duration-200
+          hover:bg-black/85
+          hover:text-white
+          focus:outline-none
+          focus:ring-2
+          focus:ring-white/20
+        "
       >
-        <HugeiconsIcon icon={RefreshIcon} size={13} strokeWidth={2} />
-        Réinitialiser
-      </button>
-
-      <button
-        type="button"
-        onClick={() => onLockedChange(!locked)}
-        aria-pressed={locked}
-        className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/[0.06] px-2 py-1.5 text-[11px] font-medium text-white/75 transition hover:bg-white/15 hover:text-white"
-      >
-        <HugeiconsIcon icon={EyeIcon} size={13} strokeWidth={1.8} />
-        {locked ? "Vue verrouillée" : "Verrouiller la vue"}
+        <HugeiconsIcon
+          icon={CameraIcon}
+          size={18}
+          strokeWidth={1.8}
+        />
       </button>
     </div>
   );
 }
+
