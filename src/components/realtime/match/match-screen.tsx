@@ -9,16 +9,19 @@ import type { LobbySnapshot } from "@/lib/realtime/types";
 import type { MatchRole } from "@/lib/realtime/use-match-room";
 import { RoomChat } from "@/components/realtime/chat";
 
-import { useRoomVoice } from "@/lib/realtime/use-room-voice";
+import { useLiveKitVoice } from "@/lib/realtime/use-livekit-voice";
+import { RoomContext, RoomAudioRenderer } from "@livekit/components-react";
 
 import {
   CallBar,
+  CloseRoomConfirmDialog,
   JoinRequestsPanel,
   LeaveConfirmDialog,
   MatchHud,
   RoomClosedNotice,
   WaitingOverlay,
 } from "./index";
+import { LiveKitStage } from "./livekit-stage";
 
 export interface MatchScreenProps {
   room: Room;
@@ -55,16 +58,25 @@ export function MatchScreen({
     readLobbySnapshot(room),
   );
   const [confirmLeave, setConfirmLeave] = useState(false);
+  /** Admin's two-step close-everything confirmation. */
+  const [confirmCloseRoom, setConfirmCloseRoom] = useState(false);
   /** Transient match events — "Jean a quitté le match" etc. (spec §10). */
   const [notices, setNotices] = useState<string[]>([]);
   /** Chat panel + unread badge — driven from the call bar. */
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadChat, setUnreadChat] = useState(0);
 
-  // Voice is part of the generic match infrastructure: roles and the
-  // roster derive from the server state, the mic is requested only on
-  // user auto-action, and cleanup is guaranteed on leave/unmount.
-  const voice = useRoomVoice({ room, snapshot: lobby, viewerUserId });
+  // Voice/video rides on LiveKit: roles and the roster derive from
+  // the server state, the media room joins on arrival (listen by
+  // default), and the mic is requested only for players. A LiveKit
+  // outage degrades voice and nothing else — the game state itself
+  // never touches this module.
+  const voice = useLiveKitVoice({
+    room,
+    snapshot: lobby,
+    viewerUserId,
+    autoListenOnArrival: true,
+  });
 
   // Room events without a dedicated handler (departures, reconnections,
   // approvals, transfers) surface as transient notices. The wildcard
@@ -166,7 +178,8 @@ export function MatchScreen({
   const canRequestJoin = viewerUserId !== "";
 
   return (
-    <div className="fixed inset-0 z-50">
+    <RoomContext.Provider value={voice.mediaRoom ?? undefined}>
+      <div className="fixed inset-0 z-50">
       {/* The board owns the viewport — the game stays the main event.
           Full-size boards fill the wrapper; column layouts center. */}
       <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
@@ -252,8 +265,18 @@ export function MatchScreen({
         </div>
       )}
 
-      {/* The Zoom-style call bar: mic, participants, chat, quit/close —
-          one icon-only line, bottom-centre, aligned with the chat. */}
+      {/* Remote voices FIRST, unconditionally while the media room is
+          connected: hearing the match must never depend on anyone
+          having a camera on (the video stage below early-returns when
+          nobody publishes one). */}
+      {voice.mediaRoom && <RoomAudioRenderer />}
+
+      {/* LiveKit video tiles above the board — only while someone
+          publishes a camera. */}
+      {voice.mediaRoom && <LiveKitStage />}
+
+      {/* The Zoom-style call bar: mic, camera, participants, chat,
+          quit/close — one icon-only line, bottom-centre. */}
       <CallBar
         voice={voice}
         room={room}
@@ -262,7 +285,7 @@ export function MatchScreen({
         onToggleChat={() => setChatOpen((v) => !v)}
         unreadChat={unreadChat}
         onLeaveRequest={() => setConfirmLeave(true)}
-        onCloseRoom={() => room.send("closeRoom", {})}
+        onCloseRoom={() => setConfirmCloseRoom(true)}
         isAdmin={isAdmin}
       />
 
@@ -288,6 +311,19 @@ export function MatchScreen({
           onCancel={() => setConfirmLeave(false)}
         />
       )}
-    </div>
+
+      {/* Admin closes for EVERYONE — two explicit confirmations, like
+          leaving (the server re-validates the admin rights anyway). */}
+      {confirmCloseRoom && (
+        <CloseRoomConfirmDialog
+          onConfirm={() => {
+            setConfirmCloseRoom(false);
+            room.send("closeRoom", {});
+          }}
+          onCancel={() => setConfirmCloseRoom(false)}
+        />
+      )}
+      </div>
+    </RoomContext.Provider>
   );
 }

@@ -46,7 +46,14 @@ export function RoomChat({
   onCloseRequest,
   onUnreadChange,
 }: RoomChatProps) {
-  const { messages, error, send, dismissError } = useRoomChat(room);
+  const {
+    messages,
+    error,
+    send,
+    dismissError,
+    typingUsers,
+    notifyTyping,
+  } = useRoomChat(room);
   const [uncontrolledOpen, setOpen] = useState(variant === "panel");
   const [draft, setDraft] = useState("");
   const inputId = useId();
@@ -88,9 +95,30 @@ export function RoomChat({
     [draft, send],
   );
 
+  const handleDraftChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setDraft(event.target.value);
+      notifyTyping();
+    },
+    [notifyTyping],
+  );
+
   const body = (
     <>
       <MessageList messages={messages} viewerUserId={viewerUserId} />
+
+      {typingUsers.length > 0 && (
+        <p
+          className="border-t border-slate-200/60 px-3 py-1.5 text-xs text-slate-500 dark:border-white/[0.06] dark:text-white/40"
+          aria-live="polite"
+        >
+          {typingUsers.length === 1
+            ? `${typingUsers[0].name} écrit…`
+            : typingUsers.length === 2
+              ? `${typingUsers[0].name} et ${typingUsers[1].name} écrivent…`
+              : `${typingUsers[0].name} et ${typingUsers.length - 1} autres écrivent…`}
+        </p>
+      )}
 
       {error && (
         <p
@@ -113,7 +141,7 @@ export function RoomChat({
         <input
           id={inputId}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={handleDraftChange}
           maxLength={CHAT_MAX_CONTENT_LENGTH}
           autoComplete="off"
           placeholder="Écrire un message…"

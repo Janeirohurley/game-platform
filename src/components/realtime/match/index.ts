@@ -13,6 +13,10 @@ export {
   type LeaveConfirmDialogProps,
 } from "./leave-confirm-dialog";
 export {
+  CloseRoomConfirmDialog,
+  type CloseRoomConfirmDialogProps,
+} from "./close-room-confirm-dialog";
+export {
   RoomClosedNotice,
   type RoomClosedNoticeProps,
 } from "./room-closed-notice";
@@ -21,6 +25,6 @@ export {
   AuthRequiredDialog,
   type AuthRequiredDialogProps,
 } from "./auth-required-dialog";
-export { VoiceControls } from "./voice-controls";
 export { CallBar } from "./call-bar";
+export { LiveKitStage } from "./livekit-stage";
 export { MatchScreen, type MatchScreenProps } from "./match-screen";

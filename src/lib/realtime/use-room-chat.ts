@@ -25,20 +25,37 @@ const REJECTION_TEXT: Record<ChatRejectionReason, string> = {
   "not-in-room": "Tu n'es plus dans cette partie.",
 };
 
+/** Refresh the typing signal this often while the user keeps typing. */
+const TYPING_REFRESH_MS = 2_000;
+/** Stop signalling (and hide the indicator for oneself) after this idle. */
+const TYPING_IDLE_STOP_MS = 6_000;
+
+export interface TypingUser {
+  userId: string;
+  name: string;
+}
+
 export interface RoomChatController {
   messages: RoomChatMessage[];
   /** Set when the room refused the last message; clears on the next send. */
   error: string | null;
   send: (content: string) => void;
   dismissError: () => void;
+  /** Others currently typing — refreshed by `notifyTyping`. */
+  typingUsers: TypingUser[];
+  /** Call on every keystroke; throttles the wire signal itself. */
+  notifyTyping: () => void;
 }
 
 export function useRoomChat(room: Room | null): RoomChatController {
   const [messages, setMessages] = useState<RoomChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
 
   // Guards against a late frame from a room we already left.
   const activeRoom = useRef<Room | null>(null);
+  /** Timestamp of the last typing signal actually put on the wire. */
+  const typingSentAt = useRef(0);
 
   // Changing room means a different chat: drop what we hold, during
   // render rather than in an effect, so nothing from the previous room
@@ -48,6 +65,7 @@ export function useRoomChat(room: Room | null): RoomChatController {
     setRenderedRoom(room);
     setMessages([]);
     setError(null);
+    setTypingUsers([]);
   }
 
   useEffect(() => {
@@ -79,6 +97,14 @@ export function useRoomChat(room: Room | null): RoomChatController {
       );
     });
 
+    // The server owns the typing truth: it prunes stale signals and
+    // removes departed participants, so the set can only shrink
+    // correctly. No client-side timer to disagree with it.
+    room.onMessage("chatTyping", (payload: { users?: TypingUser[] }) => {
+      if (activeRoom.current !== room) return;
+      setTypingUsers(Array.isArray(payload?.users) ? payload.users : []);
+    });
+
     // Handlers are registered — now ask for the buffer. Doing it here
     // rather than relying on the join-time push avoids missing a
     // snapshot that arrived before this effect ran.
@@ -97,13 +123,42 @@ export function useRoomChat(room: Room | null): RoomChatController {
       if (!room || trimmed.length === 0) return;
       setError(null);
       // Only the content travels. Identity, id, order and timestamp are
-      // the server's to decide.
+      // the server's to decide. Sending also ends our typing signal.
       room.send("chatMessage", { content: trimmed });
+      room.send("chatTyping", { isTyping: false });
+      typingSentAt.current = 0;
     },
     [room],
   );
 
+  /** Wire throttling: first keystroke at once, then at most every 2s. */
+  const notifyTyping = useCallback(() => {
+    if (!room) return;
+    const now = Date.now();
+    if (typingSentAt.current && now - typingSentAt.current < TYPING_REFRESH_MS)
+      return;
+    typingSentAt.current = now;
+    room.send("chatTyping", { isTyping: true });
+  }, [room]);
+
+  // Idle watchdog: a user who stops typing without sending stops
+  // refreshing the signal; this explicit stop hides the indicator
+  // immediately instead of waiting for the server TTL.
+  useEffect(() => {
+    if (!room) return;
+    const interval = setInterval(() => {
+      if (
+        typingSentAt.current &&
+        Date.now() - typingSentAt.current >= TYPING_IDLE_STOP_MS
+      ) {
+        typingSentAt.current = 0;
+        room.send("chatTyping", { isTyping: false });
+      }
+    }, 1_000);
+    return () => clearInterval(interval);
+  }, [room]);
+
   const dismissError = useCallback(() => setError(null), []);
 
-  return { messages, error, send, dismissError };
+  return { messages, error, send, dismissError, typingUsers, notifyTyping };
 }
