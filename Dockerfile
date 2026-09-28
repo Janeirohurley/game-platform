@@ -29,6 +29,19 @@ WORKDIR /app
 # value when a deployment needs to point somewhere else.
 ARG NEXT_PUBLIC_REALTIME_URL=
 ENV NEXT_PUBLIC_REALTIME_URL=${NEXT_PUBLIC_REALTIME_URL}
+
+# TURN relay for WebRTC, same story: inlined into the bundle at build time.
+# An ARG that is not redeclared HERE is silently dropped by Docker, so
+# compose passing the value is not enough — without these two lines the
+# bundle ships STUN-only and every peer behind a strict NAT fails to
+# connect, whatever .env says.
+ARG NEXT_PUBLIC_TURN_URL=
+ENV NEXT_PUBLIC_TURN_URL=${NEXT_PUBLIC_TURN_URL}
+ARG NEXT_PUBLIC_TURN_USERNAME=
+ENV NEXT_PUBLIC_TURN_USERNAME=${NEXT_PUBLIC_TURN_USERNAME}
+ARG NEXT_PUBLIC_TURN_CREDENTIAL=
+ENV NEXT_PUBLIC_TURN_CREDENTIAL=${NEXT_PUBLIC_TURN_CREDENTIAL}
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
