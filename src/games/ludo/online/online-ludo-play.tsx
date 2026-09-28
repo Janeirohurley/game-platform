@@ -12,6 +12,7 @@ import type {
 import { playSound } from "@/lib/sounds";
 import type { LudoPlayerView } from "@/lib/realtime/types";
 
+import { BOARD_POSITIONS } from "../data/boardPositions";
 import LudoBoard from "../components/board/LudoBoard";
 import { GameToasts, useGameToasts } from "./game-toasts";
 import {
@@ -209,13 +210,19 @@ export function OnlineLudoPlay({
     if (!me) return new Set<number>();
     const movable = new Set<number>();
     for (const piece of me.pieces) {
-      if (piece.position === 57) continue;
-      // Leaving base requires a 6; overshooting the finish is illegal.
+      // 57 is the finished center — no piece ever moves from there.
+      if (piece.position === BOARD_POSITIONS.FINISHED_POSITION) continue;
+      // Leaving base requires a 6; the finish (57) is reached by EXACT
+      // count, so `position + dice === 57` is legal and must stay
+      // clickable — the old `<= 56` filter made every finishing move
+      // unplayable, stranding pieces on the last home-column cell.
       if (piece.position === -1) {
         if (dice === 6) movable.add(piece.index);
         continue;
       }
-      if (piece.position + dice <= 56) movable.add(piece.index);
+      if (piece.position + dice <= BOARD_POSITIONS.FINISHED_POSITION) {
+        movable.add(piece.index);
+      }
     }
     return movable;
   }, [isMyTurn, dice, snapshot.players, viewerUserId]);
