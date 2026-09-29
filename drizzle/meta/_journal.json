@@ -15,6 +15,20 @@
       "when": 1790501867560,
       "tag": "0001_gamer_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790675548852,
+      "tag": "0002_omniscient_pandemic",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790675790552,
+      "tag": "0003_remarkable_lockjaw",
+      "breakpoints": true
     }
   ]
 }

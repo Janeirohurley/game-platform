@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { admin } from "better-auth/plugins";
 import * as authSchema from "@/lib/db/schema/auth";
 
 import { db } from "@/lib/db";
@@ -62,6 +63,31 @@ export const auth = betterAuth({
     provider: "pg",
     schema: authSchema,
   }),
+
+  /*
+   * Platform administration (the /admin control plane): role-based
+   * authorization on top of the SAME session system — no second auth,
+   * no parallel permission store. The `role` column lives on `user`
+   * (schema/auth.ts). Accounts created before the column existed get
+   * the default role from the hook below.
+   */
+  plugins: [
+    admin({
+      defaultRole: "user",
+      adminRoles: ["admin"],
+    }),
+  ],
+
+  databaseHooks: {
+    user: {
+      create: {
+        async before(user) {
+          // Backfill the default role for users created without one.
+          return { data: { ...user, role: user.role ?? "user" } };
+        },
+      },
+    },
+  },
 
   emailAndPassword: {
     enabled: true,
