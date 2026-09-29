@@ -21,5 +21,7 @@
   },
   "menuColor": "default",
   "menuAccent": "subtle",
-  "registries": {}
+  "registries": {
+    "@shadcn-dashboard": "https://shadcndashboard.dev/r/{name}.json"
+  }
 }

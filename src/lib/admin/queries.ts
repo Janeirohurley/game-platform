@@ -7,7 +7,7 @@
  * from a component.
  */
 
-import { count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, countDistinct, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema/auth";
@@ -61,9 +61,18 @@ function dayKey(date: Date): string {
 }
 
 export async function getWeeklyMatchActivity(): Promise<AdminDailyActivity[]> {
+  return getMatchesPerDay(7);
+}
+
+/**
+ * Matches per day over the last `days` days (server-local calendar),
+ * zero-filled. Powers the dashboard chart at 7/30/90-day spans from ONE
+ * query.
+ */
+export async function getMatchesPerDay(days: number): Promise<AdminDailyActivity[]> {
   const since = new Date();
   since.setHours(0, 0, 0, 0);
-  since.setDate(since.getDate() - 6);
+  since.setDate(since.getDate() - (days - 1));
 
   const rows = await db
     .select({
@@ -75,20 +84,24 @@ export async function getWeeklyMatchActivity(): Promise<AdminDailyActivity[]> {
     .groupBy(sql`date_trunc('day', ${gameMatches.playedAt})`);
 
   const byDay = new Map(rows.map((row) => [row.day, Number(row.matches)]));
-  const weekday = new Intl.DateTimeFormat("fr-FR", { weekday: "short" });
+  const label = new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "short",
+  });
 
-  const week: AdminDailyActivity[] = [];
-  for (let i = 6; i >= 0; i -= 1) {
+  const series: AdminDailyActivity[] = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
     const day = new Date();
     day.setHours(0, 0, 0, 0);
     day.setDate(day.getDate() - i);
-    week.push({
-      date: dayKey(day),
-      label: weekday.format(day),
-      count: byDay.get(dayKey(day)) ?? 0,
+    const key = dayKey(day);
+    series.push({
+      date: key,
+      label: label.format(day),
+      count: byDay.get(key) ?? 0,
     });
   }
-  return week;
+  return series;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +133,154 @@ export async function getWeeklyStats(): Promise<AdminWeeklyStats> {
     newAccounts: accounts[0]?.value ?? 0,
     activeGamers: active[0]?.value ?? 0,
   };
+}
+
+/**
+ * This week vs the previous one — feeds the trend badges of the stat
+ * cards with REAL deltas (null percentage when the previous week is 0:
+ * a change from nothing is not a percentage).
+ */
+export interface AdminWeeklyComparison {
+  matchesThisWeek: number;
+  matchesLastWeek: number;
+  accountsThisWeek: number;
+  accountsLastWeek: number;
+}
+
+export async function getWeeklyComparison(): Promise<AdminWeeklyComparison> {
+  const now = new Date();
+  const startOfThisWeek = new Date(now);
+  startOfThisWeek.setHours(0, 0, 0, 0);
+  startOfThisWeek.setDate(startOfThisWeek.getDate() - 6);
+  const startOfLastWeek = new Date(startOfThisWeek);
+  startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+  const [matchesNow, matchesPrev, accountsNow, accountsPrev] =
+    await Promise.all([
+      db
+        .select({ value: count() })
+        .from(gameMatches)
+        .where(gte(gameMatches.playedAt, startOfThisWeek)),
+      db
+        .select({ value: count() })
+        .from(gameMatches)
+        .where(gte(gameMatches.playedAt, startOfLastWeek)),
+      db
+        .select({ value: count() })
+        .from(user)
+        .where(gte(user.createdAt, startOfThisWeek)),
+      db
+        .select({ value: count() })
+        .from(user)
+        .where(gte(user.createdAt, startOfLastWeek)),
+    ]);
+
+  return {
+    matchesThisWeek: matchesNow[0]?.value ?? 0,
+    matchesLastWeek: matchesPrev[0]?.value ?? 0,
+    accountsThisWeek: accountsNow[0]?.value ?? 0,
+    accountsLastWeek: accountsPrev[0]?.value ?? 0,
+  };
+}
+
+/**
+ * A metric span for the trend chart: current window series + how the
+ * window total compares to the PREVIOUS window of equal length — the
+ * « +x % vs période précédente » badge is computed, not invented.
+ */
+export interface AdminTrendSeries {
+  days: AdminDailyActivity[];
+  total: number;
+  previousTotal: number;
+  /** Percent change vs previous span; null when there is no baseline. */
+  changePercent: number | null;
+}
+
+async function countInWindow(
+  table: typeof gameMatches | typeof user,
+  column: "playedAt" | "createdAt",
+  from: Date,
+  to: Date,
+): Promise<number> {
+  const range =
+    column === "playedAt"
+      ? gameMatches.playedAt
+      : user.createdAt;
+  const rows = await db
+    .select({ value: count() })
+    .from(table)
+    .where(and(gte(range, from), lt(range, to)));
+  return rows[0]?.value ?? 0;
+}
+
+/**
+ * Daily series + current-vs-previous totals for one metric over one
+ * span (7, 30 or 90 days). Three queries, no fabrication.
+ */
+export async function getMetricTrend(
+  metric: "matches" | "accounts",
+  days: 7 | 30 | 90,
+): Promise<AdminTrendSeries> {
+  const table = metric === "matches" ? gameMatches : user;
+  const column = metric === "matches" ? "playedAt" : "createdAt";
+
+  const currentStart = new Date();
+  currentStart.setHours(0, 0, 0, 0);
+  currentStart.setDate(currentStart.getDate() - (days - 1));
+  const previousStart = new Date(currentStart);
+  previousStart.setDate(previousStart.getDate() - days);
+
+  const [series, currentTotal, previousTotal] = await Promise.all([
+    metric === "matches"
+      ? getMatchesPerDay(days)
+      : getAccountsPerDay(days),
+    countInWindow(table, column, currentStart, new Date()),
+    countInWindow(table, column, previousStart, currentStart),
+  ]);
+
+  const changePercent =
+    previousTotal === 0 ? null : Math.round(((currentTotal - previousTotal) / previousTotal) * 100);
+
+  return { days: series, total: currentTotal, previousTotal, changePercent };
+}
+
+/**
+ * New accounts per day over the last `days` days (zero-filled) — the
+ * second series of the dashboard trend chart, same shape as matches.
+ */
+export async function getAccountsPerDay(days: number): Promise<AdminDailyActivity[]> {
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - (days - 1));
+
+  const rows = await db
+    .select({
+      day: sql<string>`to_char(date_trunc('day', ${user.createdAt}), 'YYYY-MM-DD')`,
+      accounts: count(),
+    })
+    .from(user)
+    .where(gte(user.createdAt, since))
+    .groupBy(sql`date_trunc('day', ${user.createdAt})`);
+
+  const byDay = new Map(rows.map((row) => [row.day, Number(row.accounts)]));
+  const label = new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "short",
+  });
+
+  const series: AdminDailyActivity[] = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - i);
+    const key = dayKey(day);
+    series.push({
+      date: key,
+      label: label.format(day),
+      count: byDay.get(key) ?? 0,
+    });
+  }
+  return series;
 }
 
 // ---------------------------------------------------------------------------
