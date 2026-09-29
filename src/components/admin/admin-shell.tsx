@@ -63,7 +63,7 @@ const adminNav = [
   {
     label: "Plateforme",
     items: [
-      { title: "Utilisateurs", href: null, icon: UsersIcon, phase: 3 },
+      { title: "Utilisateurs", href: "/admin/users", icon: UsersIcon, phase: 3 },
       { title: "Gamers", href: null, icon: UserIcon, phase: 4 },
       { title: "Jeux", href: null, icon: Gamepad2Icon, phase: 5 },
       { title: "Matchs", href: null, icon: SwordsIcon, phase: 6 },

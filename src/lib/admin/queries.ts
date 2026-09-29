@@ -7,7 +7,18 @@
  * from a component.
  */
 
-import { and, count, countDistinct, desc, eq, gte, lt, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  countDistinct,
+  desc,
+  eq,
+  gte,
+  ilike,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema/auth";
@@ -281,6 +292,79 @@ export async function getAccountsPerDay(days: number): Promise<AdminDailyActivit
     });
   }
   return series;
+}
+
+// ---------------------------------------------------------------------------
+// Users list — server-side pagination + search over Better Auth accounts.
+// ---------------------------------------------------------------------------
+
+export interface AdminUserRow {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  emailVerified: boolean;
+  banned: boolean;
+  banReason: string | null;
+  banExpires: Date | null;
+  hasProfile: boolean;
+  createdAt: Date;
+}
+
+export interface AdminUserList {
+  rows: AdminUserRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * One page of platform accounts, newest first. `search` matches name
+ * OR email (case-insensitive). Pagination is SQL-side (LIMIT/OFFSET) —
+ * the client never receives more than one slice.
+ */
+export async function listUsers(options: {
+  page: number;
+  pageSize: number;
+  search?: string;
+}): Promise<AdminUserList> {
+  const query = options.search?.trim();
+  const where = query
+    ? or(ilike(user.name, `%${query}%`), ilike(user.email, `%${query}%`))
+    : undefined;
+
+  const [totalRows, rows] = await Promise.all([
+    db.select({ value: count() }).from(user).where(where),
+    db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        banned: user.banned,
+        banReason: user.banReason,
+        banExpires: user.banExpires,
+        createdAt: user.createdAt,
+        hasProfile:
+          sql<boolean>`exists (select 1 from ${profiles} where ${profiles}.user_id = ${user.id})`,
+      })
+      .from(user)
+      .where(where)
+      .orderBy(desc(user.createdAt))
+      .limit(options.pageSize)
+      .offset((options.page - 1) * options.pageSize),
+  ]);
+
+  const total = totalRows[0]?.value ?? 0;
+  return {
+    rows,
+    total,
+    page: options.page,
+    pageSize: options.pageSize,
+    totalPages: Math.max(1, Math.ceil(total / options.pageSize)),
+  };
 }
 
 // ---------------------------------------------------------------------------

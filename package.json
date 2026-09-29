@@ -29,6 +29,7 @@
     "@livekit/components-styles": "^1.2.0",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "@tanstack/react-table": "^8.21.3",
     "@types/howler": "^2.2.13",
     "@xyflow/react": "^12.11.6",
     "better-auth": "^1.7.5",
