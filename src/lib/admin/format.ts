@@ -11,6 +11,17 @@ export function formatDuration(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/**
+ * Lifetime playtime, human-scale: « 2 h 35 », « 42 min », « — » at zero.
+ * (formatDuration is per-match m:ss; totals need hours, not 187:00.)
+ */
+export function formatPlaytime(totalSeconds: number): string {
+  if (totalSeconds <= 0) return "—";
+  const minutes = Math.floor(totalSeconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
 const relativeFormat = new Intl.RelativeTimeFormat("fr", { numeric: "auto" });
 
 /** Relative French time — « à l'instant », « il y a 5 minutes », « hier »… */

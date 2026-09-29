@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import DoubleClickTheme from "@/components/double-click-theme";
+import { Toaster } from "@/components/ui/sonner";
 
 import { Playwrite_BE_WAL } from "next/font/google";
 
@@ -47,7 +48,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
-          <DoubleClickTheme>{children}</DoubleClickTheme>
+          <DoubleClickTheme>
+            {children}
+            {/* Toast feedback for admin actions (and future surfaces). */}
+            <Toaster position="bottom-right" richColors />
+          </DoubleClickTheme>
         </ThemeProvider>
       </body>
     </html>
