@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -64,22 +65,22 @@ const adminNav = [
     label: "Plateforme",
     items: [
       { title: "Utilisateurs", href: "/admin/users", icon: UsersIcon, phase: 3 },
-      { title: "Gamers", href: null, icon: UserIcon, phase: 4 },
-      { title: "Jeux", href: null, icon: Gamepad2Icon, phase: 5 },
-      { title: "Matchs", href: null, icon: SwordsIcon, phase: 6 },
+      { title: "Gamers", href: "/admin/gamers", icon: UserIcon, phase: 4 },
+      { title: "Jeux", href: "/admin/games", icon: Gamepad2Icon, phase: 5 },
+      { title: "Matchs", href: "/admin/matches", icon: SwordsIcon, phase: 6 },
     ],
   },
   {
     label: "Temps réel",
     items: [
-      { title: "Rooms Colyseus", href: null, icon: RadioIcon, phase: 7 },
-      { title: "LiveKit", href: null, icon: VideoIcon, phase: 8 },
+      { title: "Rooms Colyseus", href: "/admin/rooms", icon: RadioIcon, phase: 7 },
+      { title: "LiveKit", href: "/admin/livekit", icon: VideoIcon, phase: 8 },
       { title: "Statistiques", href: null, icon: BarChart3Icon, phase: 10 },
     ],
   },
   {
     label: "Modération",
-    items: [{ title: "Modération", href: null, icon: ShieldAlertIcon, phase: 11 }],
+    items: [{ title: "Journal d'audit", href: "/admin/audit", icon: ShieldAlertIcon, phase: 11 }],
   },
 ] as const;
 
@@ -181,21 +182,24 @@ export function AdminShell({
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="top" align="start" className="w-56">
-                  <DropdownMenuLabel>
-                    {userName}
-                    <Badge variant="secondary" className="ml-2">
-                      admin
-                    </Badge>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      void signOut().then(() => router.push("/"));
-                    }}
-                  >
-                    <LogOutIcon />
-                    Déconnexion
-                  </DropdownMenuItem>
+                  {/* Base UI: GroupLabel requires a Menu.Group parent. */}
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>
+                      {userName}
+                      <Badge variant="secondary" className="ml-2">
+                        admin
+                      </Badge>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        void signOut().then(() => router.push("/"));
+                      }}
+                    >
+                      <LogOutIcon />
+                      Déconnexion
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             </SidebarMenuItem>
