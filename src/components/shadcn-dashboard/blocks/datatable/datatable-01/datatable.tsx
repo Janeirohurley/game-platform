@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Download, SearchIcon } from "lucide-react";
+import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import {
@@ -22,7 +23,9 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { UserRowActions } from "@/components/admin/user-row-actions";
 import type { AdminUserRow } from "@/lib/admin/queries";
+import { formatRelativeTime } from "@/lib/admin/format";
 
 /**
  * Registry block (datatable-01), content-adapted for REAL data:
@@ -85,13 +88,40 @@ const columns = [
             </Badge>
         ),
     }),
-    columnHelper.accessor("hasProfile", {
-        header: () => <span>Profil gamer</span>,
-        cell: (info) => (
-            <span className="text-sm text-muted-foreground">
-                {info.getValue() ? "créé" : "—"}
+    columnHelper.accessor("gamerTag", {
+        header: () => <span>Gamer Tag</span>,
+        cell: (info) => {
+            const tag = info.getValue();
+            return tag ? (
+                <Link
+                    href={`/admin/gamers/${tag}`}
+                    className="text-sm hover:underline"
+                >
+                    @{tag}
+                </Link>
+            ) : (
+                <span className="text-sm text-muted-foreground">—</span>
+            );
+        },
+    }),
+    columnHelper.accessor("lastPlayedAt", {
+        header: () => <span>Dernière activité</span>,
+        cell: (info) => {
+            const last = info.row.original.lastPlayedAt;
+            return (
+                <span className="text-sm text-muted-foreground">
+                    {last ? formatRelativeTime(last) : "—"}
             </span>
-        ),
+            );
+        },
+    }),
+    columnHelper.display({
+        id: "actions",
+        header: () => <span>Actions</span>,
+        // State-dependent management menu — real Better Auth admin
+        // operations only (ban/unban, role, sessions). The gamer
+        // drill-down stays reachable from the Gamer Tag column.
+        cell: (info) => <UserRowActions user={info.row.original} />,
     }),
     columnHelper.accessor("createdAt", {
         header: () => <span>Inscrit le</span>,

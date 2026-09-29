@@ -3,17 +3,13 @@ import type { Metadata } from "next";
 import UsersTable from "@/components/shadcn-dashboard/blocks/datatable/datatable-01/datatable";
 import { listUsers } from "@/lib/admin/queries";
 import { requireAdminSession } from "@/lib/admin/session";
+import { parsePositiveInt } from "@/lib/admin/url-params";
 
 export const metadata: Metadata = {
   title: "Utilisateurs — Administration",
 };
 
 const PAGE_SIZE = 10;
-
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 /**
  * Phase 3 — READ-ONLY user administration. `page` and `q` live in the
