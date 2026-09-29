@@ -26,16 +26,22 @@ export default async function AdminDashboardPage() {
   // metrics below can never leak into an unauthorized response.
   const session = await requireAdminSession();
 
-  const [overview, weekly, comparison, trend7, trend30, trend90, recent] =
-    await Promise.all([
-      getAdminOverview(),
-      getWeeklyStats(),
-      getWeeklyComparison(),
-      getMetricTrend("matches", 7),
-      getMetricTrend("matches", 30),
-      getMetricTrend("matches", 90),
-      getRecentMatches(10),
-    ]);
+  /*
+   * These run SEQUENTIALLY on purpose. Firing all 7 at once via
+   * Promise.all deadlocks in the Next dev runtime (postgres.js pool ×
+   * transaction pooler :6543): the RSC stream never closes and the UI
+   * spins forever — the exact "admin figé en loading" bug. Each query
+   * is 0.5–2 s over the WAN, the section-level loading.tsx skeleton
+   * streams meanwhile, so sequential costs a few seconds, not the bug.
+   * (A Promise.all of 3 is fine; 7 is not. Keep batches small.)
+   */
+  const overview = await getAdminOverview();
+  const weekly = await getWeeklyStats();
+  const comparison = await getWeeklyComparison();
+  const trend7 = await getMetricTrend("matches", 7);
+  const trend30 = await getMetricTrend("matches", 30);
+  const trend90 = await getMetricTrend("matches", 90);
+  const recent = await getRecentMatches(10);
 
   // The chart's second series (new accounts per day) — three small
   // queries sharing the same span boundaries as the matches series.

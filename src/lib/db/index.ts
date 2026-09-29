@@ -24,7 +24,28 @@ function getClient(): postgres.Sql {
       throw new Error("DATABASE_URL is not defined");
     }
 
-    client = postgres(connectionString);
+    client = postgres(connectionString, {
+      /*
+       * The DATABASE_URL points at the Supabase POOLER (transaction
+       * mode, :6543), which reassigns the underlying server connection
+       * on every transaction. Prepared statements are keyed to one
+       * specific server session, so they break with "prepared statement
+       * already exists"-class failures and stale pooled sockets can
+       * leave queries hanging forever — which surface in the UI as an
+       * admin section stuck "loading". Prepared statements are the
+       * main win they disable, so switch them off; latency stays
+       * dominated by the network round-trip either way.
+       */
+      prepare: false,
+      /*
+       * Recycle sockets aggressively: the pooler silently closes idle
+       * server-side, and postgres.js defaults (idle forever) mean the
+       * pool fills with dead sockets that stall the next borrower.
+       */
+      idle_timeout: 20,
+      max_lifetime: 60 * 10,
+      connect_timeout: 10,
+    });
   }
 
   return client;
