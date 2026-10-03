@@ -1,0 +1,1 @@
+DROP INDEX "ledger_entries_txn_account_uq";
