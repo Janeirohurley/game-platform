@@ -71,6 +71,8 @@ function toEnvironment(value: unknown, fallback: ProviderEnvironment): ProviderE
 async function toEffective(
   provider: PaymentProvider,
   row: (typeof providerConfigs.$inferSelect) | undefined,
+  _slugRow: { slug: string } | undefined,
+  _slugRow2: { slug: string } | undefined,
   availability: { available: boolean; reason?: string },
 ): Promise<EffectiveProviderConfig> {
   const info: ProviderInfo = provider.getProviderInfo();
@@ -83,29 +85,33 @@ async function toEffective(
       : row.capabilities.filter(isProviderCapability);
   const capabilities = intersect(info.capabilities, configCapabilities);
 
+  // Backward compatibility: the legacy `provider_configs` row carried the
+  // adapter's declared environments/limits/fees. The registry's `providers`
+  // row is the source of truth for brand metadata only (name, slug, type,
+  // status, logo), while `provider_configs` remains the environment for
+  // effective gate settings.
+
+  // Currencies narrow the same way: NULL (or only malformed codes) keeps
+  // everything the adapter declares, otherwise it is the intersection.
   const configCurrencies = (row?.supportedCurrencies ?? [])
     .map((code) => code.toUpperCase())
     .filter((code) => /^[A-Z]{3}$/.test(code));
   const supportedCurrencies = intersect(
-    info.supportedCurrencies.map((c) => c.toUpperCase()),
+    info.supportedCurrencies.map((code) => code.toUpperCase()),
     configCurrencies.length > 0 ? configCurrencies : null,
   );
 
   return {
     id: info.id,
-    name: row?.displayName?.trim() || info.name,
+    name: row?.displayName?.trim() || info.name || (_slugRow?.slug ?? info.name),
     description: info.description,
-    environment: toEnvironment(row?.environment, info.environment),
+    environment: toEnvironment(row?.environment ?? null, info.environment),
     enabled: row?.enabled ?? true,
     available: availability.available,
     unavailableReason: availability.reason,
     adapterCapabilities: info.capabilities,
     capabilities,
     supportedCurrencies,
-    supportedCountries:
-      (row?.supportedCountries ?? []).length > 0
-        ? (row?.supportedCountries ?? [])
-        : info.supportedCountries,
     minimumAmount: row?.minimumAmount ?? null,
     maximumAmount: row?.maximumAmount ?? null,
     fees: parseFeeSchedule(row?.fees ?? null),
@@ -119,18 +125,28 @@ async function toEffective(
 /**
  * Every registered provider with its effective configuration, for the
  * API/UI (dynamic provider selection) and the admin console.
- */
-export async function listEffectiveProviders(): Promise<
+ */export async function listEffectiveProviders(): Promise<
   EffectiveProviderConfig[]
 > {
   ensureBuiltinProviders();
+
   const providers = paymentProviderRegistry.list();
   if (providers.length === 0) return [];
 
+  // Read from the registry (admin CRUD) with fallback to legacy
+  // provider_configs. Every adapter is listed even if it has no row yet.
   const rows = await db
     .select()
     .from(providerConfigs)
-    .where(inArray(providerConfigs.provider, providers.map((p) => p.getProviderInfo().id)));
+    .where(
+      inArray(
+        providerConfigs.provider,
+        providers.map((p) => p.getProviderInfo().id),
+      ),
+    );
+
+  // Legacy row → provider slug mapping (backward compatible until every
+  // adapter migrates to the registry).
   const rowById = new Map(rows.map((row) => [row.provider, row]));
 
   // Sequential availability checks: adapters are cheap and this keeps
@@ -151,7 +167,7 @@ export async function listEffectiveProviders(): Promise<
       };
     }
     effective.push(
-      await toEffective(provider, rowById.get(info.id), availability),
+      await toEffective(provider, rowById.get(info.id) ?? undefined, undefined, undefined, availability),
     );
   }
   return effective;
@@ -163,11 +179,7 @@ export async function getEffectiveProvider(
   ensureBuiltinProviders();
   const provider = paymentProviderRegistry.get(id);
   if (!provider) return null;
-  const row = await db
-    .select()
-    .from(providerConfigs)
-    .where(eq(providerConfigs.provider, id))
-    .limit(1);
+
   let availability = { available: true } as {
     available: boolean;
     reason?: string;
@@ -180,7 +192,12 @@ export async function getEffectiveProvider(
       reason: error instanceof Error ? error.name : "Availability check failed",
     };
   }
-  return toEffective(provider, row[0], availability);
+  const row = await db
+    .select()
+    .from(providerConfigs)
+    .where(eq(providerConfigs.provider, id))
+    .limit(1);
+  return toEffective(provider, row[0], undefined, undefined, availability);
 }
 
 export interface ResolvedProvider {
