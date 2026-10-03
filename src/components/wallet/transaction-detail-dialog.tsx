@@ -104,6 +104,7 @@ export function TransactionDetailDialog({
 
   // Poll while awaiting an external outcome.
   const status = tx?.status;
+  const polling = !!transactionId && !!status && isPendingStatus(status);
   useEffect(() => {
     if (!transactionId || !status || !isPendingStatus(status)) return;
     const timer = setInterval(() => load(transactionId), 3500);
@@ -147,7 +148,12 @@ export function TransactionDetailDialog({
         </DialogHeader>
 
         {loading && (
-          <div className="flex flex-col gap-2">
+          <div
+            className="flex flex-col gap-2"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">Loading transaction details…</span>
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-5 w-1/2" />
             <Skeleton className="h-20 w-full" />
@@ -159,7 +165,13 @@ export function TransactionDetailDialog({
         )}
 
         {tx && current && (
-          <div className="flex flex-col gap-4">
+          <div
+            className="flex flex-col gap-4"
+            // Polling is a background fetch of data the user is already
+            // reading — mark the region busy so assistive tech knows the
+            // figures can still change.
+            aria-busy={polling}
+          >
             {/* Headline */}
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -170,7 +182,22 @@ export function TransactionDetailDialog({
                   {typeLabel(tx.type)} · {tx.provider ?? "—"}
                 </p>
               </div>
-              <StatusBadge status={tx.status} />
+              <div className="flex items-center gap-2">
+                {polling && (
+                  <span
+                    role="status"
+                    aria-live="polite"
+                    className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                  >
+                    <span className="relative flex size-1.5">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
+                      <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
+                    </span>
+                    Live
+                  </span>
+                )}
+                <StatusBadge status={tx.status} />
+              </div>
             </div>
 
             {tx.failureReason && (

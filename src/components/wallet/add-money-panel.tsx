@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "cn";
 import {
   walletApi,
   WalletApiError,
@@ -245,7 +246,22 @@ export function AddMoneyPanel({
         )}
 
         {amountMinor !== null && quotePending && (
-          <Skeleton className="h-24 w-full" />
+          // The fee breakdown is the whole point of this screen, so it
+          // gets a placeholder with the same height as QuoteSummary —
+          // otherwise the Continue button jumps as the quote lands.
+          <div
+            className="flex flex-col gap-2 rounded-xl border p-4"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">Calculating fees…</span>
+            {Array.from({ length: 4 }, (_, index) => (
+              <Skeleton
+                key={index}
+                className={cn("h-4", index === 3 ? "w-2/3" : "w-full")}
+              />
+            ))}
+          </div>
         )}
         {quoteValue && <QuoteSummary quote={quoteValue} />}
 

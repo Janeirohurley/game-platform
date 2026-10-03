@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { RefreshOverlay } from "@/components/loading/refresh-overlay";
+import { TableSkeleton } from "@/components/loading/skeletons";
 import {
   Table,
   TableBody,
@@ -176,13 +177,14 @@ export function TransactionsTable({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* Body */}
+      {/* Body — first load has no rows yet, so the skeleton stands in for
+          the table itself (same 5 columns, same row height). */}
       {!data && !error && (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
+        <TableSkeleton
+          columns={5}
+          rows={8}
+          cellWidths={["w-32", "w-20", "w-28", "w-24", "w-20"]}
+        />
       )}
 
       {data && data.rows.length === 0 && !loading && !error && (
@@ -198,49 +200,51 @@ export function TransactionsTable({
       )}
 
       {data && data.rows.length > 0 && (
-        <div
-          className={`rounded-lg border ${loading ? "opacity-60" : ""}`}
-          aria-busy={loading}
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="hidden sm:table-cell">Provider</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.rows.map((tx) => (
-                <TableRow
-                  key={tx.id}
-                  className="cursor-pointer"
-                  onClick={() => onOpenDetail(tx.id)}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") onOpenDetail(tx.id);
-                  }}
-                >
-                  <TableCell className="whitespace-nowrap">
-                    {formatDateTime(tx.createdAt)}
-                  </TableCell>
-                  <TableCell>{typeLabel(tx.type)}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {tx.provider ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {signedMoney(tx, tx.currency)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={tx.status} />
-                  </TableCell>
+        // Rows stay mounted while a new page/filter is in flight: the
+        // overlay dims + sweeps them instead of swapping them for a
+        // skeleton, so the table never collapses mid-scroll.
+        <RefreshOverlay busy={loading} label="Loading transactions…">
+          <div className="rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="hidden sm:table-cell">Provider</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {data.rows.map((tx) => (
+                  <TableRow
+                    key={tx.id}
+                    className="cursor-pointer"
+                    onClick={() => onOpenDetail(tx.id)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") onOpenDetail(tx.id);
+                    }}
+                  >
+                    <TableCell className="whitespace-nowrap">
+                      {formatDateTime(tx.createdAt)}
+                    </TableCell>
+                    <TableCell>{typeLabel(tx.type)}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {tx.provider ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {signedMoney(tx, tx.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={tx.status} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </RefreshOverlay>
       )}
 
       {/* Pagination */}

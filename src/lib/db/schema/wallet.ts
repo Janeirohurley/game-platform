@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -24,8 +25,7 @@ import {
 const TYPE_SQL_LIST = WALLET_TRANSACTION_TYPES.map((t) => `'${t}'`).join(", ");
 const STATUS_SQL_LIST = WALLET_TRANSACTION_STATUSES.map((s) => `'${s}'`).join(", ");
 
-/**
- * Wallet domain schema — the ledger-backed money layer.
+/** Wallet domain schema — the ledger-backed money layer.
  *
  * Design rules (enforced here AND in lib/wallet/*):
  *
@@ -59,7 +59,6 @@ const STATUS_SQL_LIST = WALLET_TRANSACTION_STATUSES.map((s) => `'${s}'`).join(",
 // ---------------------------------------------------------------------------
 // Wallet — the user-owned internal account, independent from any provider.
 // ---------------------------------------------------------------------------
-
 export const wallets = pgTable(
   "wallets",
   {
@@ -104,7 +103,6 @@ export const wallets = pgTable(
 // bank account, card). Identified, masked, never a secret store: no
 // credentials, no CVV, no tokens (those live in env/secret management).
 // ---------------------------------------------------------------------------
-
 export const providerAccounts = pgTable(
   "provider_accounts",
   {
@@ -143,11 +141,9 @@ export const providerAccounts = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("provider_accounts_wallet_provider_account_uq").on(
-      table.walletId,
-      table.provider,
-      table.providerAccountId,
-    ),
+    uniqueIndex(
+      "provider_accounts_wallet_provider_account_uq",
+    ).on(table.walletId, table.provider, table.providerAccountId),
     index("provider_accounts_wallet_idx").on(table.walletId),
     index("provider_accounts_provider_idx").on(table.provider),
     check(
@@ -170,7 +166,6 @@ export const providerAccounts = pgTable(
 // ever moves forward through the engine's guarded transitions.
 // Types/statuses come from lib/wallet/constants.ts (see SQL lists above).
 // ---------------------------------------------------------------------------
-
 export const walletTransactions = pgTable(
   "wallet_transactions",
   {
@@ -218,8 +213,8 @@ export const walletTransactions = pgTable(
     originalTransactionId: text("original_transaction_id"),
 
     /**
-     * Sanitized failure summary (no secrets, no provider payloads —
-     * the adapter decides what is safe to expose).
+     * Sanitized failure summary (no secrets, no provider payloads — the
+     * adapter decides what is safe to expose).
      */
     failureReason: text("failure_reason"),
 
@@ -283,7 +278,6 @@ export const walletTransactions = pgTable(
 //   fees:platform   — platform fee revenue
 //   fees:provider   — provider fee
 // ---------------------------------------------------------------------------
-
 export const ledgerEntries = pgTable(
   "ledger_entries",
   {
@@ -327,7 +321,6 @@ export const ledgerEntries = pgTable(
 // Reconciliation — discrepancies are RECORDED, never silently corrected.
 // `dedupeKey` keeps repeated runs from piling up duplicate findings.
 // ---------------------------------------------------------------------------
-
 export const reconciliationRecords = pgTable(
   "reconciliation_records",
   {
@@ -381,7 +374,6 @@ export const reconciliationRecords = pgTable(
 // database transaction, so a failed processing rolls the event back and
 // the provider's retry can attempt it again.
 // ---------------------------------------------------------------------------
-
 export const providerEvents = pgTable(
   "provider_events",
   {
@@ -429,17 +421,289 @@ export const providerEvents = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Provider registry — managed entirely from the admin area (Phase 14).
+// The wallet core only ever sees the EFFECTIVE view (see
+// lib/wallet/provider-config.ts). This table stores what an
+// administrator configured; provider-specific integration lives in the
+// adapter layer. Credentials are stored separately (provider_credentials)
+// and are masked in all admin APIs/UI.
+// ---------------------------------------------------------------------------
+export const providerTypes = [
+  "PAYMENT_GATEWAY",
+  "MOBILE_MONEY",
+  "BANK",
+  "CARD",
+  "EXCHANGE",
+  "BLOCKCHAIN",
+  "CRYPTO_CUSTODY",
+  "CRYPTO_PAYMENT",
+  "CUSTOM",
+] as const;
+
+export type ProviderType = (typeof providerTypes)[number];
+
+export const providerStatuses = ["active", "inactive", "disabled"] as const;
+
+export type ProviderStatus = (typeof providerStatuses)[number];
+
+export const providerEnvironments = ["sandbox", "production"] as const;
+
+export type ProviderEnvironment = (typeof providerEnvironments)[number];
+
+export const walletProviderTypes = [
+  "DEPOSIT",
+  "WITHDRAWAL",
+  "PAYMENT",
+  "TRANSFER",
+  "REFUND",
+  "BALANCE_CHECK",
+  "TRANSACTION_STATUS",
+  "WEBHOOK",
+  "RECONCILIATION",
+] as const;
+
+export type WalletProviderType = (typeof walletProviderTypes)[number];
+
+export function isWalletProviderType(value: string): value is WalletProviderType {
+  return (walletProviderTypes as readonly string[]).includes(value);
+}
+
+export const walletProviderStatuses = ["active", "inactive", "disabled"] as const;
+
+export type WalletProviderStatus = (typeof walletProviderStatuses)[number];
+
+export function isWalletProviderStatus(
+  value: string,
+): value is WalletProviderStatus {
+  return (walletProviderStatuses as readonly string[]).includes(value);
+}
+
+export const walletProviderEnvironments = ["sandbox", "production"] as const;
+
+export type WalletProviderEnvironment = (typeof walletProviderEnvironments)[number];
+
+export function isWalletProviderEnvironment(
+  value: string,
+): value is WalletProviderEnvironment {
+  return (walletProviderEnvironments as readonly string[]).includes(value);
+}
+
+export const walletProviderAssets = [
+  "FIAT",
+  "CRYPTOCURRENCY",
+  "TOKEN",
+  "NATIVE_TOKEN",
+  "CUSTOM",
+] as const;
+
+export type WalletProviderAsset = (typeof walletProviderAssets)[number];
+
+export function isWalletProviderAsset(
+  value: string,
+): value is WalletProviderAsset {
+  return (walletProviderAssets as readonly string[]).includes(value);
+}
+
+/** Unified 3-level token identity: asset × network × contract (if applicable). */
+export interface ProviderAssetIdentity {
+  asset: string;
+  network?: string;
+  chainId?: string;
+  contractAddress?: string;
+  decimals?: number;
+  tokenStandard?: string;
+}
+
+/** Backward-compatible projection of the old provider_configs row. */
+export interface LegacyProviderConfig {
+  provider: string;
+  enabled: boolean;
+  displayName?: string;
+  environment: string;
+  capabilities?: readonly string[];
+  supportedCurrencies?: readonly string[];
+  supportedCountries?: readonly string[];
+  minimumAmount?: number | null;
+  maximumAmount?: number | null;
+  fees?: Record<string, unknown> | null;
+  configuration?: Record<string, unknown> | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/** One ACTIVE payment rail an administrator manages (admin CRUD). */
+export const providers = pgTable(
+  "providers",
+  {
+    id: text("id").primaryKey(),
+
+    /** Kebab-case slug. */
+    slug: text("slug").notNull().unique(),
+
+    name: text("name").notNull(),
+
+    /** Provider category (PAYMENT_GATEWAY, MOBILE_MONEY…). */
+    type: text("type").notNull().default("PAYMENT_GATEWAY"),
+
+    /** active | inactive | disabled. disabled = no new operations. */
+    status: text("status").notNull().default("active"),
+
+    description: text("description"),
+
+    /** Token the provider is primarily configured for (admin display). */
+    currency: text("currency"),
+
+    /** Brand key used for the admin UI logo (e.g. "stripe", "ecobank"). */
+    logoPrefix: text("logo_prefix"),
+
+    /** sandbox | production. */
+    environment: text("environment").notNull().default("production"),
+
+    /** Ordering key (lower = listed first). */
+    priority: integer("priority").notNull().default(100),
+
+    /**
+     * Non-secret operational configuration:
+     *   { endpoint, expirySeconds, timeoutMs, webhookUrl, … }
+     * Public by design; only this layer is safe to expose to admins.
+     */
+    configuration: jsonb("configuration"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "providers_type_valid",
+      sql`${table.type} in ('PAYMENT_GATEWAY', 'MOBILE_MONEY', 'BANK', 'CARD', 'EXCHANGE', 'BLOCKCHAIN', 'CRYPTO_CUSTODY', 'CRYPTO_PAYMENT', 'CUSTOM')`,
+    ),
+    check(
+      "providers_status_valid",
+      sql`${table.status} in ('active', 'inactive', 'disabled')`,
+    ),
+    check(
+      "providers_environment_valid",
+      sql`${table.environment} in ('sandbox', 'production')`,
+    ),
+  ],
+);
+
+/** Assets a provider supports — one row per (asset, network, contract). */
+export const providerAssets = pgTable(
+  "provider_assets",
+  {
+    providerId: text("provider_id")
+      .notNull()
+      .references(() => providers.id, { onDelete: "cascade" }),
+
+    /** Token, e.g. "USDT", "USD", "BIF", "ETH". */
+    asset: text("asset").notNull(),
+
+    /** Network name: "ethereum", "tron", "bnb_chain", … */
+    network: text("network"),
+
+    /** chainId as a string, when applicable. */
+    chainId: text("chain_id"),
+
+    /** Token contract address (ERC-20 / TRC-20 / …). */
+    contractAddress: text("contract_address"),
+
+    /** Significant decimals (18 for ERC-20 / ERC-20). */
+    decimals: integer("decimals"),
+
+    /** "ERC-20" / "TRC-20" / "NATIVE" / undefined. */
+    tokenStandard: text("token_standard"),
+
+    /** Whether this asset is currently selectable for this provider. */
+    supported: boolean("supported").notNull().default(true),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex(
+      "provider_assets_provider_asset_network_chain_contract_uq",
+    ).on(table.providerId, table.asset, table.network, table.chainId, table.contractAddress),
+    index("provider_assets_provider_idx").on(table.providerId),
+    index("provider_assets_asset_idx").on(table.asset),
+    index("provider_assets_supported_idx").on(table.supported),
+    check(
+      "provider_assets_token_standard_valid",
+      sql`${table.tokenStandard} is null or ${table.tokenStandard} in ('ERC-20', 'TRC-20', 'BEAM', 'ERC-721', 'ERC-1155')`,
+    ),
+  ],
+);
+
+/** Secure credential split (never exposed in provider listing or logs). */
+export const providerCredentials = pgTable(
+  "provider_credentials",
+  {
+    providerId: text("provider_id").primaryKey().references(
+      () => providers.id,
+      { onDelete: "cascade" },
+    ),
+
+    /** API key / private token / client secret. */
+    apiKey: text("api_key"),
+
+    /** HMAC/shared secret used to sign outbound payloads. */
+    apiSecret: text("api_secret"),
+
+    /** OAuth / bearer token. */
+    privateToken: text("private_token"),
+
+    /** Webhook signing secret (e.g. HMAC secret). */
+    webhookSecret: text("webhook_secret"),
+
+    /** API key used by client-side SDKs (masked in UI). */
+    clientSecret: text("client_secret"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "provider_credentials_type_valid",
+      sql`${table.providerId} is not null`, // enforced by primary key
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Provider configuration — runtime, DB-backed settings per provider so a
 // provider can be enabled/disabled, limited and re-priced WITHOUT code
-// changes. Secrets NEVER live here: they come from the environment.
+// changes. Secrets NEVER live here: they come from the environment or
+// from provider_credentials.
 // ---------------------------------------------------------------------------
+export type ProviderRow = typeof providers.$inferSelect;
+export type ProviderAssetRow = typeof providerAssets.$inferSelect;
+export type ProviderCredentialRow = typeof providerCredentials.$inferSelect;
+export type ProviderConfigRow = typeof providerConfigs.$inferSelect;
 
 export const providerConfigs = pgTable(
   "provider_configs",
   {
-    /** Registry id of the adapter — NOT a foreign key by design: a
-     * provider row can exist before (or after) its adapter ships. */
+    /**
+     * Backward-compatible PK (original `provider_configs` used `provider`).
+     * Registry id of the adapter — not unique to this table, a provider row
+     * can exist before (or after) its adapter ships.
+     */
     provider: text("provider").primaryKey(),
+
+    /**
+     * FK to the new providers table — nullable so adapters that ship an
+     * in-process registry can bootstrap a row before the providers row
+     * exists.
+     */
+    providerId: text("provider_id").references(
+      () => providers.id,
+      { onDelete: "set null" },
+    ),
 
     enabled: boolean("enabled").notNull().default(true),
 
@@ -459,7 +723,32 @@ export const providerConfigs = pgTable(
     /** NULL = currencies allowed by the adapter/wallet. */
     supportedCurrencies: text("supported_currencies").array(),
 
+    /** Broad capability/operation routing for an adapter (kept for
+     * backward compatibility with the old `provider_configs` rows). */
+    supportedOperations: text("supported_operations").array(),
+
+    /** Legacy column kept so pre-registry rows keep their country list.
+     * Never read at runtime — the adapter declares its own countries. */
     supportedCountries: text("supported_countries").array(),
+
+    /** Network routing for blockchain adaptors (deferrable until the
+     * provider_assets table is backfilled in the admin. */
+    blockchain_network: text("blockchain_network"),
+
+    /** chainId as a string, when applicable. */
+    blockchain_chain_id: text("blockchain_chain_id"),
+
+    /** Token contract address, when applicable. */
+    blockchain_contract_address: text("blockchain_contract_address"),
+
+    /** Significant decimals, when applicable. */
+    blockchain_decimals: integer("blockchain_decimals"),
+
+    /** Token standard, when applicable. */
+    blockchain_token_standard: text("blockchain_token_standard"),
+
+    /** Accounts the adapter can collect from for this provider. */
+    providerAccounts: text("provider_accounts").array(),
 
     /** Operating limits in integer minor units (NULL = unlimited). */
     minimumAmount: bigint("minimum_amount", { mode: "number" }),
@@ -498,23 +787,25 @@ export const providerConfigs = pgTable(
       "provider_configs_limits_non_negative",
       sql`${table.minimumAmount} is null or ${table.minimumAmount} >= 0`,
     ),
+    check(
+      "provider_configs_blockchain_chain_id_format",
+      sql`${table.blockchain_chain_id} is null or ${table.blockchain_chain_id} ~ '^[0-9]+$'`,
+    ),
+    check(
+      "provider_configs_blockchain_decimals_non_negative",
+      sql`${table.blockchain_decimals} is null or ${table.blockchain_decimals} >= 0`,
+    ),
   ],
 );
 
-// ---------------------------------------------------------------------------
-// Relations
-// ---------------------------------------------------------------------------
-
-export const walletsRelations = relations(wallets, ({ one, many }) => ({
-  user: one(user, {
-    fields: [wallets.userId],
-    references: [user.id],
+export const providerConfigsRelations = relations(providerConfigs, ({ one }) => ({
+  provider: one(providers, {
+    fields: [providerConfigs.providerId],
+    references: [providers.id],
   }),
-  transactions: many(walletTransactions),
-  providerAccounts: many(providerAccounts),
 }));
 
-export const providerAccountsRelations = relations(
+export const walletsRelations = relations(
   providerAccounts,
   ({ one }) => ({
     wallet: one(wallets, {
@@ -549,3 +840,29 @@ export const ledgerEntriesRelations = relations(ledgerEntries, ({ one }) => ({
     references: [wallets.id],
   }),
 }));
+
+export const providerRelations = relations(providers, ({ one, many }) => ({
+  assets: many(providerAssets),
+  credentials: one(providerCredentials, {
+    fields: [providers.id],
+    references: [providerCredentials.providerId],
+  }),
+}));
+
+export const providerAssetsRelations = relations(providerAssets, ({ one }) => ({
+  provider: one(providers, {
+    fields: [providerAssets.providerId],
+    references: [providers.id],
+  }),
+}));
+
+export const providerCredentialsRelations = relations(
+  providerCredentials,
+  ({ one }) => ({
+    provider: one(providers, {
+      fields: [providerCredentials.providerId],
+      references: [providers.id],
+    }),
+  }),
+);
+
