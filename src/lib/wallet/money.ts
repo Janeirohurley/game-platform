@@ -45,8 +45,8 @@ export function parseMajorToMinor(input: string, currency: string): number {
     throw new MoneyError(`Unsupported currency: ${currency}`);
   }
 
-  const cleaned = input.trim().replace(/[\s' ]/g, "").replace(",", ".");
-  if (!/^\d+(\.\d+)?$|^\.\d+$/.test(cleaned)) {
+  const cleaned = input.trim().replace(/[\s\xA0']/g, "").replace(",", ".");
+  if (!/^\d+(\.\d+)?$|^\d*\.\d+$/.test(cleaned)) {
     throw new MoneyError(`Invalid amount: ${input}`);
   }
 
@@ -71,7 +71,7 @@ export function parseMajorToMinor(input: string, currency: string): number {
 export function minorToMajorString(minor: number, currency: string): string {
   const exponent = currencyExponent(currency);
   if (exponent === null) {
-    throw new MoneyError(`Unsupported currency: ${currency}`);
+    throw new MoneyError("Unsupported currency: " + currency);
   }
   if (!Number.isSafeInteger(minor)) {
     throw new MoneyError("Amount must be a safe integer of minor units");
