@@ -3,16 +3,20 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeftRightIcon,
   BarChart3Icon,
   Gamepad2Icon,
   LayoutDashboardIcon,
   LogOutIcon,
+  PlugIcon,
   RadioIcon,
+  ScaleIcon,
   ShieldAlertIcon,
   SwordsIcon,
   UserIcon,
   UsersIcon,
   VideoIcon,
+  WalletIcon,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -76,6 +80,15 @@ const adminNav = [
       { title: "Rooms Colyseus", href: "/admin/rooms", icon: RadioIcon, phase: 7 },
       { title: "LiveKit", href: "/admin/livekit", icon: VideoIcon, phase: 8 },
       { title: "Statistiques", href: null, icon: BarChart3Icon, phase: 10 },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { title: "Portefeuilles", href: "/admin/wallets", icon: WalletIcon, phase: 12 },
+      { title: "Transactions", href: "/admin/transactions", icon: ArrowLeftRightIcon, phase: 12 },
+      { title: "Fournisseurs", href: "/admin/providers", icon: PlugIcon, phase: 12 },
+      { title: "Réconciliation", href: "/admin/reconciliation", icon: ScaleIcon, phase: 12 },
     ],
   },
   {
