@@ -14,10 +14,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { authClient } from "@/lib/auth-client";
-import {
-  profileSchema,
-  type ProfileInput,
-} from "@/lib/validation/profile";
+import { profileSchema, type ProfileInput } from "@/lib/validation/profile";
 import { listGames } from "@/lib/games/registry";
 import type { PublicGamerProfileView } from "@/lib/profile/read-model";
 import { saveProfile } from "./actions";
@@ -85,11 +82,7 @@ function getDeviceName(userAgent: string | null | undefined) {
 }
 
 export default function ProfilePageClient({ data }: Props) {
-  const {
-    data: liveSession,
-    isPending,
-    refetch,
-  } = authClient.useSession();
+  const { data: liveSession, isPending, refetch } = authClient.useSession();
 
   const session = liveSession ?? null;
 
@@ -158,21 +151,15 @@ export default function ProfilePageClient({ data }: Props) {
     setSessionsLoading(true);
     setSessionError("");
 
-    const { data: sessionData, error } =
-      await authClient.listSessions();
+    const { data: sessionData, error } = await authClient.listSessions();
 
     if (error) {
-      setSessionError(
-        error.message ||
-          "Unable to load active sessions.",
-      );
+      setSessionError(error.message || "Unable to load active sessions.");
       setSessionsLoading(false);
       return;
     }
 
-    setSessions(
-      (sessionData ?? []) as SecuritySession[],
-    );
+    setSessions((sessionData ?? []) as SecuritySession[]);
 
     setSessionsLoading(false);
   }
@@ -181,14 +168,10 @@ export default function ProfilePageClient({ data }: Props) {
     setRevoking(true);
     setSessionError("");
 
-    const { error } =
-      await authClient.revokeOtherSessions();
+    const { error } = await authClient.revokeOtherSessions();
 
     if (error) {
-      setSessionError(
-        error.message ||
-          "Unable to revoke other sessions.",
-      );
+      setSessionError(error.message || "Unable to revoke other sessions.");
       setRevoking(false);
       return;
     }
@@ -201,16 +184,12 @@ export default function ProfilePageClient({ data }: Props) {
     setRevoking(true);
     setSessionError("");
 
-    const { error } =
-      await authClient.revokeSession({
-        token,
-      });
+    const { error } = await authClient.revokeSession({
+      token,
+    });
 
     if (error) {
-      setSessionError(
-        error.message ||
-          "Unable to revoke the session.",
-      );
+      setSessionError(error.message || "Unable to revoke the session.");
       setRevoking(false);
       return;
     }
@@ -229,9 +208,7 @@ export default function ProfilePageClient({ data }: Props) {
     return (
       <main className="min-h-svh bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
         <div className="mx-auto flex min-h-svh max-w-6xl items-center justify-center px-6">
-          <div className="text-sm text-white/45">
-            Loading profile...
-          </div>
+          <div className="text-sm text-white/45">Loading profile...</div>
         </div>
       </main>
     );
@@ -297,9 +274,7 @@ export default function ProfilePageClient({ data }: Props) {
                             size={15}
                             strokeWidth={1.7}
                           />
-                          <span className="truncate">
-                            {session.user.email}
-                          </span>
+                          <span className="truncate">{session.user.email}</span>
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
@@ -582,7 +557,7 @@ export default function ProfilePageClient({ data }: Props) {
                 <div
                   role="status"
                   className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300"
-              >
+                >
                   <HugeiconsIcon
                     icon={CheckmarkCircle02Icon}
                     size={17}
@@ -610,9 +585,7 @@ export default function ProfilePageClient({ data }: Props) {
                   disabled={isSubmitting || !isDirty}
                   className="h-11 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-white/90"
                 >
-                  {isSubmitting
-                    ? "Enregistrement..."
-                    : "Enregistrer"}
+                  {isSubmitting ? "Enregistrement..." : "Enregistrer"}
                 </button>
               </div>
             </form>
@@ -634,22 +607,17 @@ export default function ProfilePageClient({ data }: Props) {
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/45">
-                    Revois où ton compte Game Arena est actuellement
-                    connecté.
+                    Revois où ton compte Game Arena est actuellement connecté.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={revokeOtherSessions}
-                  disabled={
-                    revoking || sessions.length <= 1
-                  }
+                  disabled={revoking || sessions.length <= 1}
                   className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:hover:bg-white/[0.05]"
                 >
-                  {revoking
-                    ? "Working..."
-                    : "Sign out other devices"}
+                  {revoking ? "Working..." : "Sign out other devices"}
                 </button>
               </div>
 
@@ -673,9 +641,7 @@ export default function ProfilePageClient({ data }: Props) {
               ) : (
                 <div className="mt-7 divide-y divide-slate-200 dark:divide-white/10">
                   {sessions.map((item) => {
-                    const isCurrent =
-                      item.token ===
-                      session?.session.token;
+                    const isCurrent = item.token === session?.session.token;
 
                     return (
                       <div
@@ -685,9 +651,7 @@ export default function ProfilePageClient({ data }: Props) {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-semibold">
-                              {getDeviceName(
-                                item.userAgent,
-                              )}
+                              {getDeviceName(item.userAgent)}
                             </p>
 
                             {isCurrent ? (
@@ -698,11 +662,9 @@ export default function ProfilePageClient({ data }: Props) {
                           </div>
 
                           <p className="mt-1 text-xs text-slate-400 dark:text-white/35">
-                            {item.ipAddress ||
-                              "IP unavailable"}
+                            {item.ipAddress || "IP unavailable"}
                             {" · "}
-                            Expires{" "}
-                            {formatDate(item.expiresAt)}
+                            Expires {formatDate(item.expiresAt)}
                           </p>
                         </div>
 
@@ -710,11 +672,7 @@ export default function ProfilePageClient({ data }: Props) {
                           <button
                             type="button"
                             disabled={revoking}
-                            onClick={() =>
-                              revokeSession(
-                                item.token,
-                              )
-                            }
+                            onClick={() => revokeSession(item.token)}
                             className="h-9 rounded-lg border border-rose-200 px-3 text-xs font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-400/20 dark:text-rose-300 dark:hover:bg-rose-400/10"
                           >
                             Revoke
@@ -736,13 +694,11 @@ export default function ProfilePageClient({ data }: Props) {
                   className="text-slate-500 dark:text-white/50"
                 />
 
-                <h3 className="mt-4 font-semibold">
-                  Mot de passe
-                </h3>
+                <h3 className="mt-4 font-semibold">Mot de passe</h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/40">
-                  Utilise le flux de réinitialisation pour choisir un
-                  nouveau mot de passe.
+                  Utilise le flux de réinitialisation pour choisir un nouveau
+                  mot de passe.
                 </p>
 
                 <Link
@@ -767,9 +723,7 @@ export default function ProfilePageClient({ data }: Props) {
                   className="text-slate-500 dark:text-white/50"
                 />
 
-                <h3 className="mt-4 font-semibold">
-                  Visibilité du profil
-                </h3>
+                <h3 className="mt-4 font-semibold">Visibilité du profil</h3>
 
                 <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/40">
                   Ton profil est actuellement{" "}

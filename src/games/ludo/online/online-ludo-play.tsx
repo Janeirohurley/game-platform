@@ -15,10 +15,7 @@ import type { LudoPlayerView } from "@/lib/realtime/types";
 import { BOARD_POSITIONS } from "../data/boardPositions";
 import LudoBoard from "../components/board/LudoBoard";
 import { GameToasts, useGameToasts } from "./game-toasts";
-import {
-  CameraRig,
-  type CameraViewName,
-} from "./camera-controls";
+import { CameraRig, type CameraViewName } from "./camera-controls";
 import { CameraViewsPanel } from "./camera-views-panel";
 
 export interface ServerLudoSnapshot {
@@ -112,7 +109,9 @@ export function OnlineLudoPlay({
         boardRef.current?.throwDiceWithValue(message.value);
 
         const mine = message.userId === viewerUserId;
-        const who = mine ? "Tu as fait" : `${message.name ?? nameOf(message.userId)} a fait`;
+        const who = mine
+          ? "Tu as fait"
+          : `${message.name ?? nameOf(message.userId)} a fait`;
         push(
           message.playable === 0
             ? `${who} ${message.value} — rien à jouer`
@@ -206,7 +205,9 @@ export function OnlineLudoPlay({
   // This is display filtering only — the server re-validates every move.
   const movablePieceIndexes = useMemo(() => {
     if (!isMyTurn || dice < 1 || dice > 6) return new Set<number>();
-    const me = snapshot.players.find((player) => player.userId === viewerUserId);
+    const me = snapshot.players.find(
+      (player) => player.userId === viewerUserId,
+    );
     if (!me) return new Set<number>();
     const movable = new Set<number>();
     for (const piece of me.pieces) {
@@ -230,9 +231,11 @@ export function OnlineLudoPlay({
   // Mirror server state into the board's GameState shape.
   const gameState: GameState = useMemo(() => {
     const players: BoardPlayer[] = snapshot.players.map((player) => {
-      const color = (COLOR_ORDER.includes(player.color as BoardColor)
-        ? player.color
-        : "yellow") as BoardColor;
+      const color = (
+        COLOR_ORDER.includes(player.color as BoardColor)
+          ? player.color
+          : "yellow"
+      ) as BoardColor;
       const pieces: GamePiece[] = player.pieces.map((piece) => ({
         id: `${player.userId}:${piece.index}`,
         playerId: player.userId,
@@ -300,7 +303,10 @@ export function OnlineLudoPlay({
   );
 
   return (
-    <div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: "#333333" }}>
+    <div
+      className="relative w-full h-full overflow-hidden"
+      style={{ backgroundColor: "#333333" }}
+    >
       {/* R3F scene — LudoBoard renders three.js elements and MUST live
           inside a Canvas, otherwise React treats <mesh>/<boxGeometry> as
           unknown DOM tags and the whole board crashes. */}
@@ -328,7 +334,7 @@ export function OnlineLudoPlay({
       </Canvas>
 
       {/* Camera panel — bottom-right, above the chat bubble. */}
-      <div className="absolute bottom-20 right-4 z-20 sm:bottom-24">
+      <div className="absolute bottom-5.5 right-4 z-20">
         <CameraViewsPanel
           view={cameraView}
           onViewChange={setCameraView}

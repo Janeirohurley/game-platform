@@ -51,6 +51,34 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * Loading states. `animate-shimmer` sweeps a highlight across a skeleton
+ * (or across already-rendered content that is being refetched) so a wait
+ * reads as "this is coming" instead of "this is broken". Paired with the
+ * base `animate-pulse` on every Skeleton, the pair is what makes the
+ * admin/wallet fallbacks feel alive on a slow WAN round-trip.
+ */
+@theme {
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Respect the OS setting: no movement, but the placeholders stay visible. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="skeleton"],
+  [data-slot="shimmer-sweep"] {
+    animation: none !important;
+  }
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

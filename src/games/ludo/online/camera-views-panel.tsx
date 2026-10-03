@@ -89,7 +89,7 @@ export function CameraViewsPanel({
           overflow-visible
           transition-all
           duration-300
-          ease-[cubic-bezier(.4,0,.2,1)]
+          ease-in-out
           ${
             open
               ? "mr-2 w-auto translate-x-0 opacity-100"

@@ -1,26 +1,31 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ChartSkeleton,
+  LoadingRegion,
+  PageHeaderSkeleton,
+  StatGridSkeleton,
+  TableSkeleton,
+} from "@/components/loading/skeletons";
 
 /**
- * Route-level loading UI for the WHOLE /admin section. Next streams this
- * while a page's server components resolve (auth + Postgres over the
- * internet), so sidebar navigation always shows visible progress instead
- * of a frozen screen — and the shell stays mounted during navigation.
+ * /admin route fallback — the safety net for the section. Every admin
+ * page that ships its own `loading.tsx` overrides this with the exact
+ * shape of that screen; this generic one covers anything added later.
+ *
+ * It matters because the admin queries are 0.5–2 s each over the WAN
+ * (Supabase transaction pooler) and the dashboard runs seven SEQUENTIALLY
+ * — see the note in admin/page.tsx. Without a streamed fallback the user
+ * gets a frozen shell; with it, a page-shaped pulse.
+ *
+ * No padding wrapper: AdminShell's <main> already provides it, and a
+ * double padding would offset the fallback from the real page.
  */
 export default function AdminLoading() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-64" />
-        <Skeleton className="h-4 w-96 max-w-full" />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-28 rounded-xl" />
-        ))}
-      </div>
-
-      <Skeleton className="h-72 w-full rounded-xl" />
-    </div>
+    <LoadingRegion label="Chargement de l'administration…">
+      <PageHeaderSkeleton />
+      <StatGridSkeleton count={4} />
+      <ChartSkeleton />
+      <TableSkeleton columns={5} rows={8} />
+    </LoadingRegion>
   );
 }
