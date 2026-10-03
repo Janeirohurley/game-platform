@@ -177,3 +177,60 @@ Authentication, realtime matchmaking, game servers, persistent player data and p
 * Added proxy configuration for local development.
 * Updated package dependencies for auth and email tooling.
 * Updated Tailwind and linting tooling versions.
+
+## [0.3.0] - 2026-10-03
+
+### Added
+
+#### Multi-asset provider system
+
+* Added universal multi-asset wallet provider system with administrator-managed providers
+* Added new database tables: `providers`, `provider_assets`, `provider_credentials`
+* Extended `provider_configs` with nullable columns and CHECK constraints
+* Added provider registry with effective-config wiring (`listEffectiveProviders`, `getEffectiveProvider`, `toEffective`)
+* Added admin control-plane CRUD for providers, assets, and credentials
+* Added audited server actions: `createProviderAction`, `updateProviderAction`, `activateProviderAction`, `deactivateProviderAction`, `archiveProviderAction`, `testConnectionAction`
+* Added API routes `/api/providers/*` for provider management
+* Added Drizzle migrations `0008_add_provider_registry.sql` and `0009_backfill_provider_registry.sql`
+
+#### Wallet UI
+
+* Added new wallet panels: `add-money-panel.tsx`, `withdraw-panel.tsx`, `transactions-table.tsx`, `transaction-detail-dialog.tsx`
+* Updated wallet page client component for multi-asset providers
+* Added wallet link to navbar for authenticated users
+* Added loading spinner for wallet operations
+
+#### UI Components
+
+* Updated navbar user section: replaced username with clickable avatar
+* Added avatar click to navigate to user profile page
+* Added logout icon with spinner loading state
+* Added logout duplicate click prevention and button disable
+* Added new loading components: `refresh-overlay.tsx`, `shimmer.tsx`, `skeletons.tsx`
+* Added loading states for admin pages and protected pages
+
+#### Database
+
+* Added provider registry tables (`providers`, `provider_assets`, `provider_credentials`)
+* Extended `provider_configs` table with nullable columns and CHECK constraints
+* Updated drizzle journal to include migrations 0008 and 0009
+* Applied database migrations to Drizzle metadata
+
+### Changed
+
+* Replaced legacy single-adapter `provider_configs` pattern with universal multi-asset provider system
+* Extended admin control plane with provider management and CRUD operations
+* Updated wallet UI components for multi-asset support
+
+### Technical
+
+* Fixed wallet money parsing (`parseMajorToMinor`) to resolve test failures
+* Cleaned up unused code in `provider-config.ts` (dead imports, unused variables)
+* Removed unnecessary slug registry queries from `listEffectiveProviders`
+* Fixed TypeScript compilation errors in `provider-config.ts` (5-argument `toEffective` calls)
+* Verified database schema with `drizzle-kit check` — all migrations valid
+* Ran TypeScript typecheck — 0 errors
+
+### Notes
+
+The provider registry migrations (`0008`/`0009`) are applied to the schema files and Drizzle journal, but the tables are not yet visible in the reachable Supabase pooler database (which only contains the `account` table). The Drizzle schema files are valid and the migrations are ready for deployment to the target database. The multi-asset provider system is fully implemented in the codebase and ready for the next phase: admin provider management UI and backend API integration.
