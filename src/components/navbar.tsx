@@ -21,6 +21,11 @@ const navigation = [
 
 export default function Navbar() {
   const { data: session, isPending } = useSession();
+
+  // Signed-in users get the wallet entry point in the main nav.
+  const links = session
+    ? [...navigation, { label: "Wallet", href: "/wallet" }]
+    : navigation;
   return (
     <header className="relative z-30">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between bg-transparent px-4 sm:px-6 lg:px-8">
@@ -73,7 +78,7 @@ export default function Navbar() {
           className="hidden items-center gap-8 md:flex"
           aria-label="Main navigation"
         >
-          {navigation.map((item) => (
+          {links.map((item) => (
             <Link
               key={item.href}
               href={item.href}

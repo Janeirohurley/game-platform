@@ -36,6 +36,27 @@
       "when": 1790714019896,
       "tag": "0004_admin_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790973113073,
+      "tag": "0005_wallet_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790973501471,
+      "tag": "0006_wallet_provider_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791007992163,
+      "tag": "0007_drop_ledger_account_uq",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "validate": "bun run typecheck && bun run lint && bun run db:check",
     "admin:create": "bun scripts/auth/create-admin.ts",
     "db:test": "bun scripts/db/test-connection.ts",
