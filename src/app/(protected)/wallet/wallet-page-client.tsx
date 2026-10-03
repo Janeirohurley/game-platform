@@ -10,8 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RefreshOverlay } from "@/components/loading/refresh-overlay";
 import {
   walletApi,
   type OverviewResponse,
@@ -101,73 +101,81 @@ export default function WalletPageClient({
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        {/* ---- Overview ------------------------------------------------ */}
-        <TabsContent value="overview" className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <CardDescription>Available balance</CardDescription>
-              <CardTitle className="text-3xl tabular-nums">
-                {refreshing && !overview ? (
-                  <Skeleton className="h-8 w-40" />
-                ) : (
-                  money(overview.balanceMinor, currency)
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button onClick={() => setTab("add")}>Add money</Button>
-              <Button variant="outline" onClick={() => setTab("withdraw")}>
-                Withdraw
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => void refreshAll()}
-                disabled={refreshing}
-              >
-                {refreshing ? "Refreshing…" : "Refresh"}
-              </Button>
-            </CardContent>
-          </Card>
+        {/*
+         * Every refresh (after a deposit/withdrawal/refund, or the manual
+         * Refresh button) refetches overview + providers + accounts. The
+         * content stays mounted under RefreshOverlay: a sweeping highlight
+         * plus aria-busy marks the numbers as "being updated" instead of
+         * blanking a balance the user is reading.
+         */}
+        <RefreshOverlay busy={refreshing} label="Wallet data is refreshing…">
+          {/* ---- Overview ---------------------------------------------- */}
+          <TabsContent value="overview" className="flex flex-col gap-4">
+            <Card>
+              <CardHeader>
+                <CardDescription>Available balance</CardDescription>
+                <CardTitle
+                  className="text-3xl tabular-nums transition-opacity"
+                  aria-busy={refreshing}
+                >
+                  {money(overview.balanceMinor, currency)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Button onClick={() => setTab("add")}>Add money</Button>
+                <Button variant="outline" onClick={() => setTab("withdraw")}>
+                  Withdraw
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => void refreshAll()}
+                  disabled={refreshing}
+                >
+                  {refreshing ? "Refreshing…" : "Refresh"}
+                </Button>
+              </CardContent>
+            </Card>
 
-          <AccountsPanel
-            providers={providers}
-            accounts={accounts}
-            currency={currency}
-            onChanged={handleChanged}
-          />
-        </TabsContent>
+            <AccountsPanel
+              providers={providers}
+              accounts={accounts}
+              currency={currency}
+              onChanged={handleChanged}
+            />
+          </TabsContent>
 
-        {/* ---- Add money ---------------------------------------------- */}
-        <TabsContent value="add" className="flex flex-col gap-4">
-          <AddMoneyPanel
-            providers={providers}
-            accounts={accounts}
-            currency={currency}
-            onCreated={openDetail}
-            onChanged={handleChanged}
-          />
-        </TabsContent>
+          {/* ---- Add money -------------------------------------------- */}
+          <TabsContent value="add" className="flex flex-col gap-4">
+            <AddMoneyPanel
+              providers={providers}
+              accounts={accounts}
+              currency={currency}
+              onCreated={openDetail}
+              onChanged={handleChanged}
+            />
+          </TabsContent>
 
-        {/* ---- Withdraw ------------------------------------------------ */}
-        <TabsContent value="withdraw" className="flex flex-col gap-4">
-          <WithdrawPanel
-            providers={providers}
-            accounts={accounts}
-            currency={currency}
-            balanceMinor={overview.balanceMinor}
-            onCreated={openDetail}
-            onChanged={handleChanged}
-          />
-        </TabsContent>
+          {/* ---- Withdraw ---------------------------------------------- */}
+          <TabsContent value="withdraw" className="flex flex-col gap-4">
+            <WithdrawPanel
+              providers={providers}
+              accounts={accounts}
+              currency={currency}
+              balanceMinor={overview.balanceMinor}
+              onCreated={openDetail}
+              onChanged={handleChanged}
+            />
+          </TabsContent>
 
-        {/* ---- History ------------------------------------------------- */}
-        <TabsContent value="history" className="flex flex-col gap-4">
-          <TransactionsTable
-            refreshToken={refreshToken}
-            onOpenDetail={openDetail}
-            initial={tab === "history" ? initialTransactions : undefined}
-          />
-        </TabsContent>
+          {/* ---- History ----------------------------------------------- */}
+          <TabsContent value="history" className="flex flex-col gap-4">
+            <TransactionsTable
+              refreshToken={refreshToken}
+              onOpenDetail={openDetail}
+              initial={tab === "history" ? initialTransactions : undefined}
+            />
+          </TabsContent>
+        </RefreshOverlay>
       </Tabs>
 
       <TransactionDetailDialog
