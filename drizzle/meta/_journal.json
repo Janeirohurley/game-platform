@@ -57,6 +57,20 @@
       "when": 1791007992163,
       "tag": "0007_drop_ledger_account_uq",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791036557017,
+      "tag": "0008_add_provider_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791036600000,
+      "tag": "0009_backfill_provider_registry",
+      "breakpoints": true
     }
   ]
 }
