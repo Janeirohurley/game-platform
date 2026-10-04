@@ -108,7 +108,7 @@ export default function Navbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {session && (
+          {session ? (
             <div className="flex items-center gap-4">
               {/* Profile Avatar */}
               <Link
@@ -169,6 +169,13 @@ export default function Navbar() {
                 )}
               </button>
             </div>
+          ) : (
+            <Link
+              href="/sign-in"
+              className="rounded-lg px-3 py-2 text-sm text-slate-600 transition-colors hover:text-slate-950 dark:text-white/70 dark:hover:text-white"
+            >
+              Sign in
+            </Link>
           )}
 
           {/* Play Now */}
