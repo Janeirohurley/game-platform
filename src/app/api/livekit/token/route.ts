@@ -119,11 +119,22 @@ export async function GET(request: NextRequest) {
       // The check itself failed (realtime server down/slow): not a
       // refusal, a 503 the client may retry. Never a 403 — that would
       // be a lie about the authorization result.
+      //
+      // `cause` and `detail` are logged HERE and never serialized: they
+      // are the only record of why a hosted deployment could not reach
+      // its game server (unroutable address, drifted secret, timeout).
+      console.error("[livekit-token] membership check unavailable", {
+        roomId,
+        userId,
+        cause: membership.cause,
+        detail: membership.detail,
+      });
       return NextResponse.json(
         { error: "Vérification de la room impossible — réessaie." },
         { status: 503 },
       );
     }
+    console.warn("[livekit-token] membership refused", { roomId, userId });
     return NextResponse.json(
       { error: "Tu ne fais pas partie de cette partie." },
       { status: 403 },
