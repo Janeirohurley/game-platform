@@ -19,7 +19,7 @@ import { LudoEntryActions } from "./ludo-entry-actions";
 export const metadata: Metadata = {
   title: "Ludo | Game Arena",
   description:
-    "Le classique jeu de plateau Ludo — joue en local ou rejoins des rooms en ligne temps réel avec 2 à 4 joueurs.",
+    "Le classique jeu de plateau Ludo — joue en local ou rejoins des rooms en ligne temps réel avec 2 à 6 joueurs.",
 };
 
 /**
@@ -46,7 +46,7 @@ export default async function LudoPage() {
             <div>
               <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-cyan-600 dark:text-cyan-300">
                 <HugeiconsIcon icon={TimeIcon} size={14} strokeWidth={1.8} />
-                {game.category} · 15–30 min par partie
+                {game.category} · 15–45 min par partie selon la table
               </p>
 
               <h1 className="mt-4 font-(family-name:--font-playwrite) text-5xl font-normal leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
@@ -98,7 +98,7 @@ export default async function LudoPage() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,.35)_100%)]" />
 
                 <div className="absolute bottom-4 left-4 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                  4 couleurs · 16 pions · 1 dé
+                  Jusq&apos; à 6coleurs · 4 pions chacune · 1 dé
                 </div>
               </div>
 

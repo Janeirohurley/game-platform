@@ -6,31 +6,42 @@ import PlayingTrack from "./PlayingTrack";
 import CenterArea from "./CenterArea";
 import GamePieces from "../pieces/GamePieces";
 
-// All board components
+// Teinte des cases sûres neutres (les étoiles).
+const NEUTRAL_SAFE = "#1a1a1a";
+
+// Tous les composants du plateau.
+//
+// `playerCount` traverse toute la chaîne : c'est lui qui décide de la
+// forme du plateau. Le nombre de joueurs vient de l'état de jeu en mode
+// local et de `targetPlayers` en mode en ligne.
 function BoardComponents({
   colors,
   gameState,
+  playerCount,
   onPieceClick,
 }: {
   colors: ColorTheme;
   gameState: GameState;
+  playerCount: number;
   onPieceClick: (piece: GamePiece) => void;
 }) {
   return (
     <group>
-      {/* Home areas */}
-      <HomeAreas colors={colors} gameState={gameState} />
+      <HomeAreas colors={colors} gameState={gameState} playerCount={playerCount} />
 
-      {/* Playing track */}
-      <PlayingTrack colors={colors} />
+      <PlayingTrack
+        playerCount={playerCount}
+        trackTiles={colors.trackTiles}
+        neutralSafe={NEUTRAL_SAFE}
+        colorOf={(color) => colors.players[color as keyof typeof colors.players]}
+      />
 
-      {/* Center area */}
-      <CenterArea colors={colors} />
+      <CenterArea colors={colors} playerCount={playerCount} />
 
-      {/* Game pieces */}
       <GamePieces
         colors={colors}
         gameState={gameState}
+        playerCount={playerCount}
         onPieceClick={onPieceClick}
       />
     </group>

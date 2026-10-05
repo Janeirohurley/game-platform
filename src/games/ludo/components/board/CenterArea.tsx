@@ -1,149 +1,129 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { getTrack } from "../../utils/positionUtils";
 import type { ColorTheme } from "../../types/game";
 
-// Center finish area with 4 colored triangles
-function CenterArea({ colors }: { colors: ColorTheme }) {
-  // Create triangle geometries using BufferGeometry
-  const triangleGeometries = useMemo(() => {
-    // Yellow triangle (top-right quadrant)
-    const yellowGeometry = new THREE.BufferGeometry();
-    const yellowVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      1.5,
-      0,
-      0, // Right
-      0,
-      0,
-      -1.5, // Top
-    ]);
-    const yellowNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    yellowGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(yellowVertices, 3),
-    );
-    yellowGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(yellowNormals, 3),
-    );
-    yellowGeometry.setIndex([0, 1, 2]);
+// Le centre du plateau, où les pions terminés se posent.
+//
+// Une pointe de triangle par siège, tournée vers son bras : avec quatre
+// joueurs on retrouve l'étoile à quatre branches de l'ancien rendu.
+//
+// Plateau hexagonal (5 et 6 joueurs) : un secteur de 60° par bras, centré
+// sur l'axe du bras, ce qui dessine un hexagone complet. À 5 joueurs le
+// sixième secteur, celui du bras vide, reste gris.
+function CenterArea({
+  colors,
+  playerCount,
+}: {
+  colors: ColorTheme;
+  playerCount: number;
+}) {
+  const track = getTrack(playerCount);
+  const radius = 1.5;
+  const isHex = track.shape === "hex";
 
-    // Green triangle (top-left quadrant)
-    const greenGeometry = new THREE.BufferGeometry();
-    const greenVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      0,
-      0,
-      -1.5, // Top
-      -1.5,
-      0,
-      0, // Left
-    ]);
-    const greenNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    greenGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(greenVertices, 3),
-    );
-    greenGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(greenNormals, 3),
-    );
-    greenGeometry.setIndex([0, 1, 2]);
+  // Une géométrie par pointe, mémorisée : THREE ne libère pas les
+  // BufferGeometry qu'on lui donne, et en recréer un par rendu fuiterait
+  // la mémoire GPU sur une table qui tourne longtemps.
+  const geometries = useMemo(
+    () =>
+      track.seats.map(() => {
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(
+            new Float32Array([0, 0, 0, radius, 0, 0, 0, 0, -radius]),
+            3,
+          ),
+        );
+        geometry.setAttribute(
+          "normal",
+          new THREE.BufferAttribute(
+            new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]),
+            3,
+          ),
+        );
+        geometry.setIndex([0, 1, 2]);
+        return geometry;
+      }),
+    [track],
+  );
 
-    // Blue triangle (bottom-left quadrant)
-    const blueGeometry = new THREE.BufferGeometry();
-    const blueVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      -1.5,
-      0,
-      0, // Left
-      0,
-      0,
-      1.5, // Bottom
-    ]);
-    const blueNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    blueGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(blueVertices, 3),
-    );
-    blueGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(blueNormals, 3),
-    );
-    blueGeometry.setIndex([0, 1, 2]);
+  useEffect(
+    () => () => {
+      geometries.forEach((geometry) => geometry.dispose());
+    },
+    [geometries],
+  );
 
-    // Red triangle (bottom-right quadrant)
-    const redGeometry = new THREE.BufferGeometry();
-    const redVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      0,
-      0,
-      1.5, // Bottom
-      1.5,
-      0,
-      0, // Right
-    ]);
-    const redNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    redGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(redVertices, 3),
-    );
-    redGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(redNormals, 3),
-    );
-    redGeometry.setIndex([0, 1, 2]);
+  const hexSectors = useMemo(() => {
+    if (!isHex) return [];
+    // Les 6 bras, occupés ou non, pointent à -90° + k * 60°.
+    return Array.from({ length: 6 }, (_, arm) => {
+      const centre = -Math.PI / 2 + (arm * Math.PI) / 3;
+      const seat = track.seats.find((s) => s.seat === arm);
+      const geometry = new THREE.BufferGeometry();
+      const r = 1.3;
+      const a = centre - Math.PI / 6;
+      const b = centre + Math.PI / 6;
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(
+          new Float32Array([
+            0, 0, 0,
+            r * Math.cos(a), 0, r * Math.sin(a),
+            r * Math.cos(b), 0, r * Math.sin(b),
+          ]),
+          3,
+        ),
+      );
+      geometry.setAttribute(
+        "normal",
+        new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3),
+      );
+      geometry.setIndex([0, 1, 2]);
+      return { geometry, color: seat?.color ?? null, arm };
+    });
+  }, [isHex, track]);
 
-    return { yellowGeometry, greenGeometry, blueGeometry, redGeometry };
-  }, []);
+  useEffect(
+    () => () => {
+      hexSectors.forEach((sector) => sector.geometry.dispose());
+    },
+    [hexSectors],
+  );
+
+  if (isHex) {
+    return (
+      <group>
+        {hexSectors.map((sector) => (
+          <mesh key={sector.arm} position={[0, 0.19, 0]}>
+            <primitive object={sector.geometry} attach="geometry" />
+            <meshStandardMaterial
+              color={sector.color ? colors.players[sector.color] : "#BDBDBD"}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
 
   return (
-    <group rotation={[0, Math.PI / 4 + Math.PI / 2, 0]} scale={[1.4, 1, 1.4]}>
-      {/* Yellow triangle (top-right quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.yellowGeometry} />
-        <meshStandardMaterial
-          color={colors.players.yellow}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Green triangle (top-left quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.greenGeometry} />
-        <meshStandardMaterial
-          color={colors.players.green}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Blue triangle (bottom-left quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.blueGeometry} />
-        <meshStandardMaterial
-          color={colors.players.blue}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Red triangle (bottom-right quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.redGeometry} />
-        <meshStandardMaterial
-          color={colors.players.red}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+    <group scale={[1.4, 1, 1.4]}>
+      {track.seats.map((seat, index) => (
+        <group key={seat.color} rotation={[0, -seat.angle + Math.PI / 2, 0]}>
+          <mesh position={[0, 0.19, 0]}>
+            <primitive object={geometries[index]} attach="geometry" />
+            <meshStandardMaterial
+              color={colors.players[seat.color]}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }

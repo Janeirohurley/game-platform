@@ -54,7 +54,7 @@ export default async function LudoPlayOnlinePage() {
 
   const viewerUserId = session?.user?.id ?? "";
 
-  const allowedPlayerCounts = game?.allowedPlayerCounts ?? [2, 3, 4];
+  const allowedPlayerCounts = game?.allowedPlayerCounts ?? [2, 3, 4, 5, 6];
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 dark:bg-[#070b10] dark:text-white">

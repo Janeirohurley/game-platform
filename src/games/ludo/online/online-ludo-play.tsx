@@ -12,7 +12,8 @@ import type {
 import { playSound } from "@/lib/sounds";
 import type { LudoPlayerView } from "@/lib/realtime/types";
 
-import { BOARD_POSITIONS } from "../data/boardPositions";
+import { finishedPositionFor } from "../data/boardPositions";
+import { DEFAULT_PLAYER_COUNT, isLudoColor, type LudoColor } from "../data/track";
 import LudoBoard from "../components/board/LudoBoard";
 import { GameToasts, useGameToasts } from "./game-toasts";
 import {
@@ -41,9 +42,6 @@ export interface OnlineLudoPlayProps {
   snapshot: ServerLudoSnapshot;
   viewerUserId: string;
 }
-
-const COLOR_ORDER = ["yellow", "red", "blue", "green"] as const;
-type BoardColor = (typeof COLOR_ORDER)[number];
 
 /**
  * Server-driven Ludo view.
@@ -202,6 +200,21 @@ export function OnlineLudoPlay({
   const isMyTurn = snapshot.currentTurn === viewerUserId;
   const dice = snapshot.diceValue;
 
+  /*
+   * Table size, clamped to what the board can actually draw.
+   *
+   * `targetPlayers` is the authoritative choice and is validated by the
+   * base room against the registry, so a hostile client cannot ask for a
+   * 99-player table. The clamp is a render-side belt-and-braces so a
+   * snapshot from a future registry change cannot produce a board with
+   * no seats.
+   */
+  const playerCount = Math.min(
+    6,
+    Math.max(2, Math.trunc(snapshot.targetPlayers) || DEFAULT_PLAYER_COUNT),
+  );
+  const finishedPosition = finishedPositionFor(playerCount);
+
   // Which of my pieces can legally move, according to the SERVER state.
   // This is display filtering only — the server re-validates every move.
   const movablePieceIndexes = useMemo(() => {
@@ -210,29 +223,31 @@ export function OnlineLudoPlay({
     if (!me) return new Set<number>();
     const movable = new Set<number>();
     for (const piece of me.pieces) {
-      // 57 is the finished center — no piece ever moves from there.
-      if (piece.position === BOARD_POSITIONS.FINISHED_POSITION) continue;
-      // Leaving base requires a 6; the finish (57) is reached by EXACT
-      // count, so `position + dice === 57` is legal and must stay
+      // The finished center — no piece ever moves from there.
+      if (piece.position === finishedPosition) continue;
+      // Leaving base requires a 6; the finish is reached by EXACT count,
+      // so `position + dice === FINISHED_POSITION` is legal and must stay
       // clickable — the old `<= 56` filter made every finishing move
       // unplayable, stranding pieces on the last home-column cell.
       if (piece.position === -1) {
         if (dice === 6) movable.add(piece.index);
         continue;
       }
-      if (piece.position + dice <= BOARD_POSITIONS.FINISHED_POSITION) {
+      if (piece.position + dice <= finishedPosition) {
         movable.add(piece.index);
       }
     }
     return movable;
-  }, [isMyTurn, dice, snapshot.players, viewerUserId]);
+  }, [isMyTurn, dice, snapshot.players, viewerUserId, finishedPosition]);
 
   // Mirror server state into the board's GameState shape.
   const gameState: GameState = useMemo(() => {
     const players: BoardPlayer[] = snapshot.players.map((player) => {
-      const color = (COLOR_ORDER.includes(player.color as BoardColor)
-        ? player.color
-        : "yellow") as BoardColor;
+      // The server hands out the six palette colors and never a seventh.
+      // An unknown value would mean the two repos disagree on the
+      // palette, so falling back to seat 0 keeps the board drawable
+      // instead of indexing `undefined` mid-render.
+      const color: LudoColor = isLudoColor(player.color) ? player.color : "yellow";
       const pieces: GamePiece[] = player.pieces.map((piece) => ({
         id: `${player.userId}:${piece.index}`,
         playerId: player.userId,
@@ -269,8 +284,13 @@ export function OnlineLudoPlay({
       canRollAgain: false,
       turnStartTime: snapshot.turnDeadline || null,
       autoPlayEnabled: false,
+      // The table geometry follows the size the HOST CHOSE, not the
+      // number of players currently seated: a 6-player table that has
+      // only received one join request is already a 6-player board, and
+      // its start offsets must not move under the players as they sit.
+      playerCount: playerCount,
     };
-  }, [snapshot, movablePieceIndexes, viewerUserId, dice]);
+  }, [snapshot, movablePieceIndexes, viewerUserId, dice, playerCount]);
 
   const handleRollDice = useCallback(() => {
     if (!isMyTurn || dice !== 0) return;
