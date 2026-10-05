@@ -10,7 +10,8 @@
 // dessiner la table pour que le joueur voie où sont ses pions.
 
 // DEUX PLATEAUX, choisis une fois par table d'après le nombre de joueurs :
-//   - classique (2 à 4 joueurs) : anneau de 52 cases, maison 51-56, arrivée 57.
+//   - classique (2 à 4 joueurs) : une CROIX de quatre bras, anneau de 52
+//     cases, maison 51-56, arrivée 57.
 //   - hexagonal (5 et 6 joueurs) : étoile à six bras de 3 cases de large,
 //     13 cases d'anneau par bras donc 78 en tout. Un pion parcourt 77 cases
 //     d'anneau (0-76), puis la colonne maison (77-82), puis l'arrivée (83).
@@ -114,25 +115,75 @@ export interface LudoTrack {
   seatOf(color: LudoColor): LudoSeat;
 }
 
-// --- Constantes de dessin -----------------------------------------------
-// L'anneau est un cercle de 52 cases. Le pas entre deux cases voisines
-// vaut 2 * rayon * sin(pi / 52) ≈ 0.845, et la colonne maison descend avec
-// exactement ce pas : la transition anneau → maison est donc visuellement
-// continue, ce qui n'était pas le cas avec les coordonnées entières de
-// l'ancien plateau en croix.
-const RING_RADIUS = 7;
-// Le premier siège pointe vers -z pour que la table à quatre conserve
-// l'orientation historique (jaune en haut, rouge à droite du jaune…).
+// --- Géométrie du plateau classique ---------------------------------------
+//
+// Le plateau classique EST une croix, comme sur un plateau de Ludo
+// physique : quatre bras de trois cases de large. La colonne du milieu de
+// chaque bras est la colonne maison d'un joueur, les deux colonnes
+// latérales sont l'anneau partagé, et le centre 3x3 reste vide pour
+// accueillir les pions arrivés.
+//
+// L'anneau fait 4 x 13 = 52 cases : six cases le long d'un côté de bras, la
+// case du bout de bras, puis six cases le long de l'autre côté. La jonction
+// entre deux bras est un pas en diagonale — ce sont les quatre coins, et
+// c'est eux qui donnent 52 plutôt que 48.
+//
+// L'ordre de parcours est choisi pour que les départs 0, 13, 26 et 39
+// tombent exactement sur les quatre bouts de bras : la table à quatre est
+// donc la croix canonique, et une table à deux garde deux bras opposés.
+
+/** Le premier siège pointe vers -z : jaune en haut, comme toujours. */
 const FIRST_SEAT_ANGLE_DEG = -90;
+/**
+ * Pas d'une case. Voluntaryment le même que sur le plateau hexagonal :
+ * les tuiles font la même taille sur les deux plateaux.
+ */
 const HOME_STEP = 0.84;
-/** Rayons des 6 cases de la colonne maison, de la bordure vers le centre. */
-const HOME_RADII = Array.from(
-  { length: 6 },
-  (_, i) => RING_RADIUS - 1.3 - i * HOME_STEP,
-);
-/** Les 4 emplacements d'attente : 2 rangées de 2, derrière le bras. */
-const BASE_RADII = [9.2, 10.6];
+/** Rayons (en cases) des 6 cases de colonne maison, du bord vers le centre. */
+const CLASSIC_LANE_RADII = [6, 5, 4, 3, 2, 1];
+/** Les 4 emplacements d'attente : 2 rangées de 2, derrière le bout de bras. */
+const BASE_RADII = [8.0, 9.4];
 const BASE_LATERAL = [-0.62, 0.62];
+
+/**
+ * Les 52 cases de la croix, dans l'ordre de parcours. Les coordonnées sont
+ * en cases entières : un pas, c'est une unité.
+ */
+const CLASSIC_RING_GRID: readonly (readonly [number, number])[] = [
+  // Bras du haut : bout de bras, puis son côté droit en remontant vers le centre.
+  [0, -7], [1, -7], [1, -6], [1, -5], [1, -4], [1, -3], [1, -2],
+  // Coin, puis le côté haut du bras de droite.
+  [2, -1], [3, -1], [4, -1], [5, -1], [6, -1], [7, -1],
+  [7, 0],
+  [7, 1], [6, 1], [5, 1], [4, 1], [3, 1], [2, 1],
+  // Coin, puis le côté droit du bras du bas.
+  [1, 2], [1, 3], [1, 4], [1, 5], [1, 6], [1, 7],
+  [0, 7],
+  [-1, 7], [-1, 6], [-1, 5], [-1, 4], [-1, 3], [-1, 2],
+  // Coin, puis le côté bas du bras de gauche.
+  [-2, 1], [-3, 1], [-4, 1], [-5, 1], [-6, 1], [-7, 1],
+  [-7, 0],
+  [-7, -1], [-6, -1], [-5, -1], [-4, -1], [-3, -1], [-2, -1],
+  // Coin, puis le côté gauche du bras du haut jusqu'à son bout de bras.
+  [-1, -2], [-1, -3], [-1, -4], [-1, -5], [-1, -6], [-1, -7],
+];
+
+const CLASSIC_RING: readonly BoardPoint[] = CLASSIC_RING_GRID.map(
+  ([gridX, gridZ]) => ({ x: gridX * HOME_STEP, z: gridZ * HOME_STEP }),
+);
+
+/**
+ * Bras auquel appartient une case : 0 = haut, 1 = droite, 2 = bas,
+ * 3 = gauche. La case de départ d'un joueur est toujours posée sur un
+ * bras, donc on peut le rattacher à son bras par un simple arrondi.
+ */
+function classicArmOf(point: BoardPoint): number {
+  const deg = (Math.atan2(point.z, point.x) * 180) / Math.PI;
+  // Relativement au premier siège, sinon le haut de la croix tomberait sur
+  // le bras 3 et la colonne de jaune partirait à l'opposé de son départ.
+  const fromFirst = deg - FIRST_SEAT_ANGLE_DEG;
+  return ((((Math.round(fromFirst / 90) % 4) + 4) % 4) as 0 | 1 | 2 | 3);
+}
 
 function polar(angleDeg: number, radius: number): BoardPoint {
   const rad = (angleDeg * Math.PI) / 180;
@@ -175,12 +226,9 @@ export function createTrack(playerCount: number): LudoTrack {
     : createClassicTrack(playerCount);
 }
 
-/** Plateau classique : 2 à 4 joueurs, exactement comme avant. */
+/** Plateau classique : 2 à 4 joueurs, une vraie croix. */
 function createClassicTrack(playerCount: number): LudoTrack {
-  const ring: BoardPoint[] = Array.from({ length: RING_LENGTH }, (_, i) =>
-    polar(FIRST_SEAT_ANGLE_DEG + (i * 360) / RING_LENGTH, RING_RADIUS),
-  );
-
+  const ring = CLASSIC_RING;
   const segment = RING_LENGTH / playerCount;
   const safeCells = new Set<number>();
   const seats: LudoSeat[] = [];
@@ -189,15 +237,24 @@ function createClassicTrack(playerCount: number): LudoTrack {
   for (let seat = 0; seat < playerCount; seat += 1) {
     const color = LUDO_PALETTE[seat];
     // Même arrondi que le serveur : l'erreur se répartit sur tout
-    // l'anneau au lieu de s'accumuler (6 joueurs => 9/8/9/9/8/9).
+    // l'anneau au lieu de s'accumuler (3 joueurs => 17/18/17).
     const offset = Math.round(seat * segment) % RING_LENGTH;
-    const angleDeg = FIRST_SEAT_ANGLE_DEG + (seat * 360) / playerCount;
+    const start = ring[offset];
+    // Un joueur possède le bras sur lequel sa case de départ est posée : sa
+    // colonne maison descend au milieu de ce bras, et sa zone d'attente est
+    // derrière son bout. À quatre joueurs chacun tombe sur un bras différent ;
+    // à trois, un des quatre bras reste vide, comme sur un plateau de Ludo
+    // physique à trois joueurs.
+    const arm = classicArmOf(start);
+    const angleDeg = FIRST_SEAT_ANGLE_DEG + arm * 90;
     const angleRad = (angleDeg * Math.PI) / 180;
 
     safeCells.add(offset);
     safeCells.add((offset + Math.round(segment / 2)) % RING_LENGTH);
 
-    const homeColumn = HOME_RADII.map((r) => onArm(angleRad, r, 0));
+    const homeColumn = CLASSIC_LANE_RADII.map((r) =>
+      polar(angleDeg, r * HOME_STEP),
+    );
     const base: BoardPoint[] = [];
     for (const radius of BASE_RADII) {
       for (const lateral of BASE_LATERAL) {

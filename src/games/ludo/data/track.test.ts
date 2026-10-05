@@ -108,17 +108,25 @@ describe("createTrack", () => {
     }
   });
 
-  it("keeps the home column continuous with the ring", () => {
+  it("keeps the home column on the seat's arm, stepping in to the centre", () => {
     for (const size of SIZES) {
       const track = createTrack(size);
       for (const seat of track.seats) {
-        // The first home cell sits inside the ring, right after the start
-        // cell. Anything much larger means the arm has drifted off-axis.
-        expect(distance(seat.start, seat.homeColumn[0])).toBeLessThan(1.5);
-        // ... and each following cell is one step further in.
+        // The lane belongs to the arm the start sits on. On a three-player
+        // table the start lands mid-arm — which is what a real three-player
+        // Ludo board does — so the bound is a couple of cells, not one.
+        // A lane that drifted onto another arm would be several away.
+        expect(distance(seat.start, seat.homeColumn[0])).toBeLessThan(2.3);
+        // Every step is exactly one cell, and the lane really converges on
+        // the empty middle instead of drifting off to one side.
         for (let i = 1; i < seat.homeColumn.length; i += 1) {
-          expect(distance(seat.homeColumn[i - 1], seat.homeColumn[i])).toBeLessThan(0.9);
+          expect(distance(seat.homeColumn[i - 1], seat.homeColumn[i])).toBeCloseTo(0.84, 5);
+          expect(Math.hypot(seat.homeColumn[i].x, seat.homeColumn[i].z)).toBeLessThan(
+            Math.hypot(seat.homeColumn[i - 1].x, seat.homeColumn[i - 1].z),
+          );
         }
+        // The last private cell sits in the middle, where finished pieces go.
+        expect(Math.hypot(seat.homeColumn[5].x, seat.homeColumn[5].z)).toBeLessThan(1.5);
       }
     }
   });
