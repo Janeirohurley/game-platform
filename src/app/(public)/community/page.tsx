@@ -215,7 +215,7 @@ export default function CommunityPage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base dark:text-white/50">
-              See who's online, discover active groups and find players who
+              See who&apos;s online, discover active groups and find players who
               enjoy the same games as you.
             </p>
 

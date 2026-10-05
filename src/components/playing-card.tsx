@@ -15,7 +15,7 @@
  * Dépendances : react, three >= 0.152.   npm i three && npm i -D @types/three
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import * as THREE from "three";
 
@@ -547,9 +547,14 @@ export default function PlayingCard({
     camera: { fov: camera?.fov ?? 30, distance: camera?.distance, y: camera?.y ?? 1 },
     onFlip,
   };
+  //const liveRef = useRef(live);
+  //liveRef.current = live;
+  //ajout remplace les 2 lignes précédentes pour éviter un warning de react sur l'utilisation d'un ref dans un useEffect
   const liveRef = useRef(live);
-  liveRef.current = live;
-
+  useLayoutEffect(() => {
+    liveRef.current = live;
+  }, [live]);
+  //fin ajout
   const frontHex = hex(frontColor);
   const backHex = hex(backColor);
   const inkHex = hex(inkColor ?? SUIT_COLORS[suit]);

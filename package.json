@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "validate": "bun run typecheck && bun run lint && bun run db:check",
+    "validate": "bun run typecheck && bun run lint && bun test && bun run db:check",
     "db:test": "bun scripts/db/test-connection.ts",
     "db:check": "drizzle-kit check",
     "db:generate": "drizzle-kit generate",
