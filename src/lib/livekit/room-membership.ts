@@ -1,5 +1,7 @@
 import "server-only";
 
+import { normalizeRealtimeServerUrl } from "@/lib/realtime/server-url";
+
 /**
  * Room-membership verification, for the LiveKit token route.
  *
@@ -97,7 +99,17 @@ const MEMBERSHIP_SECRET_HEADER = "x-realtime-token-secret";
  * separate variables correct.
  */
 function resolveRealtimeServerUrl(): string {
-  const configured = process.env.REALTIME_SERVER_URL?.trim();
+  // Normalized rather than trusted: a configured
+  // `https://server-games.onrender.com/` would build `//api/...` below,
+  // which no router matches. The game server answers `404 Cannot GET
+  // //api` as an HTML page, which reaches the user as an opaque 503
+  // indistinguishable from an unreachable server — and the logged origin
+  // is normalized, so it shows the clean URL and hides the real request.
+  // `instrumentation.ts` reports the raw value at server start; this is
+  // the repair that keeps the request correct either way.
+  const configured = normalizeRealtimeServerUrl(
+    process.env.REALTIME_SERVER_URL ?? "",
+  );
   if (configured) return configured;
   if (process.env.NODE_ENV === "production") {
     throw new Error(
@@ -228,9 +240,13 @@ export async function verifyRoomMembership(
   // missing its own secret. Collapsed into one branch because both mean
   // the same thing to us — we could not obtain a verdict.
   if (!response.ok) {
+    // The content-type is the tell: a JSON body means the route ran and
+    // refused, while `text/html` is a router or proxy error page. A path
+    // that misses the route entirely answers 404 in HTML, which is
+    // otherwise indistinguishable from a genuinely absent room.
     return unavailable(
       "http_status",
-      `realtime server answered ${response.status} ${response.statusText} (origin=${origin}, after ${Date.now() - startedAt}ms)`,
+      `realtime server answered ${response.status} ${response.statusText} (origin=${origin}, content-type=${response.headers.get("content-type") ?? "none"}, after ${Date.now() - startedAt}ms)`,
     );
   }
 
