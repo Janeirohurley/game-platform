@@ -20,24 +20,93 @@ const PITCH = 0.84;
 
 const dist = (a: BoardPoint, b: BoardPoint) => Math.hypot(a.x - b.x, a.z - b.z);
 
-// Valeurs relevées sur le code AVANT l'ajout du plateau hexagonal.
-const CLASSIC_BEFORE: Record<number, { offsets: number[]; safe: number[] }> = {
-  2: { offsets: [0, 26], safe: [0, 13, 26, 39] },
-  3: { offsets: [0, 17, 35], safe: [0, 9, 17, 26, 35, 44] },
-  4: { offsets: [0, 13, 26, 39], safe: [0, 7, 13, 20, 26, 33, 39, 46] },
+// Contrat canonique du plateau classique : quatre bras FIXES, quatre coins de
+// départ, huit cases sûres. `playerCount` ne choisit plus que les bras
+// occupés — il ne modifie ni l'anneau ni les cases sûres. C'est cette
+// invariance qui remplace l'ancien anneau regénéré à chaque taille de table.
+const CLASSIC_ARMS = [0, 13, 26, 39];
+const CLASSIC_STAR_OFFSET = 7;
+const CLASSIC_CANONICAL_OFFSETS: Record<number, number[]> = {
+  2: [0, 26],
+  3: [0, 13, 26],
+  4: [0, 13, 26, 39],
 };
+const CLASSIC_SAFE = CLASSIC_ARMS.flatMap((offset) => [
+  offset,
+  (offset + CLASSIC_STAR_OFFSET) % 52,
+]).sort((a, b) => a - b);
 
-describe("plateau classique 2-4 joueurs : strictement identique à avant", () => {
-  for (const n of [2, 3, 4]) {
-    it(`${n} joueurs : 52 cases, chemins de 57 entrées, mêmes départs et cases sûres`, () => {
+describe("plateau classique : une croix fixe à quatre bras", () => {
+  it("les 2, 3 et 4 joueurs partagent le même anneau et les mêmes 8 cases sûres", () => {
+    for (const n of [2, 3, 4]) {
       const track = createTrack(n);
       expect(track.shape).toBe("classic");
       expect(track.ring.length).toBe(52);
       expect(track.ringLength).toBe(52);
       expect(track.homeColumnStart).toBe(51);
       expect(track.finishedPosition).toBe(57);
-      expect(track.seats.map((s) => s.offset)).toEqual(CLASSIC_BEFORE[n].offsets);
-      expect([...track.safeCells].sort((a, b) => a - b)).toEqual(CLASSIC_BEFORE[n].safe);
+      // On épingle des cases précises plutôt que l'égalité du tableau
+      // d'anneau : les pistes partagent la même constante, donc une égalité
+      // de référence ne prouverait rien.
+      expect(track.ring[0]).toEqual({ x: -6 * PITCH, z: -1 * PITCH });
+      expect(track.ring[13]).toEqual({ x: 1 * PITCH, z: -6 * PITCH });
+      expect(track.ring[26]).toEqual({ x: 6 * PITCH, z: 1 * PITCH });
+      expect(track.ring[39]).toEqual({ x: -1 * PITCH, z: 6 * PITCH });
+      // La 52e case referme l'anneau juste avant le départ.
+      expect(track.ring[51]).toEqual({ x: -7 * PITCH, z: -1 * PITCH });
+      expect([...track.safeCells].sort((a, b) => a - b)).toEqual(CLASSIC_SAFE);
+      expect(track.seats.map((s) => s.offset)).toEqual(CLASSIC_CANONICAL_OFFSETS[n]);
+    }
+  });
+
+  it("les quatre bras existent toujours, occupés ou non", () => {
+    for (const n of [2, 3, 4]) {
+      const track = createTrack(n);
+      expect(track.arms.map((arm) => arm.offset)).toEqual(CLASSIC_ARMS);
+      // Une table à deux joueurs garde bien quatre bras, dont deux vides :
+      // c'est la croix du plateau physique, pas un anneau de deux couleurs.
+      expect(track.arms.filter((arm) => arm.seat !== null)).toHaveLength(n);
+      expect(track.arms.filter((arm) => arm.seat === null)).toHaveLength(4 - n);
+      for (const arm of track.arms) {
+        expect(arm.homeColumn).toHaveLength(6);
+        expect(arm.base).toHaveLength(4);
+      }
+    }
+  });
+
+  it("les départs sont les quatre coins relevés sur le plateau d'origine", () => {
+    // (-6,-1), (1,-6), (6,1) et (-1,6) : à deux cases du bout de leur bras,
+    // et non au milieu comme le calcul par table le produisait.
+    const track = createTrack(4);
+    expect(track.arms.map((arm) => [arm.start.x, arm.start.z])).toEqual([
+      [-6 * PITCH, -1 * PITCH],
+      [1 * PITCH, -6 * PITCH],
+      [6 * PITCH, 1 * PITCH],
+      [-1 * PITCH, 6 * PITCH],
+    ]);
+  });
+
+  it("le départ est le voisin immédiat de l'entrée de la colonne maison", () => {
+    for (const n of [2, 3, 4]) {
+      const track = createTrack(n);
+      for (const arm of track.arms) {
+        // Un pas exact : le départ et la première case privée sont
+        // bord à bord, ce qui garantit que le jeton passe de l'un à l'autre
+        // sans saut. Une colonne qui dérivait sur un autre bras le romprait.
+        expect(dist(arm.start, arm.homeColumn[0])).toBeCloseTo(PITCH, 5);
+      }
+    }
+  });
+
+  it("à deux joueurs, les deux coins occupés sont opposés", () => {
+    const offsets = createTrack(2).seats.map((s) => s.offset);
+    expect(offsets).toEqual([0, 26]);
+    expect(Math.abs(offsets[1] - offsets[0])).toBe(26);
+  });
+
+  for (const n of [2, 3, 4]) {
+    it(`${n} joueurs : chemins de 57 entrées, du départ à la colonne maison`, () => {
+      const track = createTrack(n);
       for (const seat of track.seats) {
         const path = track.pathOf(seat.color);
         expect(path.length).toBe(57);
@@ -150,12 +219,26 @@ describe("positions 3D", () => {
     expect(at(0)).toEqual([red.start.x, 0.2, red.start.z]);
     expect(at(77)).toEqual([red.homeColumn[0].x, 0.2, red.homeColumn[0].z]);
     expect(at(82)).toEqual([red.homeColumn[5].x, 0.2, red.homeColumn[5].z]);
-    expect(at(83)).toEqual([0, 0.2, 0]);
+    // L'arrivée de rouge est dans le secteur du centre qui fait face à son
+    // bras, pas au point exact (0,0) que les quatre couleurs partageaient.
+    const [fx, fy, fz] = at(83);
+    expect(fy).toBe(0.2);
+    expect(fx * Math.cos(red.angle) + fz * Math.sin(red.angle)).toBeGreaterThan(0);
+    expect(Math.hypot(fx, fz)).toBeLessThan(0.45);
+    // Les quatre pions de rouge occupent quatre emplacements différents.
+    expect(new Set([0, 1, 2, 3].map((p) => at(83, p).join(","))).size).toBe(4);
   });
 
-  it("4 joueurs : la case 57 reste le centre et la 56 reste la dernière case de maison", () => {
+  it("4 joueurs : la case 57 tombe dans le secteur du joueur, pas sur le point commun", () => {
     const yellow = createTrack(4).seats[0];
-    expect(getPositionCoordinates(57, yellow.color, 0, 4)).toEqual([0, 0.2, 0]);
+    // Le départ de jaune est sur le bras de gauche : son pion terminé doit
+    // donc se trouver du côté négatif en x, à l'intérieur du carré central.
+    const [yx, yy, yz] = getPositionCoordinates(57, yellow.color, 0, 4);
+    expect(yy).toBe(0.2);
+    expect(yx).toBeLessThan(0);
+    expect(yx * Math.cos(yellow.angle) + yz * Math.sin(yellow.angle)).toBeGreaterThan(0);
+    expect(Math.hypot(yx, yz)).toBeLessThan(0.45);
+    // La 56 reste la dernière case de la colonne maison, inchangée.
     expect(getPositionCoordinates(56, yellow.color, 0, 4)).toEqual([
       yellow.homeColumn[5].x,
       0.2,

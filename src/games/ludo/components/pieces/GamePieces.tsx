@@ -234,8 +234,6 @@ function GamePieces({
     return null; // Don't show pieces during setup
   }
 
-  const finishedPosition = getTrack(playerCount).finishedPosition;
-
   // Build occupancy map for tiles so we can offset pieces sharing the same tile
   // Compute every render to account for potential nested mutations in state
   //
@@ -247,13 +245,9 @@ function GamePieces({
     const map = new Map<string, Array<{ piece: GamePiece; playerId: string }>>();
     gameState.players.forEach((player) => {
       player.pieces.forEach((piece) => {
-        // La zone d'attente a ses propres emplacements : pas de
-        // regroupement à calculer. Le centre est mutualisé, car toutes
-        // les positions 57 désignent le même point.
-        const key =
-          piece.position === finishedPosition
-            ? "center"
-            : getTileKey(piece.position, player.color, playerCount);
+        // La zone d'attente et les pions terminés ont chacun leurs propres
+        // emplacements (un secteur du centre par bras) : rien à regrouper.
+        const key = getTileKey(piece.position, player.color, playerCount);
         if (key === null) return;
         if (!map.has(key)) map.set(key, []);
         map.get(key)!.push({ piece, playerId: player.id });
@@ -267,11 +261,7 @@ function GamePieces({
     piece: GamePiece,
     player: Player,
   ): [number, number] => {
-    const key =
-      piece.position === finishedPosition
-        ? "center"
-        : getTileKey(piece.position, player.color, playerCount);
-    // La zone d'attente utilise des emplacements dédiés.
+    const key = getTileKey(piece.position, player.color, playerCount);
     if (key === null) return [0, 0];
 
     const group = tileOccupancy.get(key) || [];

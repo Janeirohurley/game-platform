@@ -8,7 +8,9 @@
 //   -1      → dans la zone d'attente
 //   0–50    → anneau partagé, indexé via le décalage du siège
 //   51–56   → colonne maison privée du joueur (6 cases)
-//   57      → terminé — le centre du plateau ; ce n'est pas une case
+//   57      → terminé — le secteur du centre qui fait face au bras du joueur ;
+//             ce n'est pas une case, et ce n'est plus un point unique
+//             commun aux quatre couleurs
 //
 // Chaque chemin fait 57 entrées (0–56). Le centre s'atteint avec un
 // lancer EXACT depuis la dernière case de la colonne (56 + 1).
@@ -28,6 +30,44 @@ import {
 
 /** Hauteur du plateau : les cases sont posées à plat, la pièce dessus. */
 const TILE_Y = 0.2;
+
+/**
+ * Emplacements des pions arrivés, en (distance le long du bras, décalage
+ * orthogonal). Un lot par forme de plateau : la croix et l'hexagone n'ont
+ * pas la même place libre au centre, voir le commentaire juste au-dessus
+ * de chaque lot. Dans tous les cas `|lateral| <= along` : un pion reste
+ * dans le triangle de son bras, il ne déborde jamais dans le secteur d'un
+ * autre.
+ *
+ * Les quatre emplacements sont étalés du centre JUSQU'AU BORD du triangle,
+ * pas empilés au milieu : on lit d'un coup d'œil quel joueur a terminé
+ * parce que ses pions couvrent le triangle de sa couleur.
+ */
+const FINISH_SLOTS: Record<"classic" | "hex", readonly (readonly [number, number])[]> = {
+  // Croix : le X remplit TOUT le grand carré central (apothème 1.29 — ses
+  // coins sont pile au coin interne des huit cases de l'anneau intérieur,
+  // donc la base de chaque triangle touche ces cases). Les pions s'étalent
+  // dans leur triangle jusqu'à 1.2, à 0.09 du bord : on couvre toute la
+  // surface sans que le centre d'un pion dépasse dans la case de coin.
+  // Écart minimal entre emplacements 0.66, pions rayon 0.23 : lisibles.
+  classic: [
+    [0.15, 0],
+    [0.6, 0.5],
+    [0.6, -0.5],
+    [1.2, 0],
+  ],
+  // Hexagonal : X d'apothème 1.9 (sommets à 2.19, toujours à l'intérieur
+  // des cases intérieures de l'anneau, à 2.44). Même étalement, dernier
+  // emplacement à 1.8 soit 0.1 du bord. Le décalage latéral reste sous
+  // ~24° de l'axe du bras (le secteur en fait 30) : écart 0.9 entre les
+  // pions, jamais collés à la frontière du voisin.
+  hex: [
+    [0.2, 0],
+    [1.0, 0.45],
+    [1.0, -0.45],
+    [1.8, 0],
+  ],
+};
 
 const CACHE = new Map<number, ReturnType<typeof createTrack>>();
 
@@ -69,9 +109,9 @@ function toPoint3D(point: BoardPoint): [number, number, number] {
 /**
  * Traduit une position logique de pion en coordonnées 3D.
  *
- * `pieceIndex` sert à répartir les 4 pièces d'un joueur dans sa zone
- * d'attente, où aucune position logique ne les distingue (-1 pour
- * toutes).
+ * `pieceIndex` sert à répartir les 4 pièces d'un joueur aux deux endroits
+ * où la position logique ne les distingue pas : la zone d'attente (-1 pour
+ * toutes) et le point d'arrivée (57 ou 83 pour toutes).
  */
 export function getPositionCoordinates(
   position: number,
@@ -87,8 +127,17 @@ export function getPositionCoordinates(
   }
 
   if (position === track.finishedPosition) {
-    // Terminé : le centre du plateau.
-    return [0, TILE_Y, 0];
+    // Terminé : le centre est partagé entre les quatre bras, chaque joueur
+    // occupe LE SIEN — le jaune finit à gauche, le rouge en haut, et ainsi
+    // de suite, comme les triangles colorés du centre d'un plateau imprimé.
+    // Les quatre emplacements sont distincts : sans ça, tous les pions
+    // finis tomberaient sur le même point et se superposeraient.
+    const [along, lateral] = FINISH_SLOTS[track.shape][
+      pieceIndex % FINISH_SLOTS[track.shape].length
+    ];
+    const ux = Math.cos(track.seatOf(color).angle);
+    const uz = Math.sin(track.seatOf(color).angle);
+    return [along * ux - lateral * uz, TILE_Y, along * uz + lateral * ux];
   }
 
   if (position >= 0 && position < track.finishedPosition) {
@@ -102,8 +151,9 @@ export function getPositionCoordinates(
 
 /**
  * Cellule d'occupation d'un pion, pour décaler visuellement les pièces
- * qui partagent la même case. Renvoie `null` pour la zone d'attente et le
- * centre, qui gèrent déjà leur propre répartition.
+ * qui partagent la même case. Renvoie `null` pour la zone d'attente et
+ * pour les pions terminés : les deux possèdent déjà chacun leur propre
+ * emplacement, ils n'ont pas de regroupement à calculer.
  *
  * On renvoie la case GÉOMÉTRIQUE et non l'index logique : deux joueurs
  * d'offsets différents sont sur la même case du plateau en exactement

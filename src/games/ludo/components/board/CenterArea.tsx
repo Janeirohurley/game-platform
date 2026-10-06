@@ -5,14 +5,60 @@ import * as THREE from "three";
 import { getTrack } from "../../utils/positionUtils";
 import type { ColorTheme } from "../../types/game";
 
-// Le centre du plateau, où les pions terminés se posent.
+// Le centre du plateau, subdivisé sous forme de X : un triangle par bras,
+// tous réunis au centre, la base de chacun tournée vers SA colonne maison.
+// Le X occupe TOUT l'espace du milieu : chaque base est posée à l'endroit
+// exact où commencent les colonnes, donc le grand carré cerné par les bras
+// est entièrement recouvert, sans liseré neutre entre le X et les colonnes.
 //
-// Une pointe de triangle par siège, tournée vers son bras : avec quatre
-// joueurs on retrouve l'étoile à quatre branches de l'ancien rendu.
+// Quatre triangles pour la croix (2 à 4 joueurs), six pour le plateau
+// hexagonal : c'est le nombre de bras qui décide, il n'y a aucun cas séparé.
+// Chaque triangle porte la couleur du joueur qui occupe ce bras, et un bras
+// sans joueur garde son triangle GRIS — l'imprimé du plateau. Les pions
+// arrivés se posent DANS le triangle de leur couleur (voir positionUtils),
+// étalés du centre jusqu'au bord : on sait d'un coup d'œil qui a fini.
+const VACANT_SIDE = "#8C8C94";
+
+// Apothème du X = tout le grand carré central, pas seulement le petit
+// milieu : c'est la surface que délimitent les bras et l'anneau, et elle
+// doit être entièrement recouverte.
 //
-// Plateau hexagonal (5 et 6 joueurs) : un secteur de 60° par bras, centré
-// sur l'axe du bras, ce qui dessine un hexagone complet. À 5 joueurs le
-// sixième secteur, celui du bras vide, reste gris.
+// Classique : les 4 bras et les 8 cases de coins de l'anneau le plus intérieur
+// (centres à r = 1.878, en (±1.68, ±0.84) etc.) bornent la jonction. Le plus
+// grand X carré possible sans mordre sur ces cases a ses coins à ±1.29 du
+// centre (r = 1.29 * sqrt(2) = 1.82, juste à l'intérieur) : ses côtés
+// rejoignent les coins internes des cases, donc la jonction est pleine et la
+// piste reste entière.
+// Hexagonal : mêmes calculs sur la jonction hexagonale, dont les cases
+// intérieures sont à r = 2.444 — apothème 1.9, sommets à 2.19.
+const CENTRE_APOTHEM = { classic: 1.29, hex: 1.9 };
+
+/**
+ * Triangle d'un bras, dans SON repère local (l'axe du bras est le x local).
+ * Pointe au centre, base à l'apothème, à `apothem * tan(pi / côtés)` de
+ * chaque côté de l'axe : pour un carré (4 côtés) la base court de coin en
+ * coin et les triangles pavent exactement le grand carré ; pour l'hexagone
+ * ils pavent l'hexagone. C'est division "en X" dont les frontières sont les
+ * diagonales entre le centre et les coins.
+ */
+function sectorTriangleGeometry(apothem: number, sides: number) {
+  const geometry = new THREE.BufferGeometry();
+  const halfBase = apothem * Math.tan(Math.PI / sides);
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, apothem, 0, halfBase, apothem, 0, -halfBase]),
+      3,
+    ),
+  );
+  geometry.setAttribute(
+    "normal",
+    new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3),
+  );
+  geometry.setIndex([0, 1, 2]);
+  return geometry;
+}
+
 function CenterArea({
   colors,
   playerCount,
@@ -21,104 +67,38 @@ function CenterArea({
   playerCount: number;
 }) {
   const track = getTrack(playerCount);
-  const radius = 1.5;
   const isHex = track.shape === "hex";
+  const sides = track.arms.length;
+  const apothem = isHex ? CENTRE_APOTHEM.hex : CENTRE_APOTHEM.classic;
 
-  // Une géométrie par pointe, mémorisée : THREE ne libère pas les
-  // BufferGeometry qu'on lui donne, et en recréer un par rendu fuiterait
-  // la mémoire GPU sur une table qui tourne longtemps.
-  const geometries = useMemo(
-    () =>
-      track.seats.map(() => {
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute(
-          "position",
-          new THREE.BufferAttribute(
-            new Float32Array([0, 0, 0, radius, 0, 0, 0, 0, -radius]),
-            3,
-          ),
-        );
-        geometry.setAttribute(
-          "normal",
-          new THREE.BufferAttribute(
-            new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]),
-            3,
-          ),
-        );
-        geometry.setIndex([0, 1, 2]);
-        return geometry;
-      }),
-    [track],
+  // Une géométrie par bras, mémorisée : THREE ne libère pas les
+  // BufferGeometry qu'on lui donne, et en recréer un par rendu fuiterait la
+  // mémoire GPU sur une table qui tourne longtemps. Les triangles sont
+  // identiques (même apothème, même secteur), seule leur TEINTE varie : on
+  // pourrait en partager un seul, mais on les garde séparés pour que chaque
+  // bras garde son mesh indépendant.
+  const sectorGeometries = useMemo(
+    () => track.arms.map(() => sectorTriangleGeometry(apothem, sides)),
+    [apothem, sides, track],
   );
 
   useEffect(
     () => () => {
-      geometries.forEach((geometry) => geometry.dispose());
+      sectorGeometries.forEach((geometry) => geometry.dispose());
     },
-    [geometries],
+    [sectorGeometries],
   );
-
-  const hexSectors = useMemo(() => {
-    if (!isHex) return [];
-    // Les 6 bras, occupés ou non, pointent à -90° + k * 60°.
-    return Array.from({ length: 6 }, (_, arm) => {
-      const centre = -Math.PI / 2 + (arm * Math.PI) / 3;
-      const seat = track.seats.find((s) => s.seat === arm);
-      const geometry = new THREE.BufferGeometry();
-      const r = 1.3;
-      const a = centre - Math.PI / 6;
-      const b = centre + Math.PI / 6;
-      geometry.setAttribute(
-        "position",
-        new THREE.BufferAttribute(
-          new Float32Array([
-            0, 0, 0,
-            r * Math.cos(a), 0, r * Math.sin(a),
-            r * Math.cos(b), 0, r * Math.sin(b),
-          ]),
-          3,
-        ),
-      );
-      geometry.setAttribute(
-        "normal",
-        new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3),
-      );
-      geometry.setIndex([0, 1, 2]);
-      return { geometry, color: seat?.color ?? null, arm };
-    });
-  }, [isHex, track]);
-
-  useEffect(
-    () => () => {
-      hexSectors.forEach((sector) => sector.geometry.dispose());
-    },
-    [hexSectors],
-  );
-
-  if (isHex) {
-    return (
-      <group>
-        {hexSectors.map((sector) => (
-          <mesh key={sector.arm} position={[0, 0.19, 0]}>
-            <primitive object={sector.geometry} attach="geometry" />
-            <meshStandardMaterial
-              color={sector.color ? colors.players[sector.color] : "#BDBDBD"}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-        ))}
-      </group>
-    );
-  }
 
   return (
-    <group scale={[1.4, 1, 1.4]}>
-      {track.seats.map((seat, index) => (
-        <group key={seat.color} rotation={[0, -seat.angle + Math.PI / 2, 0]}>
-          <mesh position={[0, 0.19, 0]}>
-            <primitive object={geometries[index]} attach="geometry" />
+    <group>
+      {/* Le X du centre : un triangle coloré par bras, tourné vers sa
+          colonne, la base collée au départ des colonnes. */}
+      {track.arms.map((arm, index) => (
+        <group key={arm.offset} rotation={[0, -arm.angle, 0]}>
+          <mesh position={[0, 0.185, 0]}>
+            <primitive object={sectorGeometries[index]} attach="geometry" />
             <meshStandardMaterial
-              color={colors.players[seat.color]}
+              color={arm.seat ? colors.players[arm.seat.color] : VACANT_SIDE}
               side={THREE.DoubleSide}
             />
           </mesh>

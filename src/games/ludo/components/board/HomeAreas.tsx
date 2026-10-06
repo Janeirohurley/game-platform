@@ -5,7 +5,7 @@ import { getTrack } from "../../utils/positionUtils";
 import { FALLBACK_NAME } from "../../data/boardTheme";
 import type { ColorTheme, GameState, LudoColor } from "../../types/game";
 
-// Une zone d'attente par siège, posée derrière le bras du joueur.
+// Une zone d'attente par BRAS du plateau, posée derrière le bras.
 //
 // Les positions viennent de la piste générée : elles suivent donc
 // l'orientation de chaque bras, ce qui permet d'avoir 2 à 6 zones sans
@@ -28,20 +28,30 @@ function HomeAreas({
     return FALLBACK_NAME[color];
   };
 
+  // Teinte d'un bras vide : le plateau garde ses quatre zones d'attente,
+  // mais une zone sans joueur est grise — elle fait partie de l'imprimé, pas
+  // de la partie. On reprend le gris des emplacements de pièces pour que la
+  // zone vide et ses emplacements se lisent comme un seul ensemble neutre.
+  const vacantArm = "#8C8C94";
+
   return (
     <>
-      {track.seats.map((seat) => {
-        const first = seat.base[0];
-        const last = seat.base[seat.base.length - 1];
+      {/* `track.arms` et non `track.seats` : à deux ou trois joueurs, les
+          bras inoccupés gardent leur zone d'attente sur la croix. */}
+      {track.arms.map((arm) => {
+        const first = arm.base[0];
+        const last = arm.base[arm.base.length - 1];
         const cx = (first.x + last.x) / 2;
         const cz = (first.z + last.z) / 2;
-        const color = colors.players[seat.color];
+        const color = arm.seat ? colors.players[arm.seat.color] : vacantArm;
+        // Un bras vide n'affiche aucun nom de joueur : la zone reste muette.
+        const label = arm.seat ? getNameForColor(arm.seat.color) : "";
 
         // Le groupe est tourné sur l'axe du bras pour que le libellé reste
         // lisible depuis l'extérieur et que les emplacements des pièces
         // soient posés dans un repère local aligné.
         return (
-          <group key={seat.color} position={[cx, 0, cz]} rotation={[0, -seat.angle, 0]}>
+          <group key={arm.offset} position={[cx, 0, cz]} rotation={[0, -arm.angle, 0]}>
             <mesh position={[0, 0.16, 0]}>
               <boxGeometry args={[2.6, 0.02, 2.6]} />
               <meshStandardMaterial
@@ -74,16 +84,19 @@ function HomeAreas({
               )),
             )}
 
-            <Text
-              position={[0, 0.19, 0.95]}
-              fontSize={0.34}
-              color="#000000"
-              anchorX="center"
-              anchorY="middle"
-              rotation={[-Math.PI / 2, 0, 0]}
-            >
-              {getNameForColor(seat.color)}
-            </Text>
+            {/* Un bras vide n'a pas de joueur : pas de libellé non plus. */}
+            {label ? (
+              <Text
+                position={[0, 0.19, 0.95]}
+                fontSize={0.34}
+                color="#000000"
+                anchorX="center"
+                anchorY="middle"
+                rotation={[-Math.PI / 2, 0, 0]}
+              >
+                {label}
+              </Text>
+            ) : null}
           </group>
         );
       })}

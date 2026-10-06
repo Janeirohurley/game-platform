@@ -60,15 +60,18 @@ describe("createTrack", () => {
     }
   });
 
-  it("spaces the segments evenly, within one cell", () => {
+  it("seats players only on the four fixed board corners", () => {
+    // Le plateau a quatre coins de départ immobiles. Une table plus petite
+    // en occupe moins, elle n'en déplace aucun : c'est toute la différence
+    // avec l'ancien anneau regénéré par taille (0/17/35 à trois joueurs).
+    const corners = [0, 13, 26, 39];
     for (const size of CLASSIC_SIZES) {
-      const track = createTrack(size);
-      const segments = track.seats.map((seat, index) => {
-        const next = track.seats[(index + 1) % size];
-        return (next.offset - seat.offset + RING_LENGTH) % RING_LENGTH;
-      });
-      // 52 factors as 2 x 2 x 13, so only 2 and 4 divide it exactly.
-      expect(Math.max(...segments) - Math.min(...segments)).toBeLessThanOrEqual(1);
+      const offsets = createTrack(size).seats.map((seat) => seat.offset);
+      for (const offset of offsets) expect(corners).toContain(offset);
+      // Les bras occupés restent dans l'ordre du plateau, donc le siège 0 est
+      // toujours le coin 0 et les couleurs tournent dans le même sens.
+      expect(offsets).toEqual([...offsets].sort((a, b) => a - b));
+      expect(offsets[0]).toBe(0);
     }
   });
 
@@ -166,14 +169,26 @@ describe("createTrack", () => {
     }
   });
 
-  it("marks exactly the start cells and one star per segment as safe", () => {
+  it("marks the four fixed starts and their stars safe, whatever the size", () => {
     for (const size of CLASSIC_SIZES) {
       const track = createTrack(size);
-      // 2 per player, and no cell counted twice.
-      expect(track.safeCells.size).toBe(size * 2);
-      for (const seat of track.seats) {
-        expect(track.isSafeCell(seat.offset)).toBe(true);
+      // Les cases sûres sont imprimées sur le plateau, pas calculées par
+      // table : les 8 restent les mêmes à 2, 3 ou 4 joueurs. On vérifie sur
+      // les bras et non sur les sièges, sinon le test ne prouverait rien
+      // sur une table dont les bras libres n'ont aucun joueur.
+      expect(track.safeCells.size).toBe(8);
+      for (const arm of track.arms) {
+        expect(track.isSafeCell(arm.offset)).toBe(true);
       }
+    }
+  });
+
+  it("keeps one star safe per arm, on the fixed board", () => {
+    // Étoile 7 cases après chaque coin de départ : une par bras, comme sur
+    // le plateau d'origine. L'ordre des cases sûres est donc stable.
+    for (const size of CLASSIC_SIZES) {
+      const sorted = [...createTrack(size).safeCells].sort((a, b) => a - b);
+      expect(sorted).toEqual([0, 7, 13, 20, 26, 33, 39, 46]);
     }
   });
 
@@ -207,14 +222,32 @@ describe("getPositionCoordinates", () => {
     }
   });
 
-  it("sends the finished piece to the center, whatever its color", () => {
+  it("sends each finished piece into its own sector of the centre", () => {
     for (const size of SIZES) {
       const track = getTrack(size);
       for (const seat of track.seats) {
-        // 57 sur le plateau classique, 83 sur le plateau hexagonal.
-        expect(
-          getPositionCoordinates(track.finishedPosition, seat.color, 0, size),
-        ).toEqual([0, 0.2, 0]);
+        const finished = track.finishedPosition;
+        const slots = [0, 1, 2, 3].map((piece) =>
+          getPositionCoordinates(finished, seat.color, piece, size),
+        );
+        // Quatre emplacements distincts : l'ancien comportement ramenait
+        // tous les pions finis des quatre couleurs au même point (0,0),
+        // où ils s'empilaient à cheval sur les colonnes maison.
+        expect(new Set(slots.map((s) => s.join(","))).size).toBe(4);
+        for (const [x, y, z] of slots) {
+          expect(y).toBe(0.2);
+          // Aligné avec le bras du joueur : la projection sur l'axe du bras
+          // est positive, donc un pion finit du côté de sa propre colonne
+          // et pas de l'autre côté du plateau.
+          expect(
+            x * Math.cos(seat.angle) + z * Math.sin(seat.angle),
+          ).toBeGreaterThan(0);
+          // Rien ne sort du X central : il remplit tout le grand carré du milieu
+          // (base des triangles collée aux coins internes des cases de l'anneau,
+          // charpentée à 1.29 en classique, 1.9 en hexagonal), et un pion qui
+          // débordait irait masquer les cases de coin de l'anneau.
+          expect(Math.hypot(x, z)).toBeLessThan(track.shape === "hex" ? 1.9 : 1.29);
+        }
       }
     }
   });
