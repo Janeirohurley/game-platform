@@ -1,4 +1,5 @@
 import { PLAYER_PATHS } from "../data/playerPaths";
+import { finishedSlotOffset } from "../data/center";
 
 // Convert game position to 3D coordinates using path.json
 export function getPositionCoordinates(
@@ -38,8 +39,11 @@ export function getPositionCoordinates(
   }
 
   if (position === 57) {
-    // Finished position (center)
-    return [0, 0.2, 0];
+    // Finished position: spread inside the colour's own triangle instead of
+    // piling all arrived pieces onto the exact centre. The slot geometry is
+    // shared with CenterArea so the drawing and the pieces agree.
+    const [x, z] = finishedSlotOffset(color, pieceIndex);
+    return [x, 0.2, z];
   }
 
   // Use path from JSON file

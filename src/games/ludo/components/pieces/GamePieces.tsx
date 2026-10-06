@@ -232,11 +232,10 @@ function GamePieces({
           const key = `${x}:${z}`;
           if (!map.has(key)) map.set(key, []);
           map.get(key)!.push({ piece, playerId: player.id });
-        } else if (piece.position === 57) {
-          const key = "center";
-          if (!map.has(key)) map.set(key, []);
-          map.get(key)!.push({ piece, playerId: player.id });
         }
+        // Never pushed: finished pieces (57) sit on their own centre slot
+        // (data/center.ts), distinct per colour and piece index, so they can
+        // never share a tile and need no occupancy fan.
       });
     });
     return map;
@@ -247,17 +246,9 @@ function GamePieces({
     piece: GamePiece,
     player: Player,
   ): [number, number] => {
-    // Finished center tile
+    // Pièce arrivée : son slot dans le triangle de sa couleur est déjà
+    // distinct, aucun décalage supplémentaire.
     if (piece.position === 57) {
-      const key = "center";
-      const group = tileOccupancy.get(key) || [];
-      const index = group.findIndex((g) => g.piece.id === piece.id);
-      const count = group.length;
-      if (count > 1) {
-        const radius = 0.35;
-        const angle = (index / count) * Math.PI * 2;
-        return [radius * Math.cos(angle), radius * Math.sin(angle)];
-      }
       return [0, 0];
     }
 

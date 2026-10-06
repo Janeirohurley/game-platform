@@ -3,147 +3,65 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import type { ColorTheme } from "../../types/game";
+import { CENTER_TRIANGLE_RADIUS, COLOR_AXES } from "../../data/center";
 
-// Center finish area with 4 colored triangles
+/**
+ * Zone d'arrivée : un diamant découpé en quatre triangles, un par couleur.
+ * La géométrie (axes des triangles, rayon) vient de `data/center.ts`, la même
+ * que celle qui éparpille les pièces arrivées — le dessin et le placement ne
+ * peuvent pas diverger.
+ */
 function CenterArea({ colors }: { colors: ColorTheme }) {
-  // Create triangle geometries using BufferGeometry
   const triangleGeometries = useMemo(() => {
-    // Yellow triangle (top-right quadrant)
-    const yellowGeometry = new THREE.BufferGeometry();
-    const yellowVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      1.5,
-      0,
-      0, // Right
-      0,
-      0,
-      -1.5, // Top
-    ]);
-    const yellowNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    yellowGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(yellowVertices, 3),
-    );
-    yellowGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(yellowNormals, 3),
-    );
-    yellowGeometry.setIndex([0, 1, 2]);
+    const makeTriangle = (
+      A: readonly [number, number],
+      B: readonly [number, number],
+    ) => {
+      const geometry = new THREE.BufferGeometry();
+      const vertices = new Float32Array([
+        0,
+        0,
+        0,
+        A[0] * CENTER_TRIANGLE_RADIUS,
+        0,
+        A[1] * CENTER_TRIANGLE_RADIUS,
+        B[0] * CENTER_TRIANGLE_RADIUS,
+        0,
+        B[1] * CENTER_TRIANGLE_RADIUS,
+      ]);
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(vertices, 3),
+      );
+      geometry.setAttribute(
+        "normal",
+        new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3),
+      );
+      geometry.setIndex([0, 1, 2]);
+      return geometry;
+    };
 
-    // Green triangle (top-left quadrant)
-    const greenGeometry = new THREE.BufferGeometry();
-    const greenVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      0,
-      0,
-      -1.5, // Top
-      -1.5,
-      0,
-      0, // Left
-    ]);
-    const greenNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    greenGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(greenVertices, 3),
-    );
-    greenGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(greenNormals, 3),
-    );
-    greenGeometry.setIndex([0, 1, 2]);
-
-    // Blue triangle (bottom-left quadrant)
-    const blueGeometry = new THREE.BufferGeometry();
-    const blueVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      -1.5,
-      0,
-      0, // Left
-      0,
-      0,
-      1.5, // Bottom
-    ]);
-    const blueNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    blueGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(blueVertices, 3),
-    );
-    blueGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(blueNormals, 3),
-    );
-    blueGeometry.setIndex([0, 1, 2]);
-
-    // Red triangle (bottom-right quadrant)
-    const redGeometry = new THREE.BufferGeometry();
-    const redVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      0,
-      0,
-      1.5, // Bottom
-      1.5,
-      0,
-      0, // Right
-    ]);
-    const redNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    redGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(redVertices, 3),
-    );
-    redGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(redNormals, 3),
-    );
-    redGeometry.setIndex([0, 1, 2]);
-
-    return { yellowGeometry, greenGeometry, blueGeometry, redGeometry };
+    return {
+      yellow: makeTriangle(COLOR_AXES.yellow.A, COLOR_AXES.yellow.B),
+      green: makeTriangle(COLOR_AXES.green.A, COLOR_AXES.green.B),
+      blue: makeTriangle(COLOR_AXES.blue.A, COLOR_AXES.blue.B),
+      red: makeTriangle(COLOR_AXES.red.A, COLOR_AXES.red.B),
+    };
   }, []);
 
   return (
-    <group rotation={[0, Math.PI / 4 + Math.PI / 2, 0]} scale={[1.4, 1, 1.4]}>
-      {/* Yellow triangle (top-right quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.yellowGeometry} />
-        <meshStandardMaterial
-          color={colors.players.yellow}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Green triangle (top-left quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.greenGeometry} />
-        <meshStandardMaterial
-          color={colors.players.green}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Blue triangle (bottom-left quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.blueGeometry} />
-        <meshStandardMaterial
-          color={colors.players.blue}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Red triangle (bottom-right quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.redGeometry} />
-        <meshStandardMaterial
-          color={colors.players.red}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+    <group>
+      {(Object.keys(triangleGeometries) as Array<
+        keyof typeof triangleGeometries
+      >).map((color) => (
+        <mesh key={color} position={[0, 0.19, 0]}>
+          <primitive object={triangleGeometries[color]} />
+          <meshStandardMaterial
+            color={colors.players[color]}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }
