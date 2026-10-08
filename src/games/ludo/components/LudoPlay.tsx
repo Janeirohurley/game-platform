@@ -4,8 +4,10 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useRef, useState, useEffect } from "react";
 import type { GamePiece, GameState, Player } from "../types/game";
-import { PLAYER_PATHS } from "../data/playerPaths";
-import { BOARD_POSITIONS } from "../data/boardPositions";
+import { finishedPositionFor } from "../data/boardPositions";
+import { getTrack } from "../utils/positionUtils";
+import { DEFAULT_PLAYER_COUNT } from "../data/track";
+import { BOARD_THEME } from "../data/boardTheme";
 import LudoBoard from "./board/LudoBoard";
 import CameraController from "./camera/CameraController";
 import BlockedMessageNotification from "./camera/BlockedMessageNotification";
@@ -29,6 +31,9 @@ export default function LudoPlay() {
     canRollAgain: false,
     turnStartTime: null,
     autoPlayEnabled: true,
+    // Tant que la table n'est pas configurée on dessine un plateau à
+    // quatre : c'est la forme par défaut de la partie locale.
+    playerCount: DEFAULT_PLAYER_COUNT,
   });
 
   const ludoBoardRef = useRef<{
@@ -41,6 +46,10 @@ export default function LudoPlay() {
     value: number;
     timestamp: number;
   } | null>(null);
+//ajout
+  // Le parcours dépend de la taille de la table : arrivée à 57 pour 2 à 4
+     // joueurs, à 83 pour 5 et 6 joueurs (plateau hexagonal).
+  const finishedPosition = finishedPositionFor(gameState.playerCount);
 
   // Game Logic Functions
   const initializeGame = (players: Player[]) => {
@@ -54,14 +63,14 @@ export default function LudoPlay() {
       canRollAgain: false,
       turnStartTime: Date.now(),
       autoPlayEnabled: true,
+      // La taille de la table EST le nombre de joueurs : c'est elle qui
+      // pilote la géométrie du plateau, les décalages de départ et les
+      // colonnes maison.
+      playerCount: players.length,
     });
   };
 
-  const canPieceMove = (
-    piece: GamePiece,
-    diceValue: number,
-    player: Player,
-  ): boolean => {
+  const canPieceMove = (piece: GamePiece, diceValue: number): boolean => {
     // Can't move without dice value
     if (!diceValue) return false;
 
@@ -69,58 +78,35 @@ export default function LudoPlay() {
     if (piece.position === -1 && diceValue !== 6) return false;
 
     // If piece is finished, can't move
-    if (piece.position === 57) return false;
+    if (piece.position === finishedPosition) return false;
 
-    // Check if move would go beyond finish
-    const newPosition = calculateNewPosition(piece, diceValue, player);
-    return newPosition !== null;
+    return calculateNewPosition(piece, diceValue) !== null;
   };
 
-  // Check if player has any possible moves at all
-  const playerHasPossibleMoves = (
-    player: Player,
-    diceValue: number,
-  ): boolean => {
-    return player.pieces.some((piece) =>
-      canPieceMove(piece, diceValue, player),
-    );
-  };
-
+  // Aucun paramètre de joueur ici : la position d'arrivée ne dépend que
+  // du lancer. Le départ est toujours l'index 0 du chemin, et la
+  // longueur du chemin est la même pour tout le monde (57 cases).
   const calculateNewPosition = (
     piece: GamePiece,
     diceValue: number,
-    player: Player,
   ): number | null => {
     if (piece.position === -1) {
-      // Moving from home - must roll 6
-      if (diceValue === 6) {
-        return BOARD_POSITIONS.START_POSITIONS[player.color];
-      }
-      return null;
+      // Sortie de la zone d'attente : uniquement un 6, et toujours sur
+      // la case d'entrée du joueur, qui est l'index 0 de son chemin.
+      return diceValue === 6 ? 0 : null;
     }
 
-    if (piece.position === 57) {
-      // Already finished
+    if (piece.position === finishedPosition) {
+      // Déjà terminé
       return null;
     }
-
-    // Calculate new position along the player's path
-    const playerPath =
-      PLAYER_PATHS[`${player.color}_path` as keyof typeof PLAYER_PATHS];
-
-    if (!playerPath) return null;
 
     const newPos = piece.position + diceValue;
 
-    // Check if move goes beyond the end of the path
-    if (newPos >= playerPath.length) {
-      // Can only finish with exact count
-      if (newPos === playerPath.length) {
-        return 57; // Finished
-      }
-      return null; // Can't overshoot
-    }
-
+    // Le chemin fait 57 cases (0-56) ; la case 57 est le centre, hors
+    // chemin. On l'atteint donc par un lancer EXACT depuis la 56e case,
+    // sinon le pion reste bloqué sur sa dernière case de colonne maison.
+    if (newPos > finishedPosition) return null;
     return newPos;
   };
 
@@ -128,35 +114,61 @@ export default function LudoPlay() {
     playSound("pieceMove");
 
     setGameState((prevState) => {
-      const newState = { ...prevState };
+  //remplacer
+      // const newState = { ...prevState };
+  //fin remplacer
+      const newState = {
+        ...prevState,
+        players: prevState.players.map((p) => ({
+          ...p,
+          pieces: p.pieces.map((pc) => ({ ...pc }))
+        })),
+      };
       const playerIndex = newState.players.findIndex(
         (p) => p.id === piece.playerId,
       );
-      const pieceIndex = newState.players[playerIndex].pieces.findIndex(
-        (p) => p.id === piece.id,
-      );
+      const mover = newState.players[playerIndex];
+      const pieceIndex = mover.pieces.findIndex((p) => p.id === piece.id);
+      const track = getTrack(newState.playerCount);
 
-      // Check for captures (only on main track, not in home run or finished)
-      if (
-        newPosition >= 0 &&
-        newPosition < 51 &&
-        !BOARD_POSITIONS.SAFE_POSITIONS.includes(newPosition)
-      ) {
-        // Check if any opponent pieces are on this position
-        newState.players.forEach((player, pIndex) => {
-          if (pIndex !== playerIndex) {
+      // Les captures ne concernent que l'anneau partagé, et seulement
+      // sur une case non sûre.
+      //
+      // On compare des INDICES D'ANNEAU, pas des positions de chemin :
+      // deux joueurs à six sur la table ont chacun un index de chemin
+      // différent pour la même case, et une position de chemin n'est
+      // comparable à une autre que chez un même joueur. L'ancien code
+      // comparait `position` directement, ce qui revenait à dire qu'un
+      // joueur ne pouvait être capturé que par son voisin d'anneau.
+
+      //ajout
+      let captured = false;
+      //fin ajout
+      if (newPosition >= 0 && newPosition < track.homeColumnStart) {
+        const targetRing = track.ringIndexOf(mover.color, newPosition);
+        if (!track.isSafeCell(targetRing)) {
+          newState.players.forEach((player, pIndex) => {
+            if (pIndex === playerIndex) return;
             player.pieces.forEach((opponentPiece, opIndex) => {
-              if (opponentPiece.position === newPosition) {
-                // Capture! Send opponent piece home
-                newState.players[pIndex].pieces[opIndex].position = -1;
-                playSound("capture");
-                console.log(
-                  `${newState.players[playerIndex].name} captured ${player.name}'s piece!`,
-                );
-              }
+              if (opponentPiece.position < 0) return;
+              if (opponentPiece.position >= track.homeColumnStart) return;
+              const opponentRing = track.ringIndexOf(
+                player.color,
+                opponentPiece.position,
+              );
+              if (opponentRing !== targetRing) return;
+              // Capture ! Le pion adverse repart en zone d'attente.
+              newState.players[pIndex].pieces[opIndex].position = -1;
+              //ajout
+              captured = true;
+              //fin ajout
+              playSound("capture");
+              console.log(
+                `${mover.name} captured ${player.name}'s piece!`,
+              );
             });
-          }
-        });
+          });
+        }
       }
 
       // Move the piece
@@ -164,7 +176,7 @@ export default function LudoPlay() {
 
       // Check for win condition
       const finishedPieces = newState.players[playerIndex].pieces.filter(
-        (p) => p.position === 57,
+        (p) => p.position === track.finishedPosition,
       ).length;
       if (finishedPieces === 4) {
         newState.winner = newState.players[playerIndex];
@@ -175,9 +187,10 @@ export default function LudoPlay() {
 
       // Determine if player gets another turn
       const rolledSix = newState.diceValue === 6;
-      const justFinishedPiece = newPosition === 57;
+      const justFinishedPiece = newPosition === track.finishedPosition;
 
-      if (rolledSix || justFinishedPiece) {
+      //if (rolledSix || justFinishedPiece) { à supprimer; remplacer par la ligne en bas
+      if (rolledSix || justFinishedPiece || captured){
         // Player gets another turn
         newState.canRollAgain = true;
         newState.diceValue = null;
@@ -213,12 +226,7 @@ export default function LudoPlay() {
   const handlePieceClick = (piece: GamePiece) => {
     if (!piece.canMove || !gameState.diceValue) return;
 
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const newPosition = calculateNewPosition(
-      piece,
-      gameState.diceValue,
-      currentPlayer,
-    );
+    const newPosition = calculateNewPosition(piece, gameState.diceValue);
 
     if (newPosition !== null) {
       movePiece(piece, newPosition);
@@ -242,12 +250,8 @@ export default function LudoPlay() {
         const priorityPiece =
           moveablePieces.find((p) => p.position === -1) || // From home
           moveablePieces.find((p) => {
-            const newPos = calculateNewPosition(
-              p,
-              gameState.diceValue!,
-              currentPlayer,
-            );
-            return newPos === 57; // Finishing
+            const newPos = calculateNewPosition(p, gameState.diceValue!);
+            return newPos === finishedPosition; // Finishing
           }) ||
           moveablePieces[0]; // First available
 
@@ -303,7 +307,7 @@ export default function LudoPlay() {
 
         // Mark which pieces can move
         currentPlayer.pieces.forEach((piece) => {
-          piece.canMove = canPieceMove(piece, value, currentPlayer);
+          piece.canMove = canPieceMove(piece, value);
         });
 
         // Check if any pieces can move
@@ -469,21 +473,27 @@ export default function LudoPlay() {
         }
       }
     };
+//Remplacer
+  //   const handleKeyUp = (event: KeyboardEvent) => {
+  //     // Space key now works as toggle, no need for keyup handler
+  //     // Keeping this function for potential future use
+  //   };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
-      // Space key now works as toggle, no need for keyup handler
-      // Keeping this function for potential future use
-    };
+  //   window.addEventListener("keydown", handleKeyDown);
+  //   window.addEventListener("keyup", handleKeyUp);
 
+  //   return () => {
+  //     window.removeEventListener("keydown", handleKeyDown);
+  //     window.removeEventListener("keyup", handleKeyUp);
+  //   };
+  // }, [gameState.gamePhase]);
+//fin remplacer
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [gameState.gamePhase]);
-
+  }, [gameState.gamePhase, handleDiceResult]);
   // Handle camera view changes
   const handleCameraView = (view: string) => {
     playSound("buttonClick");
@@ -528,14 +538,7 @@ export default function LudoPlay() {
               <div
                 className="w-8 h-8 rounded-full"
                 style={{
-                  backgroundColor:
-                    gameState.winner.color === "yellow"
-                      ? "#FFD700"
-                      : gameState.winner.color === "green"
-                        ? "#228B22"
-                        : gameState.winner.color === "blue"
-                          ? "#4169E1"
-                          : "#DC143C",
+                  backgroundColor: BOARD_THEME.players[gameState.winner.color],
                 }}
               />
               <span className="text-2xl font-semibold">

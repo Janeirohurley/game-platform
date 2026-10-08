@@ -71,11 +71,16 @@ export const GAMES: readonly GameEntry[] = [
     slug: "ludo",
     title: "Ludo",
     description:
-      "The classic race-to-home board game — play locally or in realtime online rooms with 2 to 4 players.",
+      "The classic race-to-home board game — play locally or in realtime online rooms with 2 to 6 players.",
     category: "Board",
     minPlayers: 2,
-    maxPlayers: 4,
-    allowedPlayerCounts: [2, 3, 4],
+    // Six is the size of the client colour palette in
+    // `games/ludo/data/track.ts` (LUDO_PALETTE). Must stay equal to
+    // the server's `maxPlayers` for the Ludo entry — the two registries
+    // are hand-duplicated across separate repositories, so a table the
+    // client offers but the server refuses would only fail at creation.
+    maxPlayers: 6,
+    allowedPlayerCounts: [2, 3, 4, 5, 6],
     status: "live",
     playableOnline: true,
     image: "/ludo.jpg",

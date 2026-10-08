@@ -1,128 +1,105 @@
 "use client";
 
 import { Text } from "@react-three/drei";
-import type { ColorTheme, GameState } from "../../types/game";
+import { getTrack } from "../../utils/positionUtils";
+import { FALLBACK_NAME } from "../../data/boardTheme";
+import type { ColorTheme, GameState, LudoColor } from "../../types/game";
 
-// Modern minimalist home areas
+// Une zone d'attente par BRAS du plateau, posée derrière le bras.
+//
+// Les positions viennent de la piste générée : elles suivent donc
+// l'orientation de chaque bras, ce qui permet d'avoir 2 à 6 zones sans
+// coordonnées écrites en dur.
 function HomeAreas({
   colors,
   gameState,
+  playerCount,
 }: {
   colors: ColorTheme;
   gameState: GameState;
+  playerCount: number;
 }) {
-  const getNameForColor = (color: "yellow" | "green" | "blue" | "red") => {
+  const track = getTrack(playerCount);
+
+  const getNameForColor = (color: LudoColor): string => {
     const player = gameState.players.find((p) => p.color === color);
     if (player?.name) return player.name;
-    // Fallbacks during setup or if not selected yet
-    switch (color) {
-      case "yellow":
-        return "Yellow";
-      case "green":
-        return "Green";
-      case "blue":
-        return "Blue";
-      case "red":
-        return "Red";
-    }
+    // Pendant la configuration, ou si un siège n'a pas encore de joueur.
+    return FALLBACK_NAME[color];
   };
 
-  const homes = [
-    {
-      color: colors.players.yellow,
-      x: -4.5,
-      z: -4.5,
-      name: getNameForColor("yellow"),
-    }, // Yellow
-    {
-      color: colors.players.green,
-      x: -4.5,
-      z: 4.5,
-      name: getNameForColor("green"),
-    }, // Green
-    {
-      color: colors.players.blue,
-      x: 4.5,
-      z: 4.5,
-      name: getNameForColor("blue"),
-    }, // Blue
-    {
-      color: colors.players.red,
-      x: 4.5,
-      z: -4.5,
-      name: getNameForColor("red"),
-    }, // Red
-  ];
+  // Teinte d'un bras vide : le plateau garde ses quatre zones d'attente,
+  // mais une zone sans joueur est grise — elle fait partie de l'imprimé, pas
+  // de la partie. On reprend le gris des emplacements de pièces pour que la
+  // zone vide et ses emplacements se lisent comme un seul ensemble neutre.
+  const vacantArm = "#8C8C94";
 
   return (
     <>
-      {homes.map((home, index) => (
-        <group key={index}>
-          {/* Modern flat base with subtle gradient */}
-          <mesh position={[home.x, 0.16, home.z]}>
-            <boxGeometry args={[6, 0.02, 6]} />
-            <meshStandardMaterial
-              color={home.color}
-              roughness={0.1}
-              metalness={0.0}
-              transparent
-              opacity={0.9}
-            />
-          </mesh>
+      {/* `track.arms` et non `track.seats` : à deux ou trois joueurs, les
+          bras inoccupés gardent leur zone d'attente sur la croix. */}
+      {track.arms.map((arm) => {
+        const first = arm.base[0];
+        const last = arm.base[arm.base.length - 1];
+        const cx = (first.x + last.x) / 2;
+        const cz = (first.z + last.z) / 2;
+        const color = arm.seat ? colors.players[arm.seat.color] : vacantArm;
+        // Un bras vide n'affiche aucun nom de joueur : la zone reste muette.
+        const label = arm.seat ? getNameForColor(arm.seat.color) : "";
 
-          {/* Clean white center area */}
-          <mesh position={[home.x, 0.17, home.z]}>
-            <boxGeometry args={[4.5, 0.01, 4.5]} />
-            <meshStandardMaterial
-              color="#FAFAFA"
-              roughness={0.05}
-              metalness={0.0}
-            />
-          </mesh>
+        // Le groupe est tourné sur l'axe du bras pour que le libellé reste
+        // lisible depuis l'extérieur et que les emplacements des pièces
+        // soient posés dans un repère local aligné.
+        return (
+          <group key={arm.offset} position={[cx, 0, cz]} rotation={[0, -arm.angle, 0]}>
+            <mesh position={[0, 0.16, 0]}>
+              <boxGeometry args={[2.6, 0.02, 2.6]} />
+              <meshStandardMaterial
+                color={color}
+                roughness={0.1}
+                metalness={0}
+                transparent
+                opacity={0.9}
+              />
+            </mesh>
 
-          {/* Modern circular slots */}
-          {[
-            [-1.1, -1.1],
-            [1.1, -1.1],
-            [1.1, 1.1],
-            [-1.1, 1.1],
-          ].map((offset, i) => (
-            <group key={i}>
-              {/* Slot base */}
-              <mesh position={[home.x + offset[0], 0.175, home.z + offset[1]]}>
-                <cylinderGeometry args={[0.4, 0.4, 0.005]} />
-                <meshStandardMaterial
-                  color="#A0A0A0"
-                  roughness={0.1}
-                  metalness={0.0}
-                />
-              </mesh>
+            <mesh position={[0, 0.17, 0]}>
+              <boxGeometry args={[2, 0.01, 2]} />
+              <meshStandardMaterial color="#FAFAFA" roughness={0.05} metalness={0} />
+            </mesh>
 
-              {/* Inner circle for contrast */}
-              <mesh position={[home.x + offset[0], 0.177, home.z + offset[1]]}>
-                <cylinderGeometry args={[0.3, 0.3, 0.002]} />
-                <meshStandardMaterial
-                  color="#FFFFFF"
-                  roughness={0.0}
-                  metalness={0.0}
-                />
-              </mesh>
-            </group>
-          ))}
+            {/* Emplacements des 4 pièces, dans le repère local du bras. */}
+            {[-0.55, 0.55].map((lat) =>
+              [0.5, -0.5].map((along) => (
+                <group key={`${lat}-${along}`} position={[lat, 0, along]}>
+                  <mesh position={[0, 0.175, 0]}>
+                    <cylinderGeometry args={[0.32, 0.32, 0.005]} />
+                    <meshStandardMaterial color="#A0A0A0" roughness={0.1} metalness={0} />
+                  </mesh>
+                  <mesh position={[0, 0.177, 0]}>
+                    <cylinderGeometry args={[0.24, 0.24, 0.002]} />
+                    <meshStandardMaterial color="#FFFFFF" roughness={0} metalness={0} />
+                  </mesh>
+                </group>
+              )),
+            )}
 
-          {/* Modern typography label */}
-          <Text
-            position={[home.x, 0.19, home.z]}
-            fontSize={0.4}
-            color="#000000"
-            anchorX="center"
-            anchorY="middle"
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
-            {home.name}
-          </Text>
-        </group>
-      ))}
+            {/* Un bras vide n'a pas de joueur : pas de libellé non plus. */}
+            {label ? (
+              <Text
+                position={[0, 0.19, 0.95]}
+                fontSize={0.34}
+                color="#000000"
+                anchorX="center"
+                anchorY="middle"
+                rotation={[-Math.PI / 2, 0, 0]}
+              >
+                {label}
+              </Text>
+            ) : null}
+          </group>
+        );
+      })}
     </>
   );
 }

@@ -1,87 +1,79 @@
 "use client";
 
 import { useState } from "react";
-import type { Player } from "../../types/game";
+import { LUDO_PALETTE, MIN_PLAYER_COUNT, MAX_PLAYER_COUNT } from "../../data/track";
+import { COLOR_LABELS, BOARD_THEME } from "../../data/boardTheme";
+import type { LudoColor, Player } from "../../types/game";
 import { playSound } from "@/lib/sounds";
 
-// Player Setup Component
+const SIZES = Array.from(
+  { length: MAX_PLAYER_COUNT - MIN_PLAYER_COUNT + 1 },
+  (_, i) => MIN_PLAYER_COUNT + i,
+);
+
+// Configuration de la partie locale.
+//
+// La couleur N'EST PAS choisie librement : elle est imposée par le rang
+// du joueur. La géométrie de la piste attribue les départs à des sièges
+// numérotés dans l'ordre de jeu, donc un joueur qui choisirait une autre
+// couleur verrait son chemin et sa zone d'attente appartenir à quelqu'un
+// d'autre. Assigner la couleur, c'est garantir que ce qu'on voit
+// correspond à ce que les règles calculent.
 function PlayerSetup({
   onGameStart,
 }: {
   onGameStart: (players: Player[]) => void;
 }) {
   const [numPlayers, setNumPlayers] = useState<number | null>(null);
-  const [players, setPlayers] = useState<Partial<Player>[]>([]);
+  const [names, setNames] = useState<string[]>([]);
   const [currentPlayerSetup, setCurrentPlayerSetup] = useState(0);
-
-  const availableColors: Array<"yellow" | "green" | "blue" | "red"> = [
-    "yellow",
-    "green",
-    "blue",
-    "red",
-  ];
-  const usedColors = players.map((p) => p.color).filter(Boolean);
-  const availableColorsForSelection = availableColors.filter(
-    (color) => !usedColors.includes(color),
-  );
 
   const handleNumPlayersSelect = (num: number) => {
     playSound("buttonClick");
     setNumPlayers(num);
-    setPlayers(
-      Array(num)
-        .fill(null)
-        .map(() => ({ name: "", color: undefined })),
-    );
+    setNames(Array(num).fill(""));
     setCurrentPlayerSetup(0);
   };
 
-  const handlePlayerNameChange = (name: string) => {
-    const updatedPlayers = [...players];
-    updatedPlayers[currentPlayerSetup] = {
-      ...updatedPlayers[currentPlayerSetup],
-      name,
-    };
-    setPlayers(updatedPlayers);
-  };
-
-  const handleColorSelect = (color: "yellow" | "green" | "blue" | "red") => {
-    playSound("buttonClick");
-    const updatedPlayers = [...players];
-    updatedPlayers[currentPlayerSetup] = {
-      ...updatedPlayers[currentPlayerSetup],
-      color,
-    };
-    setPlayers(updatedPlayers);
+  const handleNameChange = (name: string) => {
+    setNames((previous) =>
+      previous.map((value, index) => (index === currentPlayerSetup ? name : value)),
+    );
   };
 
   const handleNextPlayer = () => {
     playSound("buttonClick");
-    if (currentPlayerSetup < players.length - 1) {
-      setCurrentPlayerSetup(currentPlayerSetup + 1);
-    } else {
-      // All players set up, start the game
-      const completePlayers: Player[] = players.map((player, index) => ({
-        id: `player_${index}`,
-        name: player.name!,
-        color: player.color!,
-        pieces: Array(4)
-          .fill(null)
-          .map((_, pieceIndex) => ({
-            id: `${player.color}_piece_${pieceIndex}`,
-            playerId: `player_${index}`,
-            position: -1, // Start at home
-            isSelected: false,
-            canMove: false,
-          })),
-        isActive: index === 0, // First player starts
-      }));
-      onGameStart(completePlayers);
+    if (currentPlayerSetup < numPlayers! - 1) {
+      setCurrentPlayerSetup((previous) => previous + 1);
+      return;
     }
+
+    const completePlayers: Player[] = names.map((name, seat) => {
+      const color: LudoColor = LUDO_PALETTE[seat];
+      const id = `player_${seat}`;
+      return {
+        id,
+        name: name.trim() || COLOR_LABELS[color],
+        color,
+        pieces: Array.from({ length: 4 }, (_, pieceIndex) => ({
+          id: `${color}_piece_${pieceIndex}`,
+          playerId: id,
+          // -1 = zone d'attente.
+          position: -1,
+          isSelected: false,
+          canMove: false,
+        })),
+        isActive: seat === 0,
+      };
+    });
+
+    onGameStart(completePlayers);
   };
 
-  const currentPlayer = players[currentPlayerSetup];
-  const canProceed = currentPlayer?.name && currentPlayer?.color;
+  const currentName = names[currentPlayerSetup] ?? "";
+  const canProceed = currentName.trim().length > 0;
+  const currentColor: LudoColor | undefined =
+    numPlayers === null ? undefined : LUDO_PALETTE[currentPlayerSetup];
 
   return (
     <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
@@ -91,16 +83,16 @@ function PlayerSetup({
         {numPlayers === null ? (
           <div>
             <h3 className="text-lg font-semibold mb-4">
-              How many players? (1-4)
+              How many players? ({MIN_PLAYER_COUNT}-{MAX_PLAYER_COUNT})
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              {[1, 2, 3, 4].map((num) => (
+              {SIZES.map((num) => (
                 <button
                   key={num}
                   onClick={() => handleNumPlayersSelect(num)}
                   className="py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors"
                 >
-                  {num} Player{num > 1 ? "s" : ""}
+                  {num} Players
                 </button>
               ))}
             </div>
@@ -113,50 +105,32 @@ function PlayerSetup({
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Player Name:
-                </label>
+                <label className="block text-sm font-medium mb-2">Player Name:</label>
                 <input
                   type="text"
-                  value={currentPlayer?.name || ""}
-                  onChange={(e) => handlePlayerNameChange(e.target.value)}
+                  value={currentName}
+                  onChange={(e) => handleNameChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter player name"
                   maxLength={20}
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Choose Color:
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {availableColorsForSelection.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => handleColorSelect(color)}
-                      className={`py-3 px-4 rounded-lg font-semibold transition-colors capitalize ${
-                        currentPlayer?.color === color
-                          ? "ring-2 ring-black"
-                          : "hover:opacity-80"
-                      }`}
-                      style={{
-                        backgroundColor:
-                          color === "yellow"
-                            ? "#FFD700"
-                            : color === "green"
-                              ? "#228B22"
-                              : color === "blue"
-                                ? "#4169E1"
-                                : "#DC143C",
-                        color: color === "yellow" ? "#000" : "#fff",
-                      }}
-                    >
-                      {color}
-                    </button>
-                  ))}
+              {/* La couleur est imposée par le rang de jeu. */}
+              {currentColor && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your color:</label>
+                  <div
+                    className="py-3 px-4 rounded-lg font-semibold text-center"
+                    style={{
+                      backgroundColor: BOARD_THEME.players[currentColor],
+                      color: currentColor === "yellow" ? "#000" : "#fff",
+                    }}
+                  >
+                    {COLOR_LABELS[currentColor]}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <button
                 onClick={handleNextPlayer}
@@ -167,9 +141,7 @@ function PlayerSetup({
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                {currentPlayerSetup < players.length - 1
-                  ? "Next Player"
-                  : "Start Game"}
+                {currentPlayerSetup < numPlayers - 1 ? "Next Player" : "Start Game"}
               </button>
             </div>
           </div>
