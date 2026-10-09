@@ -5,19 +5,26 @@ import type { ReactNode } from "react";
 import type { Room } from "@colyseus/sdk";
 
 import { readLobbySnapshot } from "@/lib/realtime/snapshot";
-import type { LobbySnapshot } from "@/lib/realtime/types";
+import type { LobbySnapshot, RoomChatMessage } from "@/lib/realtime/types";
 import type { MatchRole } from "@/lib/realtime/use-match-room";
+import { playSound } from "@/lib/sounds";
+import { Floating } from "@/components/floating";
 import { RoomChat } from "@/components/realtime/chat";
 
 import { useLiveKitVoice } from "@/lib/realtime/use-livekit-voice";
 import { RoomContext, RoomAudioRenderer } from "@livekit/components-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Settings01Icon } from "@hugeicons/core-free-icons";
 
 import {
   CallBar,
   CloseRoomConfirmDialog,
+  CountdownOverlay,
   JoinRequestsPanel,
   LeaveConfirmDialog,
   MatchHud,
+  MatchSettingsDialog,
+  MatchStartButton,
   RoomClosedNotice,
   WaitingOverlay,
 } from "./index";
@@ -35,6 +42,12 @@ export interface MatchScreenProps {
   /** The game board, as the primary visual behind the overlays. */
   children: ReactNode;
 }
+
+/**
+ * Games whose lobby exposes host-editable settings. Ludo offers the table
+ * size + per-turn budget; others (checkers, rally) don't govern one yet.
+ */
+const SETTINGS_SUPPORTED_GAME_IDS = new Set(["ludo"]);
 
 /**
  * The generic integrated match screen (spec sections 1 and 14).
@@ -65,6 +78,10 @@ export function MatchScreen({
   /** Chat panel + unread badge — driven from the call bar. */
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadChat, setUnreadChat] = useState(0);
+  /** Full-screen "attention à jouer" — set while the server countdown runs. */
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
+  /** Lobby settings panel — host edits, everyone else reads. */
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Voice/video rides on LiveKit: roles and the roster derive from
   // the server state, the media room joins on arrival (listen by
@@ -101,9 +118,11 @@ export function MatchScreen({
       const data = (payload ?? {}) as { userId?: string; name?: string };
       switch (messageType) {
         case "playerLeft":
+          playSound("userDisconnected");
           notice(`${data.name ?? playerName(data.userId ?? "")} a quitté le match.`);
           break;
         case "playerDisconnected":
+          playSound("userDisconnected");
           notice(
             `${data.name ?? playerName(data.userId ?? "")} est temporairement déconnecté.`,
           );
@@ -117,6 +136,18 @@ export function MatchScreen({
         case "joinRequestApproved":
           notice(`${playerName(data.userId ?? "")} a rejoint la partie.`);
           break;
+        case "countdown": {
+          // The host asked to start: hold everyone behind a full-screen
+          // countdown until the server flips to PLAYING (see gameStarted).
+          playSound("startGame");
+          setCountdownSeconds(
+            (payload as { seconds?: number }).seconds ?? 3,
+          );
+          break;
+        }
+        case "gameStarted":
+          setCountdownSeconds(null);
+          break;
         case "spectatorJoined":
         case "spectatorLeft":
           break; // counter in the HUD already reflects this in realtime
@@ -125,15 +156,29 @@ export function MatchScreen({
       }
     });
 
+    // The chat chime can't ride the wildcard above: once a dedicated
+    // chatMessage handler exists (RoomChat's), the SDK dispatches the
+    // message there only — the "*" subscription never sees it. So the
+    // sound registers its own dedicated listener.
+    const unsubChat = room.onMessage(
+      "chatMessage",
+      (message: RoomChatMessage) => {
+        if (message.userId && message.userId !== viewerUserId) {
+          playSound("message");
+        }
+      },
+    );
+
     const timers = noticeTimers.current;
     return () => {
       unsub();
+      unsubChat();
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
     };
     // lobby is read through the closure to resolve names; refresh it
     // whenever it changes so notices never show a stale name.
-  }, [room, lobby]);
+  }, [room, lobby, viewerUserId]);
 
   useEffect(() => {
     const update = () => setLobby(readLobbySnapshot(room));
@@ -148,6 +193,27 @@ export function MatchScreen({
       else unsubscribe.remove();
     };
   }, [room]);
+
+  // Join-request chime: someone asked to play — diff the pending list
+  // (a map keyed by userId, no "new request" event), ringing once per
+  // new face. The first observation only seeds the set: joining a room
+  // that already shows pending requests must not replay them all.
+  const seenJoinRequests = useRef<Set<string>>(new Set());
+  const joinRequestsPrimed = useRef(false);
+  useEffect(() => {
+    if (!lobby) return;
+    const alive = new Set(lobby.pendingPlayerRequests.map((r) => r.userId));
+    if (!joinRequestsPrimed.current) {
+      joinRequestsPrimed.current = true;
+      for (const id of alive) seenJoinRequests.current.add(id);
+      return;
+    }
+    for (const id of alive) {
+      if (seenJoinRequests.current.has(id)) continue;
+      seenJoinRequests.current.add(id);
+      playSound("matchingNotification");
+    }
+  }, [lobby]);
 
   if (!lobby) {
     return (
@@ -188,11 +254,38 @@ export function MatchScreen({
 
       {/* The HUD stays through EVERY phase — waiting, playing, finished:
           it is the match's identity card, it must never blink away. */}
-      <MatchHud
-        snapshot={lobby}
-        isAdmin={isAdmin}
-        onStart={() => room.send("startGame", {})}
-      />
+      <MatchHud snapshot={lobby} isAdmin={isAdmin} />
+
+      {/* The admin's start control lives alone in the top-right corner,
+          visible only while the lobby is waiting or ready. */}
+      {isAdmin && (
+        <MatchStartButton
+          snapshot={lobby}
+          onStart={() => room.send("startGame", {})}
+          starting={countdownSeconds !== null}
+        />
+      )}
+
+      {/* Lobby settings gear — just below the start pill for the host,
+          alone in the corner for everyone else. Opens the same dialog;
+          only the host's controls are live inside it. */}
+      {!matchLive && SETTINGS_SUPPORTED_GAME_IDS.has(gameId) && (
+        <div
+          className={`pointer-events-auto absolute right-3 z-40 sm:right-4 ${
+            isAdmin ? "top-16 sm:top-[4.5rem]" : "top-3 sm:top-4"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Paramètres de la partie"
+            title="Paramètres de la partie"
+            className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white/80 shadow-lg transition hover:bg-black/60 hover:text-white"
+          >
+            <HugeiconsIcon icon={Settings01Icon} size={16} strokeWidth={1.8} />
+          </button>
+        </div>
+      )}
 
       {/* Waiting-only banners (invite link, pending, spectator CTA).
           They leave the stage once the match is running. */}
@@ -291,14 +384,16 @@ export function MatchScreen({
 
       {/* Chat panel — opens above the call bar, bottom-centre-right. */}
       <div className="pointer-events-none absolute bottom-16 right-3 z-50 flex justify-end sm:bottom-[4.5rem] sm:right-4">
-        <RoomChat
-          room={room}
-          viewerUserId={viewerUserId}
-          variant="controlled"
-          open={chatOpen}
-          onCloseRequest={() => setChatOpen(false)}
-          onUnreadChange={setUnreadChat}
-        />
+        <Floating storageKey="match-screen.chat">
+          <RoomChat
+            room={room}
+            viewerUserId={viewerUserId}
+            variant="controlled"
+            open={chatOpen}
+            onCloseRequest={() => setChatOpen(false)}
+            onUnreadChange={setUnreadChat}
+          />
+        </Floating>
       </div>
 
       {confirmLeave && (
@@ -322,6 +417,23 @@ export function MatchScreen({
           }}
           onCancel={() => setConfirmCloseRoom(false)}
         />
+      )}
+
+      {settingsOpen && SETTINGS_SUPPORTED_GAME_IDS.has(gameId) && (
+        <MatchSettingsDialog
+          snapshot={lobby}
+          isAdmin={isAdmin}
+          onClose={() => setSettingsOpen(false)}
+          onUpdate={(settings) =>
+            room.send("updateLobbySettings", settings)
+          }
+        />
+      )}
+
+      {/* Full-screen "attention à jouer" while the server's start
+          countdown runs — covers the whole stage, nobody plays early. */}
+      {countdownSeconds !== null && (
+        <CountdownOverlay seconds={countdownSeconds} />
       )}
       </div>
     </RoomContext.Provider>

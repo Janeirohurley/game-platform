@@ -11,6 +11,7 @@ import {
 
 import { useRoomChat } from "@/lib/realtime";
 import { CHAT_MAX_CONTENT_LENGTH } from "@/lib/realtime/types";
+import { Floating } from "@/components/floating";
 
 import { MessageList } from "./message-list";
 
@@ -189,32 +190,36 @@ export function RoomChat({
     );
   }
 
-  // Floating: a bubble that opens a panel anchored bottom-right.
+  // Floating: a bubble that opens a panel anchored bottom-right. The whole
+  // slot is the draggable box, so an offset survives toggling the panel —
+  // it moves with the panel, not from scratch every time it opens.
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-end p-3 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:p-0">
-      {openNow ? (
-        <section
-          aria-label="Chat de la partie"
-          className="pointer-events-auto flex h-[min(60vh,26rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl backdrop-blur-xl sm:w-80 dark:border-white/10 dark:bg-neutral-900/95"
-        >
-          <Header onClose={handleClose} count={messages.length} />
-          {body}
-        </section>
-      ) : (
-        <button
-          type="button"
-          onClick={handleOpen}
-          className="pointer-events-auto relative flex h-11 items-center gap-2 rounded-full bg-slate-950/90 px-4 text-sm font-semibold text-white shadow-xl backdrop-blur-sm transition hover:bg-slate-800 dark:bg-white/95 dark:text-black dark:hover:bg-white"
-        >
-          <HugeiconsIcon icon={Message01Icon} size={17} strokeWidth={1.8} />
-          Chat
-          {unread > 0 && (
-            <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
-              {unread > 9 ? "9+" : unread}
-            </span>
-          )}
-        </button>
-      )}
+      <Floating storageKey="room-chat">
+        {openNow ? (
+          <section
+            aria-label="Chat de la partie"
+            className="pointer-events-auto flex h-[min(60vh,26rem)] w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-2xl backdrop-blur-xl sm:w-80 dark:border-white/10 dark:bg-neutral-900/95"
+          >
+            <Header onClose={handleClose} count={messages.length} />
+            {body}
+          </section>
+        ) : (
+          <button
+            type="button"
+            onClick={handleOpen}
+            className="pointer-events-auto relative flex h-11 items-center gap-2 rounded-full bg-slate-950/90 px-4 text-sm font-semibold text-white shadow-xl backdrop-blur-sm transition hover:bg-slate-800 dark:bg-white/95 dark:text-black dark:hover:bg-white"
+          >
+            <HugeiconsIcon icon={Message01Icon} size={17} strokeWidth={1.8} />
+            Chat
+            {unread > 0 && (
+              <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </button>
+        )}
+      </Floating>
     </div>
   );
 }

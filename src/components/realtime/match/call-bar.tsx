@@ -17,6 +17,7 @@ import {
   Cancel01Icon,
   AlertCircleIcon,
 } from "@hugeicons/core-free-icons";
+import { Floating } from "@/components/floating";
 import type {
   RoomVoiceController,
   VoiceParticipant,
@@ -88,7 +89,10 @@ export function CallBar({
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-3 z-50 flex justify-center sm:bottom-4">
-      <div className="pointer-events-auto relative flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/85 px-2 py-1.5 shadow-2xl backdrop-blur-md">
+      <Floating
+        storageKey="call-bar"
+        className="relative flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/85 px-2 py-1.5 shadow-2xl backdrop-blur-md"
+      >
         {/* TRANSMIT side — the microphone. Voice off: one button engages
             the whole voice connection. Engaged: players flip their mic
             (admin-locked when enforced); spectators hold no mic, so the
@@ -253,7 +257,7 @@ export function CallBar({
             <HugeiconsIcon icon={DoorClosedIcon} size={18} strokeWidth={1.8} />
           </CallButton>
         )}
-      </div>
+      </Floating>
     </div>
   );
 }

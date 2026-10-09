@@ -69,7 +69,7 @@ const appliedCaptureSettings = (track: LocalAudioTrack): string => {
     voiceIsolation?: boolean;
   };
   return [
-    `écho ${appliedFlag(settings.echoCancellation)}`,
+    `écho ${appliedFlag(settings.echoCancellation as boolean)}`,
     `bruit ${appliedFlag(settings.noiseSuppression)}`,
     `gain ${appliedFlag(settings.autoGainControl)}`,
     `isolation ${appliedFlag(settings.voiceIsolation)}`,

@@ -22,6 +22,8 @@ export interface GameDefinition {
 export interface LobbyPlayerView {
   userId: string;
   name: string;
+  /** Avatar URL from the gamer profile ("" = initials fallback). */
+  avatarUrl: string;
   sessionId: string;
   seat: number;
   connected: boolean;
@@ -53,12 +55,31 @@ export interface LobbySnapshot {
   maxPlayers: number;
   targetPlayers: number;
   phase: RoomPhase;
+  /**
+   * Server wall-clock epoch (ms) when the match started — the HUD shows
+   * the elapsed game time from it. 0 while the lobby is still waiting.
+   */
+  startedAt: number;
   hostUserId: string;
   players: LobbyPlayerView[];
   /** Users waiting for admin approval to become players. */
   pendingPlayerRequests: LobbyPendingRequestView[];
   /** Read-only onlookers — disjoint from players, outside capacity. */
   spectators: LobbySpectatorView[];
+  /**
+   * Turn-based games: id of the player whose turn it is
+   * (null before the match starts or for games without turns).
+   */
+  currentTurn: string | null;
+  /**
+   * Server-relative deadline of the current turn. The client cannot read
+   * the server's room clock — it only uses this to DETECT a timing reset
+   * (every roll/turn changes it), then re-times the visible countdown
+   * locally from `turnDurationMs`.
+   */
+  turnDeadline: number;
+  /** Mirrored per-turn budget (ms) for the running game; 0 = no timer. */
+  turnDurationMs: number;
 }
 
 /** Room listing entry returned by matchmaking queries. */
@@ -134,3 +155,30 @@ export type ChatRejectionReason =
 
 /** Mirrors the server's MAX_CONTENT_LENGTH, for the input's own limit. */
 export const CHAT_MAX_CONTENT_LENGTH = 300;
+
+/**
+ * Each game's default per-turn budget, mirrored from server-games. It is
+ * only a FALLBACK: rooms that expose a `turnDurationMs` field (Ludo, once
+ * the host picked it) win over this table. The server's room clock is
+ * unreachable from the browser, so the circular turn countdown re-times
+ * itself locally against the same values and resets whenever
+ * `turnDeadline` moves.
+ */
+export const TURN_DURATION_MS_BY_GAME: Record<string, number> = {
+  ludo: 30_000,
+  checkers: 60_000,
+};
+
+/**
+ * Per-turn budgets a Ludo host may pick (ms) — mirrors server-games'
+ * `TURN_DURATION_OPTIONS`. 0 = no time limit.
+ */
+export const LUDO_TURN_DURATION_OPTIONS: readonly {
+  value: number;
+  label: string;
+}[] = [
+  { value: 0, label: "Sans limite" },
+  { value: 30_000, label: "30 s" },
+  { value: 60_000, label: "60 s" },
+  { value: 90_000, label: "90 s" },
+];

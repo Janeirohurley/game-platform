@@ -21,6 +21,22 @@ export const sounds = {
     src: ["/sounds/click.mp3"],
     volume: 0.2,
   }),
+  matchingNotification: new Howl({
+    src: ["/sounds/matching-notification.mp3"],
+    volume: 0.35,
+  }),
+  message: new Howl({
+    src: ["/sounds/message.mp3"],
+    volume: 0.3,
+  }),
+  userDisconnected: new Howl({
+    src: ["/sounds/user-deconnected.mp3"],
+    volume: 0.25,
+  }),
+  startGame: new Howl({
+    src: ["/sounds/start-game.mp3"],
+    volume: 0.45,
+  }),
 };
 
 export const playSound = (soundName: keyof typeof sounds) => {
