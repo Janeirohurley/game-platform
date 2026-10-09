@@ -1,149 +1,109 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { getTrack } from "../../utils/positionUtils";
 import type { ColorTheme } from "../../types/game";
 
-// Center finish area with 4 colored triangles
-function CenterArea({ colors }: { colors: ColorTheme }) {
-  // Create triangle geometries using BufferGeometry
-  const triangleGeometries = useMemo(() => {
-    // Yellow triangle (top-right quadrant)
-    const yellowGeometry = new THREE.BufferGeometry();
-    const yellowVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      1.5,
-      0,
-      0, // Right
-      0,
-      0,
-      -1.5, // Top
-    ]);
-    const yellowNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    yellowGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(yellowVertices, 3),
-    );
-    yellowGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(yellowNormals, 3),
-    );
-    yellowGeometry.setIndex([0, 1, 2]);
+// Le centre du plateau, subdivisé sous forme de X : un triangle par bras,
+// tous réunis au centre, la base de chacun tournée vers SA colonne maison.
+// Le X occupe TOUT l'espace du milieu : chaque base est posée à l'endroit
+// exact où commencent les colonnes, donc le grand carré cerné par les bras
+// est entièrement recouvert, sans liseré neutre entre le X et les colonnes.
+//
+// Quatre triangles pour la croix (2 à 4 joueurs), six pour le plateau
+// hexagonal : c'est le nombre de bras qui décide, il n'y a aucun cas séparé.
+// Chaque triangle porte la couleur du joueur qui occupe ce bras, et un bras
+// sans joueur garde son triangle GRIS — l'imprimé du plateau. Les pions
+// arrivés se posent DANS le triangle de leur couleur (voir positionUtils),
+// étalés du centre jusqu'au bord : on sait d'un coup d'œil qui a fini.
+const VACANT_SIDE = "#8C8C94";
 
-    // Green triangle (top-left quadrant)
-    const greenGeometry = new THREE.BufferGeometry();
-    const greenVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      0,
-      0,
-      -1.5, // Top
-      -1.5,
-      0,
-      0, // Left
-    ]);
-    const greenNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    greenGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(greenVertices, 3),
-    );
-    greenGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(greenNormals, 3),
-    );
-    greenGeometry.setIndex([0, 1, 2]);
+// Apothème du X = tout le grand carré central, pas seulement le petit
+// milieu : c'est la surface que délimitent les bras et l'anneau, et elle
+// doit être entièrement recouverte.
+//
+// Classique : les 4 bras et les 8 cases de coins de l'anneau le plus intérieur
+// (centres à r = 1.878, en (±1.68, ±0.84) etc.) bornent la jonction. Le plus
+// grand X carré possible sans mordre sur ces cases a ses coins à ±1.29 du
+// centre (r = 1.29 * sqrt(2) = 1.82, juste à l'intérieur) : ses côtés
+// rejoignent les coins internes des cases, donc la jonction est pleine et la
+// piste reste entière.
+// Hexagonal : mêmes calculs sur la jonction hexagonale, dont les cases
+// intérieures sont à r = 2.444 — apothème 1.9, sommets à 2.19.
+const CENTRE_APOTHEM = { classic: 1.29, hex: 1.9 };
 
-    // Blue triangle (bottom-left quadrant)
-    const blueGeometry = new THREE.BufferGeometry();
-    const blueVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      -1.5,
-      0,
-      0, // Left
-      0,
-      0,
-      1.5, // Bottom
-    ]);
-    const blueNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    blueGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(blueVertices, 3),
-    );
-    blueGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(blueNormals, 3),
-    );
-    blueGeometry.setIndex([0, 1, 2]);
+/**
+ * Triangle d'un bras, dans SON repère local (l'axe du bras est le x local).
+ * Pointe au centre, base à l'apothème, à `apothem * tan(pi / côtés)` de
+ * chaque côté de l'axe : pour un carré (4 côtés) la base court de coin en
+ * coin et les triangles pavent exactement le grand carré ; pour l'hexagone
+ * ils pavent l'hexagone. C'est division "en X" dont les frontières sont les
+ * diagonales entre le centre et les coins.
+ */
+function sectorTriangleGeometry(apothem: number, sides: number) {
+  const geometry = new THREE.BufferGeometry();
+  const halfBase = apothem * Math.tan(Math.PI / sides);
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(
+      new Float32Array([0, 0, 0, apothem, 0, halfBase, apothem, 0, -halfBase]),
+      3,
+    ),
+  );
+  geometry.setAttribute(
+    "normal",
+    new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3),
+  );
+  geometry.setIndex([0, 1, 2]);
+  return geometry;
+}
 
-    // Red triangle (bottom-right quadrant)
-    const redGeometry = new THREE.BufferGeometry();
-    const redVertices = new Float32Array([
-      0,
-      0,
-      0, // Center
-      0,
-      0,
-      1.5, // Bottom
-      1.5,
-      0,
-      0, // Right
-    ]);
-    const redNormals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]);
-    redGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(redVertices, 3),
-    );
-    redGeometry.setAttribute(
-      "normal",
-      new THREE.BufferAttribute(redNormals, 3),
-    );
-    redGeometry.setIndex([0, 1, 2]);
+function CenterArea({
+  colors,
+  playerCount,
+}: {
+  colors: ColorTheme;
+  playerCount: number;
+}) {
+  const track = getTrack(playerCount);
+  const isHex = track.shape === "hex";
+  const sides = track.arms.length;
+  const apothem = isHex ? CENTRE_APOTHEM.hex : CENTRE_APOTHEM.classic;
 
-    return { yellowGeometry, greenGeometry, blueGeometry, redGeometry };
-  }, []);
+  // Une géométrie par bras, mémorisée : THREE ne libère pas les
+  // BufferGeometry qu'on lui donne, et en recréer un par rendu fuiterait la
+  // mémoire GPU sur une table qui tourne longtemps. Les triangles sont
+  // identiques (même apothème, même secteur), seule leur TEINTE varie : on
+  // pourrait en partager un seul, mais on les garde séparés pour que chaque
+  // bras garde son mesh indépendant.
+  const sectorGeometries = useMemo(
+    () => track.arms.map(() => sectorTriangleGeometry(apothem, sides)),
+    [apothem, sides, track],
+  );
+
+  useEffect(
+    () => () => {
+      sectorGeometries.forEach((geometry) => geometry.dispose());
+    },
+    [sectorGeometries],
+  );
 
   return (
-    <group rotation={[0, Math.PI / 4 + Math.PI / 2, 0]} scale={[1.4, 1, 1.4]}>
-      {/* Yellow triangle (top-right quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.yellowGeometry} />
-        <meshStandardMaterial
-          color={colors.players.yellow}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Green triangle (top-left quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.greenGeometry} />
-        <meshStandardMaterial
-          color={colors.players.green}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Blue triangle (bottom-left quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.blueGeometry} />
-        <meshStandardMaterial
-          color={colors.players.blue}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Red triangle (bottom-right quadrant) */}
-      <mesh position={[0, 0.19, 0]}>
-        <primitive object={triangleGeometries.redGeometry} />
-        <meshStandardMaterial
-          color={colors.players.red}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+    <group>
+      {/* Le X du centre : un triangle coloré par bras, tourné vers sa
+          colonne, la base collée au départ des colonnes. */}
+      {track.arms.map((arm, index) => (
+        <group key={arm.offset} rotation={[0, -arm.angle, 0]}>
+          <mesh position={[0, 0.185, 0]}>
+            <primitive object={sectorGeometries[index]} attach="geometry" />
+            <meshStandardMaterial
+              color={arm.seat ? colors.players[arm.seat.color] : VACANT_SIDE}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }

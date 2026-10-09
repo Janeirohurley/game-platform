@@ -3,6 +3,7 @@
 import { forwardRef, useRef, useState, useImperativeHandle } from "react";
 import * as THREE from "three";
 import type { ColorTheme, GamePiece, GameState } from "../../types/game";
+import { BOARD_THEME } from "../../data/boardTheme";
 import BoardComponents from "./BoardComponents";
 import DiceComponent from "../dice/DiceComponent";
 
@@ -21,8 +22,6 @@ const LudoBoard = forwardRef<
   }
 >(function LudoBoard({ gameState, onPieceClick, onDiceResult, onDiceClick }, ref) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const [currentTheme, setCurrentTheme] = useState(0);
-  const [diceValue, setDiceValue] = useState(1);
   const [isDiceAnimating, setIsDiceAnimating] = useState(false);
   const [dicePosition] = useState<[number, number, number]>([
     0, 1.2, 0,
@@ -33,48 +32,7 @@ const LudoBoard = forwardRef<
   // Removed unused velocity/target state kept internally in DiceComponent
   const [isDiceActive, setIsDiceActive] = useState(false); // True while a roll is in progress
 
-  // Color themes for the board
-  const colorThemes: ColorTheme[] = [
-    // {
-    //   name: 'Dark',
-    //   boardBase: '#2F2F2F',
-    //   trackTiles: '#404040',
-    //   players: {
-    //     yellow: '#DAA520',
-    //     green: '#228B22',
-    //     blue: '#4169E1',
-    //     red: '#DC143C'
-    //   }
-    // },
-    // {
-    //   name: 'Classic',
-    //   boardBase: '#F0F000',
-    //   trackTiles: '#FFFFFF',
-    //   players: {
-    //     yellow: '#FFD700',
-    //     green: '#00CED1',
-    //     blue: '#1E90FF',
-    //     red: '#FF6347'
-    //   }
-    // },
-    {
-      name: "Ocean",
-      boardBase: "#737373",
-      trackTiles: "#E0FFFF",
-      players: {
-        yellow: "#FFD700",
-        green: "#00CED1",
-        blue: "#1E90FF",
-        red: "#FF6347",
-      },
-    },
-  ];
-
-  const currentColors: ColorTheme = colorThemes[currentTheme];
-
-  const handleClick = () => {
-    setCurrentTheme((prev) => (prev + 1) % colorThemes.length);
-  };
+  const currentColors: ColorTheme = BOARD_THEME;
 
   // Get the exact rotation to show a specific dice value
   const getDiceRotationForValue = (value: number): [number, number, number] => {
@@ -108,7 +66,6 @@ const LudoBoard = forwardRef<
 
     // Use specific value or generate random
     const newValue = specificValue || Math.floor(Math.random() * 6) + 1;
-    setDiceValue(newValue);
 
     // Spin in place for a bit, then settle on the exact value
     setTimeout(() => {
@@ -137,9 +94,11 @@ const LudoBoard = forwardRef<
 
   return (
     <group>
-      {/* Board base */}
-      <mesh ref={meshRef} position={[0, 0, 0]} onClick={handleClick}>
-        <boxGeometry args={[15, 0.3, 15]} />
+      {/* Board base. Les zones d'attente les plus lointaines sont à 10.6
+          du centre, donc un socle de 24 laisse 1.4 de marge de chaque côté
+          quelle que soit la taille de la table. */}
+      <mesh ref={meshRef} position={[0, 0, 0]}>
+        <boxGeometry args={[24, 0.3, 24]} />
         <meshStandardMaterial color={currentColors.boardBase} />
       </mesh>
 
@@ -147,6 +106,7 @@ const LudoBoard = forwardRef<
       <BoardComponents
         colors={currentColors}
         gameState={gameState}
+        playerCount={gameState.playerCount}
         onPieceClick={onPieceClick}
       />
 

@@ -3,9 +3,18 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
-import type { ColorTheme, GamePiece, GameState, Player } from "../../types/game";
-import { PLAYER_PATHS } from "../../data/playerPaths";
-import { getPositionCoordinates } from "../../utils/positionUtils";
+import type {
+  ColorTheme,
+  GamePiece,
+  GameState,
+  LudoColor,
+  Player,
+} from "../../types/game";
+import {
+  getPositionCoordinates,
+  getTileKey,
+  getTrack,
+} from "../../utils/positionUtils";
 import { playSound } from "@/lib/sounds";
 
 // Duration (in seconds) the piece spends hopping from one tile to the next
@@ -21,14 +30,17 @@ function AnimatedGamePiece({
   piece,
   color,
   pieceIndex,
+  playerCount,
   offset,
   pieceColor,
   bounce,
   onPieceClick,
 }: {
   piece: GamePiece;
-  color: "yellow" | "green" | "blue" | "red";
+  color: LudoColor;
   pieceIndex: number;
+  /** Nombre de joueurs de la table : nécessaire pour situer la case. */
+  playerCount: number;
   offset: [number, number];
   pieceColor: string;
   /** Hop gently in place to say "this one is yours to pick". */
@@ -36,6 +48,8 @@ function AnimatedGamePiece({
   onPieceClick: (piece: GamePiece) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  // Position du centre : 57 (2 à 4 joueurs) ou 83 (plateau hexagonal).
+  const finishedPosition = getTrack(playerCount).finishedPosition;
 
   // Tracks the game `position` value the piece last actually occupied,
   // so we can detect when it changes and build a hop path towards it.
@@ -46,7 +60,7 @@ function AnimatedGamePiece({
   const stepStartTimeRef = useRef<number | null>(null);
   // Coordinates the piece is currently sitting at (start of the next hop).
   const currentCoordsRef = useRef<[number, number, number]>(
-    getPositionCoordinates(piece.position, color, pieceIndex),
+    getPositionCoordinates(piece.position, color, pieceIndex, playerCount),
   );
 
   // Whenever the piece's logical position changes, build the list of
@@ -58,29 +72,32 @@ function AnimatedGamePiece({
     const to = piece.position;
     const steps: [number, number, number][] = [];
 
+    const at = (position: number) =>
+      getPositionCoordinates(position, color, pieceIndex, playerCount);
+
     if (from === -1 || to === -1) {
       // Entering or leaving home: no track to hop along, just move there.
-      steps.push(getPositionCoordinates(to, color, pieceIndex));
-    } else if (to === 57) {
+      steps.push(at(to));
+    } else if (to === finishedPosition) {
       // Finishing: hop through the remaining path tiles, then the center.
-      for (let p = from + 1; p <= 56; p++) {
-        steps.push(getPositionCoordinates(p, color, pieceIndex));
+      for (let p = from + 1; p < finishedPosition; p++) {
+        steps.push(at(p));
       }
-      steps.push(getPositionCoordinates(57, color, pieceIndex));
+      steps.push(at(finishedPosition));
     } else if (to > from) {
       for (let p = from + 1; p <= to; p++) {
-        steps.push(getPositionCoordinates(p, color, pieceIndex));
+        steps.push(at(p));
       }
     } else {
       // Any other transition (e.g. captured back home) - move directly.
-      steps.push(getPositionCoordinates(to, color, pieceIndex));
+      steps.push(at(to));
     }
 
     stepsRef.current = steps;
     stepIndexRef.current = 0;
     stepStartTimeRef.current = null;
     prevPositionRef.current = piece.position;
-  }, [piece.position, color, pieceIndex]);
+  }, [piece.position, color, pieceIndex, playerCount, finishedPosition]);
 
   useFrame((state) => {
     if (!groupRef.current) return;
@@ -205,10 +222,12 @@ function AnimatedGamePiece({
 function GamePieces({
   colors,
   gameState,
+  playerCount,
   onPieceClick,
 }: {
   colors: ColorTheme;
   gameState: GameState;
+  playerCount: number;
   onPieceClick: (piece: GamePiece) => void;
 }) {
   if (gameState.gamePhase === "setup") {
@@ -217,26 +236,21 @@ function GamePieces({
 
   // Build occupancy map for tiles so we can offset pieces sharing the same tile
   // Compute every render to account for potential nested mutations in state
+  //
+  // La clé est la case GÉOMÉTRIQUE et non la position logique : deux
+  // joueurs d'offsets différents peuvent avoir le même index de chemin
+  // tout en étant sur deux cases distinctes, et réciproquement deux
+  // pions réellement voisins doivent être rapprochement.
   const tileOccupancy = (() => {
-    const map = new Map<
-      string,
-      Array<{ piece: GamePiece; playerId: string }>
-    >();
+    const map = new Map<string, Array<{ piece: GamePiece; playerId: string }>>();
     gameState.players.forEach((player) => {
       player.pieces.forEach((piece) => {
-        if (piece.position >= 0 && piece.position !== 57) {
-          const playerPath = PLAYER_PATHS[
-            `${player.color}_path` as keyof typeof PLAYER_PATHS
-          ] as number[][];
-          const [x, z] = playerPath?.[piece.position] || [0, 0];
-          const key = `${x}:${z}`;
-          if (!map.has(key)) map.set(key, []);
-          map.get(key)!.push({ piece, playerId: player.id });
-        } else if (piece.position === 57) {
-          const key = "center";
-          if (!map.has(key)) map.set(key, []);
-          map.get(key)!.push({ piece, playerId: player.id });
-        }
+        // La zone d'attente et les pions terminés ont chacun leurs propres
+        // emplacements (un secteur du centre par bras) : rien à regrouper.
+        const key = getTileKey(piece.position, player.color, playerCount);
+        if (key === null) return;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push({ piece, playerId: player.id });
       });
     });
     return map;
@@ -247,39 +261,19 @@ function GamePieces({
     piece: GamePiece,
     player: Player,
   ): [number, number] => {
-    // Finished center tile
-    if (piece.position === 57) {
-      const key = "center";
-      const group = tileOccupancy.get(key) || [];
-      const index = group.findIndex((g) => g.piece.id === piece.id);
-      const count = group.length;
-      if (count > 1) {
-        const radius = 0.35;
-        const angle = (index / count) * Math.PI * 2;
-        return [radius * Math.cos(angle), radius * Math.sin(angle)];
-      }
-      return [0, 0];
-    }
+    const key = getTileKey(piece.position, player.color, playerCount);
+    if (key === null) return [0, 0];
 
-    // In-play tiles (non-home, non-finished)
-    if (piece.position >= 0) {
-      const playerPath = PLAYER_PATHS[
-        `${player.color}_path` as keyof typeof PLAYER_PATHS
-      ] as number[][];
-      const [x, z] = playerPath?.[piece.position] || [0, 0];
-      const key = `${x}:${z}`;
-      const group = tileOccupancy.get(key) || [];
-      const index = group.findIndex((g) => g.piece.id === piece.id);
-      const count = group.length;
-      if (count > 1) {
-        const radius = 0.3;
-        const angle = (index / count) * Math.PI * 2;
-        return [radius * Math.cos(angle), radius * Math.sin(angle)];
-      }
-    }
+    const group = tileOccupancy.get(key) || [];
+    const count = group.length;
+    if (count < 2) return [0, 0];
 
-    // Home positions use dedicated slots already
-    return [0, 0];
+    const index = group.findIndex((g) => g.piece.id === piece.id);
+    // Le centre est plus exigu que les cases du circuit : un rayon
+    // légèrement plus petit évite que les pions terminés débordent.
+    const radius = key === "center" ? 0.35 : 0.3;
+    const angle = (index / count) * Math.PI * 2;
+    return [radius * Math.cos(angle), radius * Math.sin(angle)];
   };
 
   return (
@@ -295,6 +289,7 @@ function GamePieces({
               piece={piece}
               color={player.color}
               pieceIndex={pieceIndex}
+              playerCount={playerCount}
               offset={[dx, dz]}
               pieceColor={pieceColor}
               // Every piece the roll can actually move hops, whatever

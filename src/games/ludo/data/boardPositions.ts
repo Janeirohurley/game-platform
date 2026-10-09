@@ -1,21 +1,37 @@
-// Board position mapping - path-based Ludo layout
+// Contrats d'index de position, extraits pour que le rendu ne dépende
+// que d'un seul endroit.
 //
-// Path-index convention (MUST mirror the server's ludo-state.ts, which
-// is the authority):
-//   -1      → in base
-//   0–50    → shared ring (51 cells travelled before the home column)
-//   51–56   → the color's private home column (6 cells)
-//   57      → finished — the board CENTER ([0, 0]); not a path cell
-//
-// Each PLAYER_PATHS array holds indexes 0–56 (57 entries); the center
-// is reached with an EXACT roll from the last column cell (56 + 1).
-export const BOARD_POSITIONS = {
-  // Starting positions for each color (first position in their path)
-  START_POSITIONS: { yellow: 0, green: 0, blue: 0, red: 0 },
-  // Safe positions on main track (star positions)
-  SAFE_POSITIONS: [0, 8, 13, 21, 26, 34, 39, 47],
-  // First index of the private home column (last 6 cells before the center)
-  HOME_RUN_START: 51,
-  // Finished position — the board center, reached by exact count only
-  FINISHED_POSITION: 57,
-};
+// DOUBLE SOURCE DE VÉRITÉ : `server-games/src/games/ludo/ludo-state.ts`
+// exporte les mêmes trois constantes. Si elles divergent ici, le client
+// dessine une case que le serveur ne compte jamais, et l'anomalie n'apparaît
+// qu'en partie. Toute modification doit être faite dans les deux dépôts.
+
+import {
+  HEX_FINISHED_POSITION,
+  HEX_HOME_COLUMN_START,
+  HEX_MIN_PLAYER_COUNT,
+} from "./track";
+
+// Ces deux constantes décrivent le plateau CLASSIQUE (2 à 4 joueurs).
+// Les tables de 5 et 6 joueurs jouent sur le plateau hexagonal, dont le
+// parcours est plus long : utiliser `homeColumnStartFor` et
+// `finishedPositionFor` dès que la taille de la table est connue.
+
+/** Début de la colonne maison privée, plateau classique (6 cases : 51 à 56). */
+export const HOME_COLUMN_START = 51;
+/** Case atteinte en dernier, plateau classique : le centre du plateau. */
+export const FINISHED_POSITION = 57;
+
+/** Début de la colonne maison d'une table de `playerCount` joueurs. */
+export function homeColumnStartFor(playerCount: number): number {
+  return playerCount >= HEX_MIN_PLAYER_COUNT
+    ? HEX_HOME_COLUMN_START
+    : HOME_COLUMN_START;
+}
+
+/** Position du centre pour une table de `playerCount` joueurs. */
+export function finishedPositionFor(playerCount: number): number {
+  return playerCount >= HEX_MIN_PLAYER_COUNT
+    ? HEX_FINISHED_POSITION
+    : FINISHED_POSITION;
+}
