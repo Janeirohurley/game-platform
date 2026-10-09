@@ -111,7 +111,7 @@ function PlayerAvatar({
   ringDurationMs: number;
 }) {
   return (
-    <li className="flex shrink-0 items-center">
+    <div className="flex shrink-0 items-center">
       <Tooltip>
         <TooltipTrigger>
           <span className="relative block size-9 cursor-pointer">
@@ -151,7 +151,7 @@ function PlayerAvatar({
           {player.name}
         </TooltipContent>
       </Tooltip>
-    </li>
+    </div>
   );
 }
 
