@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Edges, Text } from "@react-three/drei";
 import { getTrack } from "../../utils/positionUtils";
-import { STAR_LIGHT } from "../../data/boardTheme";
+import { HEX_STAR_FILL, STAR_LIGHT } from "../../data/boardTheme";
 import { SafeZoneStars, type BoardMarker } from "./SafeZoneStars";
 import type { LudoColor } from "../../data/track";
 
@@ -47,6 +47,16 @@ function hexArmAngleOf(point: { x: number; z: number }): number {
   const base = -Math.PI / 2;
   const direction = Math.atan2(point.z, point.x);
   return base + Math.round((direction - base) / SIXTY_DEG) * SIXTY_DEG;
+}
+
+/**
+ * Rotation à donner à un texte posé à plat pour que son haut regarde vers
+ * l'extérieur du plateau, dans l'axe du bras d'angle `armAngle`. C'est la
+ * lecture de la maquette 6 joueurs : chaque numéro se lit droit lorsqu'on
+ * regarde le plateau depuis le bord opposé, le long de la colonne.
+ */
+function corridorAngleOf(armAngle: number): number {
+  return Math.atan2(-Math.cos(armAngle), -Math.sin(armAngle));
 }
 
 function PlayingTrack({
@@ -123,7 +133,7 @@ function PlayingTrack({
             point: cell.point,
             kind: "star",
             color: cell.seat
-              ? colorOf(cell.seat.color)
+              ? HEX_STAR_FILL[cell.seat.color]
               : VACANT,
             filled: true,
           });
@@ -138,7 +148,7 @@ function PlayingTrack({
       }
     }
     return list;
-  }, [cells, isHex, colorOf]);
+  }, [cells, isHex]);
 
   const rotationOf = (point: { x: number; z: number }): [number, number, number] =>
     isHex ? [0, -hexArmAngleOf(point), 0] : [0, 0, 0];
@@ -246,7 +256,7 @@ function PlayingTrack({
               <group
                 key={`corridor-${arm.offset}-${number}`}
                 position={[point.x, STAR_Y, point.z]}
-                rotation={[0, -arm.angle, 0]}
+                rotation={[0, corridorAngleOf(arm.angle), 0]}
               >
                 <Text
                   position={[0, 0, 0]}

@@ -33,7 +33,9 @@ export const CLASSIC_THEME: ColorTheme = {
 /** Palette du plateau hexagonal, reprise de la maquette 6 joueurs. */
 export const HEX_THEME: ColorTheme = {
   name: "Hexagonal (maquette 6 joueurs)",
-  boardBase: "#454545",
+  // Le plateau hexagonal EST l'hexagone blanc de la maquette (`<polygon
+  // fill="#fff">`) : contrairement à la croix, il n'y a pas de fond sombre.
+  boardBase: "#ffffff",
   trackTiles: "#ffffff",
   players: {
     yellow: "#f7dc2a",
@@ -77,6 +79,24 @@ export const STAR_LIGHT: Record<LudoColor, string> = {
   green: "#c8fffb",
   orange: "#ffe0a3",
   purple: "#f0c6ff",
+};
+
+/**
+ * Teinte de l'étoile PLEINE d'un bras hexagonal.
+ *
+ * La maquette 6 joueurs ne met pas la couleur du bras sous l'étoile mais
+ * celle du bras SUIVANT dans la rotation des couleurs (jaune → vert,
+ * orange → jaune, rouge → jaune, magenta → rouge, bleu → magenta,
+ * vert → bleu). C'est la rotation écrite dans le HTML : jaune, orange,
+ * rouge, magenta, bleu, vert.
+ */
+export const HEX_STAR_FILL: Record<LudoColor, string> = {
+  yellow: "#08c75a", // vert
+  red: "#f7dc2a", // jaune
+  blue: "#d526d0", // magenta
+  green: "#2b9bf0", // bleu
+  orange: "#f7dc2a", // jaune
+  purple: "#e8321f", // rouge
 };
 
 /**

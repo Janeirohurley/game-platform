@@ -79,8 +79,13 @@ function HomeAreas({
             {isHex ? (
               <>
                 {/* Disque coloré entre deux bras, comme sur la maquette 6
-                    joueurs : pas de nom, seulement les trous des pions. */}
-                <mesh position={[0, 0.16, 0]}>
+                    joueurs. Un disque plus grand et sombre se glisse
+                    dessous : c'est le contour #222 du cercle de la maquette. */}
+                <mesh position={[0, 0.15, 0]}>
+                  <cylinderGeometry args={[HEX_PLATE_RADIUS + 0.04, HEX_PLATE_RADIUS + 0.04, 0.02]} />
+                  <meshStandardMaterial color="#222222" roughness={0.55} metalness={0} />
+                </mesh>
+                <mesh position={[0, 0.155, 0]}>
                   <cylinderGeometry args={[HEX_PLATE_RADIUS, HEX_PLATE_RADIUS, 0.02]} />
                   <meshStandardMaterial color={color} roughness={0.55} metalness={0} />
                 </mesh>
@@ -88,10 +93,11 @@ function HomeAreas({
                   const local = toLocal(p);
                   return (
                     <group key={i} position={[local.x, 0, local.z]}>
-                      {/* Liséré sombre puis trou blanc. */}
+                      {/* Liséré sombre puis trou blanc, comme les cercles
+                          #fff à contour #222 de la maquette. */}
                       <mesh position={[0, 0.176, 0]}>
                         <cylinderGeometry args={[HEX_HOLE_RADIUS * 1.18, HEX_HOLE_RADIUS * 1.18, 0.005]} />
-                        <meshStandardMaterial color="#1b1b1b" roughness={0.6} metalness={0} />
+                        <meshStandardMaterial color="#222222" roughness={0.6} metalness={0} />
                       </mesh>
                       <mesh position={[0, 0.179, 0]}>
                         <cylinderGeometry args={[HEX_HOLE_RADIUS, HEX_HOLE_RADIUS, 0.003]} />
@@ -114,8 +120,11 @@ function HomeAreas({
                   <meshStandardMaterial color="#c3c3c3" roughness={0.7} metalness={0} />
                 </mesh>
 
-                {/* ANNEAUX gris (#7b7b7b, r 13 u de maquette) aux emplacements
-                    exacts de `arm.base`, le centre laissant voir le panneau. */}
+                {/* ANNEAUX gris (#7b7b7b, r 13 u de maquette bord compris) aux
+                    emplacements exacts de `arm.base`. La maquette (r 11,
+                    trait 4) donne un bord extérieur à 13 u et un intérieur à
+                    9 u : reproduits ci-dessous, le centre laisse voir le
+                    panneau. */}
                 {arm.base.map((p, i) => {
                   const local = toLocal(p);
                   return (
@@ -125,7 +134,7 @@ function HomeAreas({
                         <meshStandardMaterial color="#7b7b7b" roughness={0.6} metalness={0} />
                       </mesh>
                       <mesh position={[0, 0.178, 0]}>
-                        <cylinderGeometry args={[0.257, 0.257, 0.004]} />
+                        <cylinderGeometry args={[0.21, 0.21, 0.004]} />
                         <meshStandardMaterial color="#c3c3c3" roughness={0.7} metalness={0} />
                       </mesh>
                     </group>

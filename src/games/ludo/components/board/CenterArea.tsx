@@ -19,6 +19,17 @@ import { centerColorFor } from "../../data/boardTheme";
 // étalés du centre jusqu'au bord : on sait d'un coup d'œil qui a fini.
 const VACANT_SIDE = "#8C8C94";
 
+// Couvercle central du plateau HEXAGONAL, repris de la maquette 6 joueurs :
+// un disque blanc translucide (anneau à contour blanc) puis un disque
+// bordeaux (#a0104a), le trophée posé dessus. Les pions arrivés se posent
+// DANS leur triangle (positionUtils), donc au-dessus de ce couvercle.
+//
+// Dimensions au prorata de la maquette : fan des 6 triangles d'apothème 1.9
+// (l'apothème joue le rôle du rayon 181 du hub), le disque blanc fait
+// 100/181 * 1.9 et le disque bordeaux 72/181 * 1.9.
+const HUB_WHITE_RADIUS = 1.05;
+const HUB_BORDEAUX_RADIUS = 0.756;
+
 // Apothème du X = tout le grand carré central, pas seulement le petit
 // milieu : c'est la surface que délimitent les bras et l'anneau, et elle
 // doit être entièrement recouverte.
@@ -98,6 +109,44 @@ function CenterArea({ playerCount }: { playerCount: number }) {
           </mesh>
         </group>
       ))}
+
+      {/* Couvercle central, uniquement sur l'hexagone (la croix garde son X
+          nu, comme la maquette 4 joueurs). */}
+      {isHex ? (
+        <group position={[0, 0, 0]}>
+          <mesh position={[0, 0.187, 0]}>
+            <cylinderGeometry args={[HUB_WHITE_RADIUS, HUB_WHITE_RADIUS, 0.015, 48]} />
+            <meshStandardMaterial color="#FFFFFF" transparent opacity={0.55} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, 0.19, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[HUB_WHITE_RADIUS, 0.05, 12, 48]} />
+            <meshStandardMaterial color="#FFFFFF" transparent opacity={0.7} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, 0.192, 0]}>
+            <cylinderGeometry args={[HUB_BORDEAUX_RADIUS, HUB_BORDEAUX_RADIUS, 0.012, 48]} />
+            <meshStandardMaterial color="#a0104a" roughness={0.5} />
+          </mesh>
+
+          {/* Trophée doré : la maquette dessine l'emoji 🏆 au centre, il
+              est redressé en une petite coupe posée sur le disque. */}
+          <mesh position={[0, 0.205, 0]}>
+            <cylinderGeometry args={[0.09, 0.11, 0.025, 24]} />
+            <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
+          </mesh>
+          <mesh position={[0, 0.25, 0]}>
+            <cylinderGeometry args={[0.035, 0.05, 0.06, 16]} />
+            <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
+          </mesh>
+          <mesh position={[0, 0.31, 0]} scale={[1, 0.8, 1]}>
+            <sphereGeometry args={[0.085, 24, 16]} />
+            <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
+          </mesh>
+          <mesh position={[0, 0.335, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.06, 0.02, 12, 24]} />
+            <meshStandardMaterial color="#e8c25a" roughness={0.3} metalness={0.7} />
+          </mesh>
+        </group>
+      ) : null}
     </group>
   );
 }

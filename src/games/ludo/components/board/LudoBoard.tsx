@@ -2,6 +2,7 @@
 
 import { forwardRef, useRef, useState, useImperativeHandle } from "react";
 import * as THREE from "three";
+import { Edges } from "@react-three/drei";
 import type { ColorTheme, GamePiece, GameState } from "../../types/game";
 import { themeFor } from "../../data/boardTheme";
 import { getTrack } from "../../utils/positionUtils";
@@ -112,6 +113,11 @@ const LudoBoard = forwardRef<
           roughness={0.72}
           metalness={0.05}
         />
+        {isHex ? (
+          // L'hexagone blanc de la maquette a un contour #111 : le plateau
+          // laisse donc voir son arête sur toute la silhouette.
+          <Edges scale={1.001} color="#111111" threshold={15} lineWidth={2} />
+        ) : null}
       </mesh>
 
       {/* Board components */}
