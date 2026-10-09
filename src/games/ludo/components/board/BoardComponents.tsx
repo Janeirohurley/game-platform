@@ -6,8 +6,8 @@ import PlayingTrack from "./PlayingTrack";
 import CenterArea from "./CenterArea";
 import GamePieces from "../pieces/GamePieces";
 
-// Teinte des cases sûres neutres (les étoiles).
-const NEUTRAL_SAFE = "#1a1a1a";
+// Teinte des cases sûres neutres (les étoiles), noire comme la maquette.
+const NEUTRAL_SAFE = "#000000";
 
 // Tous les composants du plateau.
 //
@@ -36,7 +36,7 @@ function BoardComponents({
         colorOf={(color) => colors.players[color as keyof typeof colors.players]}
       />
 
-      <CenterArea colors={colors} playerCount={playerCount} />
+      <CenterArea playerCount={playerCount} />
 
       <GamePieces
         colors={colors}

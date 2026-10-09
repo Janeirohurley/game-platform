@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { getTrack } from "../../utils/positionUtils";
-import type { ColorTheme } from "../../types/game";
+import { centerColorFor } from "../../data/boardTheme";
 
 // Le centre du plateau, subdivisé sous forme de X : un triangle par bras,
 // tous réunis au centre, la base de chacun tournée vers SA colonne maison.
@@ -59,13 +59,7 @@ function sectorTriangleGeometry(apothem: number, sides: number) {
   return geometry;
 }
 
-function CenterArea({
-  colors,
-  playerCount,
-}: {
-  colors: ColorTheme;
-  playerCount: number;
-}) {
+function CenterArea({ playerCount }: { playerCount: number }) {
   const track = getTrack(playerCount);
   const isHex = track.shape === "hex";
   const sides = track.arms.length;
@@ -98,7 +92,7 @@ function CenterArea({
           <mesh position={[0, 0.185, 0]}>
             <primitive object={sectorGeometries[index]} attach="geometry" />
             <meshStandardMaterial
-              color={arm.seat ? colors.players[arm.seat.color] : VACANT_SIDE}
+              color={arm.seat ? centerColorFor(track.shape, arm.seat.color) : VACANT_SIDE}
               side={THREE.DoubleSide}
             />
           </mesh>

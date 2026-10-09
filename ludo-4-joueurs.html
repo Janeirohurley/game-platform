@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ludo 4 joueurs (SVG statique)</title>
+<style>html,body{margin:0;background:#333}svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 537 537" width="640" role="img" aria-label="Plateau de Ludo 4 joueurs">
+<!-- PLATEAU LUDO 4 JOUEURS - 2D, statique, sans JavaScript.
+     Grille 15x15 : pas de 36 unites, case de 33 (joint de 3). Origine (0,0) en haut a gauche.
+     Colonne c -> x = c*36 ; ligne r -> y = r*36.
+     Couleurs : fond/joint #454545 | case #b0c2c2 | case sure #000 | panneau de base #c3c3c3 | anneau #7b7b7b
+     Jaune : base #b79a14 case #c6a617 | Rouge : base #b93a28 case #d44630
+     Vert(turquoise) : base #04969a case #0aa39f | Bleu : base #0a5aa8 case #0b65c4 -->
+<defs>
+  <!-- etoile en contour, centree sur (0,0) -->
+  <polygon id="star" points="0,-12 2.9,-4 11.4,-3.7 4.8,1.5 7.1,9.7 0,5 -7.1,9.7 -4.8,1.5 -11.4,-3.7 -2.9,-4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+</defs>
+<!-- fond / joints -->
+<rect width="537" height="537" fill="#454545"/>
+
+<!-- BRAS HAUT (ROUGE) : 3x6 cases, couloir de 5 cases, depart etoile, case sure noire -->
+<g>
+  <rect x="216" y="0" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="0" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="288" y="0" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="216" y="36" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="36" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="39.6" width="25.8" height="25.8" fill="#d44630" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="288" y="36" width="33" height="33" fill="#d44630"/><use href="#star" x="304.5" y="52.5" color="#ffc0b4"/> <!-- depart -->
+  <rect x="216" y="72" width="33" height="33" fill="#000"/><use href="#star" x="232.5" y="88.5" color="#fff"/> <!-- case sure -->
+  <rect x="252" y="72" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="75.6" width="25.8" height="25.8" fill="#d44630" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="288" y="72" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="216" y="108" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="108" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="111.6" width="25.8" height="25.8" fill="#d44630" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="288" y="108" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="216" y="144" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="144" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="147.6" width="25.8" height="25.8" fill="#d44630" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="288" y="144" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="216" y="180" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="180" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="183.6" width="25.8" height="25.8" fill="#d44630" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="288" y="180" width="33" height="33" fill="#b0c2c2"/>
+</g>
+<!-- BRAS GAUCHE (JAUNE) : 3x6 cases, couloir de 5 cases, depart etoile, case sure noire -->
+<g>
+  <rect x="0" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="0" y="252" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="0" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="36" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="36" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="39.6" y="255.6" width="25.8" height="25.8" fill="#c6a617" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="36" y="216" width="33" height="33" fill="#c6a617"/><use href="#star" x="52.5" y="232.5" color="#fff3a8"/> <!-- depart -->
+  <rect x="72" y="288" width="33" height="33" fill="#000"/><use href="#star" x="88.5" y="304.5" color="#fff"/> <!-- case sure -->
+  <rect x="72" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="75.6" y="255.6" width="25.8" height="25.8" fill="#c6a617" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="72" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="108" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="108" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="111.6" y="255.6" width="25.8" height="25.8" fill="#c6a617" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="108" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="144" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="144" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="147.6" y="255.6" width="25.8" height="25.8" fill="#c6a617" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="144" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="180" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="180" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="183.6" y="255.6" width="25.8" height="25.8" fill="#c6a617" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="180" y="216" width="33" height="33" fill="#b0c2c2"/>
+</g>
+<!-- BRAS BAS (VERT) : 3x6 cases, couloir de 5 cases, depart etoile, case sure noire -->
+<g>
+  <rect x="288" y="504" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="504" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="216" y="504" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="288" y="468" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="468" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="471.6" width="25.8" height="25.8" fill="#0aa39f" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="216" y="468" width="33" height="33" fill="#0aa39f"/><use href="#star" x="232.5" y="484.5" color="#c8fffb"/> <!-- depart -->
+  <rect x="288" y="432" width="33" height="33" fill="#000"/><use href="#star" x="304.5" y="448.5" color="#fff"/> <!-- case sure -->
+  <rect x="252" y="432" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="435.6" width="25.8" height="25.8" fill="#0aa39f" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="216" y="432" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="288" y="396" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="396" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="399.6" width="25.8" height="25.8" fill="#0aa39f" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="216" y="396" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="288" y="360" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="360" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="363.6" width="25.8" height="25.8" fill="#0aa39f" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="216" y="360" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="288" y="324" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="252" y="324" width="33" height="33" fill="#b0c2c2"/><rect x="255.6" y="327.6" width="25.8" height="25.8" fill="#0aa39f" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="216" y="324" width="33" height="33" fill="#b0c2c2"/>
+</g>
+<!-- BRAS DROITE (BLEU) : 3x6 cases, couloir de 5 cases, depart etoile, case sure noire -->
+<g>
+  <rect x="504" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="504" y="252" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="504" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="468" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="468" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="471.6" y="255.6" width="25.8" height="25.8" fill="#0b65c4" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="468" y="288" width="33" height="33" fill="#0b65c4"/><use href="#star" x="484.5" y="304.5" color="#b4d8ff"/> <!-- depart -->
+  <rect x="432" y="216" width="33" height="33" fill="#000"/><use href="#star" x="448.5" y="232.5" color="#fff"/> <!-- case sure -->
+  <rect x="432" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="435.6" y="255.6" width="25.8" height="25.8" fill="#0b65c4" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="432" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="396" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="396" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="399.6" y="255.6" width="25.8" height="25.8" fill="#0b65c4" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="396" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="360" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="360" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="363.6" y="255.6" width="25.8" height="25.8" fill="#0b65c4" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="360" y="288" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="324" y="216" width="33" height="33" fill="#b0c2c2"/>
+  <rect x="324" y="252" width="33" height="33" fill="#b0c2c2"/><rect x="327.6" y="255.6" width="25.8" height="25.8" fill="#0b65c4" stroke="#fff" stroke-opacity=".4"/> <!-- couloir -->
+  <rect x="324" y="288" width="33" height="33" fill="#b0c2c2"/>
+</g>
+<!-- BASE janeirohurley : 6x6 cases, cadre 23, panneau 167, anneaux a 25% et 75% -->
+<g>
+  <rect x="0" y="0" width="213" height="213" fill="#b79a14"/>
+  <rect x="23" y="23" width="167" height="167" fill="#c3c3c3"/>
+  <circle cx="64.8" cy="64.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="64.8" cy="148.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="148.2" cy="64.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="148.2" cy="148.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <text x="106.5" y="111.5" font-family="sans-serif" font-size="15" text-anchor="middle" fill="#111">janeirohurley</text>
+</g>
+<!-- BASE Nel : 6x6 cases, cadre 23, panneau 167, anneaux a 25% et 75% -->
+<g>
+  <rect x="324" y="0" width="213" height="213" fill="#b93a28"/>
+  <rect x="347" y="23" width="167" height="167" fill="#c3c3c3"/>
+  <circle cx="388.8" cy="64.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="388.8" cy="148.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="472.2" cy="64.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="472.2" cy="148.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <text x="430.5" y="111.5" font-family="sans-serif" font-size="15" text-anchor="middle" fill="#111">Nel</text>
+</g>
+<!-- BASE Green : 6x6 cases, cadre 23, panneau 167, anneaux a 25% et 75% -->
+<g>
+  <rect x="0" y="324" width="213" height="213" fill="#04969a"/>
+  <rect x="23" y="347" width="167" height="167" fill="#c3c3c3"/>
+  <circle cx="64.8" cy="388.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="64.8" cy="472.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="148.2" cy="388.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="148.2" cy="472.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <text x="106.5" y="435.5" font-family="sans-serif" font-size="15" text-anchor="middle" fill="#111">Green</text>
+</g>
+<!-- BASE Blue : 6x6 cases, cadre 23, panneau 167, anneaux a 25% et 75% -->
+<g>
+  <rect x="324" y="324" width="213" height="213" fill="#0a5aa8"/>
+  <rect x="347" y="347" width="167" height="167" fill="#c3c3c3"/>
+  <circle cx="388.8" cy="388.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="388.8" cy="472.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="472.2" cy="388.8" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <circle cx="472.2" cy="472.2" r="11" fill="none" stroke="#7b7b7b" stroke-width="4"/>
+  <text x="430.5" y="435.5" font-family="sans-serif" font-size="15" text-anchor="middle" fill="#111">Blue</text>
+</g>
+<!-- CENTRE 3x3 : 4 triangles qui se rejoignent au milieu (268.5, 268.5) -->
+<g>
+  <polygon points="216,216 321,216 268.5,268.5" fill="#c8442d"/> <!-- haut : rouge -->
+  <polygon points="321,216 321,321 268.5,268.5" fill="#0b62c0"/> <!-- droite : bleu -->
+  <polygon points="216,321 321,321 268.5,268.5" fill="#08a09f"/> <!-- bas : turquoise -->
+  <polygon points="216,216 216,321 268.5,268.5" fill="#c6a617"/> <!-- gauche : jaune -->
+</g>
+</svg>
+</body>
+</html>

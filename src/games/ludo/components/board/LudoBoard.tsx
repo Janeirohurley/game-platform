@@ -3,7 +3,7 @@
 import { forwardRef, useRef, useState, useImperativeHandle } from "react";
 import * as THREE from "three";
 import type { ColorTheme, GamePiece, GameState } from "../../types/game";
-import { BOARD_THEME } from "../../data/boardTheme";
+import { themeFor } from "../../data/boardTheme";
 import { getTrack } from "../../utils/positionUtils";
 import BoardComponents from "./BoardComponents";
 import DiceComponent from "../dice/DiceComponent";
@@ -33,7 +33,9 @@ const LudoBoard = forwardRef<
   // Removed unused velocity/target state kept internally in DiceComponent
   const [isDiceActive, setIsDiceActive] = useState(false); // True while a roll is in progress
 
-  const currentColors: ColorTheme = BOARD_THEME;
+  const currentColors: ColorTheme = themeFor(
+    getTrack(gameState.playerCount).shape,
+  );
 
   // Get the exact rotation to show a specific dice value
   const getDiceRotationForValue = (value: number): [number, number, number] => {

@@ -212,18 +212,22 @@ const CLASSIC_OCCUPIED_ARMS: Readonly<Record<number, readonly number[]>> = {
   3: [0, 13, 26],
   4: [0, 13, 26, 39],
 };
-/** Largeur visuelle commune des plaques de base, en unités de case. */
-export const BASE_HALF_SIZE = 2.15;
 /** La référence 15 × 15 réserve exactement 6 × 6 cases à chaque base. */
 export const CLASSIC_BASE_HALF_SIZE = 3 * HOME_STEP;
-/** Écart entre les quatre anneaux d'une plaque 2 × 2. */
-export const BASE_SLOT_SPAN = 1.05;
+/**
+ * Écart entre deux anneaux voisins d'une plaque carrée. Reprise de la
+ * maquette 4 joueurs : les cercles sont à 41.7 u du centre du panneau
+ * (113, avec un pas de case de 36 u), soit 41.7/36 cases.
+ */
+export const CLASSIC_BASE_SLOT_SPAN = (41.7 / 36) * HOME_STEP;
+/**
+ * Écart des quatre trous d'une base ronde du plateau hexagonal. Reprise
+ * de la maquette 6 joueurs : les trous sont à 64 u du centre du disque
+ * (100), la case valant 46.7 u.
+ */
+export const HEX_BASE_SLOT_SPAN = (64 / 46.7) * HOME_STEP;
 /** Distance des centres de base au centre du plateau, selon sa forme. */
 const CLASSIC_BASE_RADIUS = (7.5 - 3) * HOME_STEP * Math.SQRT2;
-// Le coin extérieur de la plaque arrive presque au bord plat du socle
-// hexagonal : baseRadius * cos(30°) + BASE_HALF_SIZE ≈ 10.2 * cos(30°).
-// Cette relation reproduit la marge régulière de la référence 2D sans
-// pousser les bases dans les bras voisins.
 const HEX_BASE_RADIUS = 7.7;
 
 /**
@@ -237,14 +241,15 @@ function sectorBase(
   armAngle: number,
   armCount: number,
   radius: number,
+  slotSpan: number,
 ): BoardPoint[] {
   const center = polar(
     ((armAngle + Math.PI / armCount) * 180) / Math.PI,
     radius,
   );
 
-  return [-BASE_SLOT_SPAN, BASE_SLOT_SPAN].flatMap((x) =>
-    [-BASE_SLOT_SPAN, BASE_SLOT_SPAN].map((z) => ({
+  return [-slotSpan, slotSpan].flatMap((x) =>
+    [-slotSpan, slotSpan].map((z) => ({
       x: center.x + x,
       z: center.z + z,
     })),
@@ -357,6 +362,7 @@ function createClassicTrack(playerCount: number): LudoTrack {
       angleRad,
       CLASSIC_ARM_OFFSETS.length,
       CLASSIC_BASE_RADIUS,
+      CLASSIC_BASE_SLOT_SPAN,
     );
 
     const seatNumber = occupiedArms.indexOf(armOffset);
@@ -502,7 +508,7 @@ function createHexTrack(playerCount: number): LudoTrack {
     const homeColumn: BoardPoint[] = [5, 4, 3, 2, 1, 0].map((y) =>
       hexLocalToWorld(arm, 0, y),
     );
-    const base = sectorBase(angleRad, HEX_ARM_COUNT, HEX_BASE_RADIUS);
+    const base = sectorBase(angleRad, HEX_ARM_COUNT, HEX_BASE_RADIUS, HEX_BASE_SLOT_SPAN);
 
     let seat: LudoSeat | null = null;
     if (arm < playerCount) {

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Maquette Ludo – 4 et 6 joueurs</title>
+    <style>
+        :root {
+            box-sizing: border-box;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px)
+        }
+
+        html {
+            scroll-padding-top: env(safe-area-inset-top, 0px)
+        }
+
+        body {
+            margin: 0;
+            background: #2b2b2b;
+            color: #eee;
+            font-family: system-ui, sans-serif;
+            padding: 16px
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 4px
+        }
+
+        h2 {
+            font-size: 15px;
+            margin: 24px 0 8px
+        }
+
+        p {
+            font-size: 13px;
+            color: #bbb;
+            margin: 4px 0 10px;
+            max-width: 700px
+        }
+
+        button {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer
+        }
+
+        .wrap {
+            overflow-x: auto;
+            padding: 10px 0
+        }
+
+        /* ---- plateau 4 joueurs (image 1) ---- */
+        .scene {
+            position: relative;
+            width: 600px;
+            height: 580px;
+            margin: 0 auto;
+            background: #333
+        }
+
+        #b4 {
+            position: absolute;
+            left: 50%;
+            top: 290px;
+            width: 540px;
+            height: 540px;
+            margin: -270px 0 0 -270px;
+            background: #454545;
+            display: grid;
+            grid: repeat(15, 1fr)/repeat(15, 1fr);
+            gap: 3px;
+        }
+
+        .c {
+            background: #b0c2c2;
+            position: relative;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18)
+        }
+
+        .c.l::before {
+            content: "";
+            position: absolute;
+            inset: 11%;
+            background: var(--k);
+            outline: 1px solid rgba(255, 255, 255, .4)
+        }
+
+        .c.s {
+            background: var(--k)
+        }
+
+        .c.k {
+            background: #000
+        }
+
+        .c svg {
+            position: absolute;
+            inset: 14%;
+            width: 72%;
+            height: 72%
+        }
+
+        .base {
+            background: var(--k);
+            padding: 23px;
+            box-sizing: border-box;
+            position: relative
+        }
+
+        .p {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #c3c3c3
+        }
+
+        .r {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border: 4px solid #7b7b7b;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-sizing: border-box
+        }
+
+        .nm {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            text-align: center;
+            font-size: 15px;
+            color: #111
+        }
+
+        #ctr {
+            grid-area: 7/7/10/10;
+            background: conic-gradient(from -45deg, #c8442d 0 25%, #0b62c0 0 50%, #08a09f 0 75%, #c6a617 0)
+        }
+
+        pre {
+            background: #1d1d1d;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            overflow-x: auto
+        }
+
+        svg.big {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Maquette Ludo (référence de design)</h1>
+    <p>Les deux plateaux sont redessinés d'après les images 1 et 3, après mesure sur des agrandissements.</p>
+
+    <h2>A. Plateau 4 joueurs (image 1, version 2D sans accessoires)</h2>
+    <p>Grille 15×15 avec joints sombres de 3 px. Bases 6×6 collées aux bras, cadre coloré d'environ 0,65 case, panneau
+        gris clair, 4 anneaux gris. Couloirs : carré coloré en retrait dans la case grise. Cases de départ et cases
+        sûres pleines avec étoile en contour. Vue 2D du dessus, sans pions ni dé.</p>
+    <div class="wrap">
+        <div class="scene">
+            <div id="b4"></div>
+        </div>
+    </div>
+
+    <h2>B. Plateau 6 joueurs (reproduction de l'image 3)</h2>
+    <p>Hexagone blanc (pointes à gauche et à droite), 6 bras de 3×6 cases avec couloir numéroté de 1 (extrémité) à 6
+        (centre), cases d'entrée colorées avec flèche noire, étoiles colorées, 6 bases rondes à 4 trous placées entre
+        les bras, centre hexagonal à 6 triangles avec anneau et trophée.</p>
+    <div class="wrap"><svg class="big" id="b6" viewBox="-540 -470 1080 940" width="760"></svg></div>
+
+    <script>
+        const K = { R: '#d44630', Y: '#c6a617', G: '#0aa39f', B: '#0b65c4' }, BK = { R: '#b93a28', Y: '#b79a14', G: '#04969a', B: '#0a5aa8' }, SK = { R: '#ffc0b4', Y: '#fff3a8', G: '#c8fffb', B: '#b4d8ff' };
+        const b4 = document.getElementById('b4');
+        const starSvg = c => { let p = []; for (let j = 0; j < 10; j++) { const r = j % 2 ? 3.7 : 8.8, a = Math.PI * j / 5; p.push((10 + r * Math.sin(a)).toFixed(2) + ',' + (10 - r * Math.cos(a)).toFixed(2)) } return `<svg viewBox="0 0 20 20"><polygon points="${p.join(' ')}" fill="none" stroke="${c}" stroke-width=".9" stroke-linejoin="round"/></svg>` };
+        // bras du haut = rouge ; rotation de 90° pour les autres
+        const maps = [['R', (r, c) => [r, c]], ['Y', (r, c) => [14 - c, r]], ['G', (r, c) => [14 - r, 14 - c]], ['B', (r, c) => [c, 14 - r]]];
+        maps.forEach(([k, f]) => {
+            for (let r = 0; r < 6; r++)for (let c = 6; c < 9; c++) {
+                const [R, C] = f(r, c), d = document.createElement('div'); d.className = 'c'; d.style.gridArea = `${R + 1}/${C + 1}`; d.style.setProperty('--k', K[k]);
+                if (r == 1 && c == 8) { d.classList.add('s'); d.innerHTML = starSvg(SK[k]) }
+                else if (c == 7 && r >= 1) d.classList.add('l');
+                if (r == 2 && c == 6) { d.classList.add('k'); d.innerHTML = starSvg('#fff') }
+                b4.appendChild(d);
+            }
+        });
+        [['Y', '1/1/7/7', 'janeirohurley', 1], ['R', '1/10/7/16', 'Nel', 1], ['G', '10/1/16/7', 'Green', 0], ['B', '10/10/16/16', 'Blue', 0]].forEach(([k, a, n, pw]) => {
+            const d = document.createElement('div'); d.className = 'base'; d.style.gridArea = a; d.style.setProperty('--k', BK[k]);
+            let h = '<div class="p">';
+            [[25, 25], [75, 25], [25, 75], [75, 75]].forEach(([x, y]) => {
+                h += `<div class="r" style="left:${x}%;top:${y}%"></div>`;
+            });
+            d.innerHTML = h + `<div class="nm">${n}</div></div>`; b4.appendChild(d);
+        });
+        b4.insertAdjacentHTML('beforeend', '<div id="ctr"></div>');
+
+        // 6 joueurs : copie fidèle de l'image 3
+        const svg = document.getElementById('b6');
+        const C = { Y: '#f7dc2a', O: '#fb9c1d', R: '#e8321f', M: '#d526d0', B: '#2b9bf0', G: '#08c75a' };
+        // [couleur du bras, angle horaire depuis le haut, couleur de l'étoile, rotation du texte]
+        const arms = [['Y', 0, 'G', 0], ['O', 60, 'Y', -30], ['R', 120, 'Y', 30], ['M', 180, 'R', 0], ['B', 240, 'M', -30], ['G', 300, 'B', 30]];
+        const holes = { G: -30, R: -30, Y: 30, M: 30, O: 0, B: 0 };
+        const s = 46.7, H = 438, HR = 181, pt = (R, p) => [R * Math.sin(p * Math.PI / 180), -R * Math.cos(p * Math.PI / 180)];
+        const star = (cx, cy, f) => { let p = []; for (let j = 0; j < 10; j++) { const r = j % 2 ? 6 : 15, a = Math.PI * j / 5; p.push((cx + r * Math.sin(a)).toFixed(1) + ',' + (cy - r * Math.cos(a)).toFixed(1)) } return `<polygon points="${p.join(' ')}" fill="${f}" stroke="#222" stroke-width="1.5"/>` };
+        const arrow = (cx, cy) => `<g transform="translate(${cx} ${cy})"><polygon points="-6,-14 6,-14 6,0 14,0 0,16 -14,0 -6,0" fill="#111"/></g>`;
+        let h = '';
+        for (let y = -470, i = 0; y < 470; y += 160, i++)h += `<rect x="-540" y="${y}" width="1080" height="160" fill="${i % 2 ? '#4a2f20' : '#5b3b28'}" stroke="#2e1c12" stroke-width="3"/>`;
+        h += '<g>';
+        h += '<polygon fill="#fff" stroke="#111" stroke-width="3" points="' + [0, 1, 2, 3, 4, 5].map(j => pt(506, 30 + 60 * j).map(v => v.toFixed(1)).join(',')).join(' ') + '"/>';
+        arms.forEach(([k, t, sc, w]) => {
+            h += `<g transform="rotate(${t})" stroke="#222" stroke-width="1.5">`;
+            for (let r = 1; r <= 6; r++)for (let l = -1; l <= 1; l++) {
+                const x = l * s - s / 2, y = -H + (r - 1) * s, cx = x + s / 2, cy = y + s / 2;
+                let f = '#fff';
+                if (l == 0 || (l == 1 && r == 2)) f = C[k];
+                h += `<rect x="${x}" y="${y}" width="${s}" height="${s}" fill="${f}"/>`;
+                if (l == 0) h += `<text transform="translate(${cx} ${cy + 7}) rotate(${w - t})" font-size="20" font-weight="700" fill="#fff" stroke="none" text-anchor="middle">${r}</text>`;
+                if (l == 1 && r == 2) h += arrow(cx, cy);
+                if (l == -1 && r == 3) h += star(cx, cy, C[sc]);
+            }
+            h += '</g>';
+        });
+        arms.forEach(([k, t]) => {
+            const a = pt(HR, t - 30), b = pt(HR, t + 30);
+            h += `<polygon fill="${C[k]}" stroke="#222" stroke-width="2" points="0,0 ${a[0]},${a[1]} ${b[0]},${b[1]}"/>`;
+            const [bx, by] = pt(367, t + 30);
+            h += `<g transform="translate(${bx} ${by})"><circle r="100" fill="${C[k]}" stroke="#222" stroke-width="2"/>`;
+            for (let j = 0; j < 4; j++) { const [hx, hy] = pt(64, holes[k] + 90 * j); h += `<circle cx="${hx}" cy="${hy}" r="27" fill="#fff" stroke="#222" stroke-width="1.5"/>` }
+            h += '</g>';
+        });
+        h += '<circle r="100" fill="#fff" fill-opacity=".55" stroke="#fff" stroke-opacity=".7" stroke-width="6"/><circle r="72" fill="#a0104a"/><text y="24" font-size="70" text-anchor="middle">🏆</text></g>';
+        svg.innerHTML = h;
+    </script>
+</body>
+
+</html>

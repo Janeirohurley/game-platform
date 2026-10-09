@@ -2,13 +2,13 @@
 
 import { Text } from "@react-three/drei";
 import { getTrack } from "../../utils/positionUtils";
-import { FALLBACK_NAME } from "../../data/boardTheme";
+import { BASE_FRAME, FALLBACK_NAME } from "../../data/boardTheme";
 import {
-  BASE_HALF_SIZE,
   CLASSIC_BASE_HALF_SIZE,
+  HEX_BASE_SLOT_SPAN,
 } from "../../data/track";
-import type { BoardPoint } from "../../data/track";
-import type { ColorTheme, GameState, LudoColor } from "../../types/game";
+import type { BoardPoint, LudoColor } from "../../data/track";
+import type { ColorTheme, GameState } from "../../types/game";
 
 // Une zone d'attente par BRAS du plateau.
 //
@@ -16,10 +16,17 @@ import type { ColorTheme, GameState, LudoColor } from "../../types/game";
 // `positionUtils`) : une pièce atterrit donc EXACTEMENT dans l'emplacement
 // dessiné. Il n'y a plus qu'une source de vérité pour la zone d'attente.
 //
-// Croix (2 à 4 joueurs) : la zone est une grande plaque posée DANS LE COIN
-// du plateau, alignée sur la grille — l'ancien rendu d'origine. Hexagone
-// (5 et 6 joueurs) : il n'y a pas de coin libre pour y loger une plaque,
-// un pod se pose donc derrière son bras, orienté sur l'axe de celui-ci.
+// Croix (2 à 4 joueurs) : la zone est une grande plaque grise, cadre coloré
+// et quatre ANNEAUX, posée DANS LE COIN du plateau, alignée sur la grille —
+// la maquette 4 joueurs. Hexagone (5 et 6 joueurs) : pas de coin libre pour
+// une plaque carrée, la zone se pose donc entre deux bras et suit la
+// maquette 6 joueurs en disque coloré percé de quatre trous blancs.
+
+/** Rayon du disque d'une base hexagonale, sur la maquette 100/64 du trou. */
+const HEX_PLATE_RADIUS = HEX_BASE_SLOT_SPAN * (100 / 64);
+/** Rayon d'un trou de base hexagonale, sur la maquette 27/64 du trou. */
+const HEX_HOLE_RADIUS = HEX_BASE_SLOT_SPAN * (27 / 64);
+
 function HomeAreas({
   colors,
   gameState,
@@ -39,10 +46,9 @@ function HomeAreas({
     return FALLBACK_NAME[color];
   };
 
-  // Teinte d'un bras vide : le plateau garde ses quatre zones d'attente,
-  // mais une zone sans joueur est grise — elle fait partie de l'imprimé, pas
-  // de la partie. On reprend le gris des emplacements de pièces pour que la
-  // zone vide et ses emplacements se lisent comme un seul ensemble neutre.
+  // Teinte d'un bras vide : le plateau garde ses zones d'attente, mais une
+  // zone sans joueur est grise — elle fait partie de l'imprimé, pas de la
+  // partie.
   const vacantArm = "#8C8C94";
 
   return (
@@ -58,80 +64,90 @@ function HomeAreas({
           { x: 0, z: 0 },
         );
         const color = arm.seat ? colors.players[arm.seat.color] : vacantArm;
-        // Un bras vide n'affiche aucun nom de joueur : la zone reste muette.
+        const frame = arm.seat ? BASE_FRAME[arm.seat.color] : vacantArm;
         const label = arm.seat ? getNameForColor(arm.seat.color) : "";
 
-        // Toutes les plaques gardent le même style carré que l'original,
-        // quelle que soit la forme du plateau. Leur centre est déjà placé
-        // dans le secteur entre deux bras par `track.ts`.
-        const half = isHex ? BASE_HALF_SIZE : CLASSIC_BASE_HALF_SIZE;
-        const innerHalf = isHex ? 1.6 : 1.98;
-
         // Repasse un emplacement du monde dans le repère local du groupe.
-        // Axe local +x = vers l'extérieur du plateau (le long du bras sur
-        // l'hexagone), +z = perpendiculaire.
         const toLocal = (p: BoardPoint): { x: number; z: number } => {
           const dx = p.x - centroid.x;
           const dz = p.z - centroid.z;
           return { x: dx, z: dz };
         };
 
-        const labelPosition: [number, number, number] = [0, 0.19, 0];
-        const labelFontSize = Math.min(
-          0.3,
-          2.8 / Math.max(label.length * 0.52, 1),
-        );
-
         return (
-          <group
-            key={arm.offset}
-            position={[centroid.x, 0, centroid.z]}
-          >
-            <mesh position={[0, 0.16, 0]}>
-              <boxGeometry args={[half * 2, 0.02, half * 2]} />
-              <meshStandardMaterial
-                color={color}
-                roughness={0.55}
-                metalness={0}
-              />
-            </mesh>
+          <group key={arm.offset} position={[centroid.x, 0, centroid.z]}>
+            {isHex ? (
+              <>
+                {/* Disque coloré entre deux bras, comme sur la maquette 6
+                    joueurs : pas de nom, seulement les trous des pions. */}
+                <mesh position={[0, 0.16, 0]}>
+                  <cylinderGeometry args={[HEX_PLATE_RADIUS, HEX_PLATE_RADIUS, 0.02]} />
+                  <meshStandardMaterial color={color} roughness={0.55} metalness={0} />
+                </mesh>
+                {arm.base.map((p, i) => {
+                  const local = toLocal(p);
+                  return (
+                    <group key={i} position={[local.x, 0, local.z]}>
+                      {/* Liséré sombre puis trou blanc. */}
+                      <mesh position={[0, 0.176, 0]}>
+                        <cylinderGeometry args={[HEX_HOLE_RADIUS * 1.18, HEX_HOLE_RADIUS * 1.18, 0.005]} />
+                        <meshStandardMaterial color="#1b1b1b" roughness={0.6} metalness={0} />
+                      </mesh>
+                      <mesh position={[0, 0.179, 0]}>
+                        <cylinderGeometry args={[HEX_HOLE_RADIUS, HEX_HOLE_RADIUS, 0.003]} />
+                        <meshStandardMaterial color="#FFFFFF" roughness={0.3} metalness={0} />
+                      </mesh>
+                    </group>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                {/* Cadre coloré du coin, puis panneau gris : la base de la
+                    maquette 4 joueurs. */}
+                <mesh position={[0, 0.16, 0]}>
+                  <boxGeometry args={[CLASSIC_BASE_HALF_SIZE * 2, 0.02, CLASSIC_BASE_HALF_SIZE * 2]} />
+                  <meshStandardMaterial color={frame} roughness={0.55} metalness={0} />
+                </mesh>
+                <mesh position={[0, 0.164, 0]}>
+                  <boxGeometry args={[1.95 * 2, 0.012, 1.95 * 2]} />
+                  <meshStandardMaterial color="#c3c3c3" roughness={0.7} metalness={0} />
+                </mesh>
 
-            <mesh position={[0, 0.17, 0]}>
-              <boxGeometry args={[innerHalf * 2, 0.01, innerHalf * 2]} />
-              <meshStandardMaterial color="#BDBDBD" roughness={0.7} metalness={0} />
-            </mesh>
+                {/* ANNEAUX gris (#7b7b7b, r 13 u de maquette) aux emplacements
+                    exacts de `arm.base`, le centre laissant voir le panneau. */}
+                {arm.base.map((p, i) => {
+                  const local = toLocal(p);
+                  return (
+                    <group key={i} position={[local.x, 0, local.z]}>
+                      <mesh position={[0, 0.175, 0]}>
+                        <cylinderGeometry args={[0.303, 0.303, 0.006]} />
+                        <meshStandardMaterial color="#7b7b7b" roughness={0.6} metalness={0} />
+                      </mesh>
+                      <mesh position={[0, 0.178, 0]}>
+                        <cylinderGeometry args={[0.257, 0.257, 0.004]} />
+                        <meshStandardMaterial color="#c3c3c3" roughness={0.7} metalness={0} />
+                      </mesh>
+                    </group>
+                  );
+                })}
 
-            {/* Emplacements des 4 pièces, aux coordonnées exactes de
-                `arm.base`. */}
-            {arm.base.map((p, i) => {
-              const local = toLocal(p);
-              return (
-                <group key={i} position={[local.x, 0, local.z]}>
-                  <mesh position={[0, 0.18, 0]}>
-                    <cylinderGeometry args={[0.32, 0.32, 0.005]} />
-                    <meshStandardMaterial color="#69757A" roughness={0.65} metalness={0} />
-                  </mesh>
-                  <mesh position={[0, 0.183, 0]}>
-                    <cylinderGeometry args={[0.24, 0.24, 0.002]} />
-                    <meshStandardMaterial color="#D6DDDE" roughness={0.45} metalness={0} />
-                  </mesh>
-                </group>
-              );
-            })}
-
-            {/* Un bras vide n'a pas de joueur : pas de libellé non plus. */}
-            {label ? (
-              <Text
-                position={labelPosition}
-                fontSize={labelFontSize}
-                color="#000000"
-                anchorX="center"
-                anchorY="middle"
-                rotation={[-Math.PI / 2, 0, 0]}
-              >
-                {label}
-              </Text>
-            ) : null}
+                {/* Nom du joueur, sombre au centre du panneau — la maquette
+                    imprime aussi le nom sur les bases de la croix. */}
+                {label ? (
+                  <Text
+                    position={[0, 0.19, 0]}
+                    fontSize={Math.min(0.3, 2.8 / Math.max(label.length * 0.52, 1))}
+                    color="#111111"
+                    anchorX="center"
+                    anchorY="middle"
+                    rotation={[-Math.PI / 2, 0, 0]}
+                  >
+                    {label}
+                  </Text>
+                ) : null}
+              </>
+            )}
           </group>
         );
       })}
