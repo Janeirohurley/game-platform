@@ -57,8 +57,9 @@ function PlayingTrack({
   // le fond gris du socle, et la croix a le même rendu que l'étoile.
   const ringSize = 0.78;
   const homeSize = 0.78;
-  // Filet imprimé des cases de l'hexagone uniquement (voir plus bas).
-  const cellEdge = "#16202B";
+  // Joint sombre commun aux deux formes : c'est lui qui donne le relief de
+  // mosaïque du plateau original, au lieu d'un ruban de cases sans séparation.
+  const cellEdge = "#26343A";
   const cells = useMemo(
     () =>
       track.ring.map((point, index) => {
@@ -93,11 +94,6 @@ function PlayingTrack({
           : safe
             ? neutralSafe
             : trackTiles;
-        // Les filets imprimés n'aident que l'hexagone, dont les cases sont
-        // obliques et se collent les unes aux autres. Sur la croix, la grille
-        // se lit naturellement ; on garde le rendu épuré d'origine.
-        const outlined = isHex;
-
         return (
           <mesh
             key={`ring-${index}`}
@@ -106,7 +102,7 @@ function PlayingTrack({
           >
             <boxGeometry args={[ringSize, 0.02, ringSize]} />
             <meshStandardMaterial color={color} />
-            {outlined && <Edges scale={1.001} color={cellEdge} threshold={15} lineWidth={1.5} />}
+            <Edges scale={1.001} color={cellEdge} threshold={15} lineWidth={1.2} />
           </mesh>
         );
       })}
@@ -126,6 +122,7 @@ function PlayingTrack({
             <meshStandardMaterial
               color={arm.seat ? colorOf(arm.seat.color) : neutralSafe}
             />
+            <Edges scale={1.001} color={cellEdge} threshold={15} lineWidth={1.2} />
           </mesh>
         )),
       )}

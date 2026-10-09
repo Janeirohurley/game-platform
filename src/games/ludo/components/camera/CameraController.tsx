@@ -18,7 +18,7 @@ function CameraController({
   useFrame((state) => {
     // Handle camera reset
     if (resetCamera) {
-      state.camera.position.set(0, 12, 12);
+      state.camera.position.set(0, 16, 16);
       state.camera.lookAt(0, 0, 0);
       return;
     }
@@ -44,7 +44,7 @@ function CameraController({
           state.camera.lookAt(0, 0, 0);
           break;
         case "perspective":
-          state.camera.position.set(0, 12, 12);
+          state.camera.position.set(0, 16, 16);
           state.camera.lookAt(0, 0, 0);
           break;
       }

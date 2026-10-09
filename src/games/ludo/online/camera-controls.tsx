@@ -17,7 +17,7 @@ export const CAMERA_VIEWS: Record<
   { position: [number, number, number]; target: [number, number, number] }
 > = {
   // Default: three-quarter view from the yellow player's side.
-  overview: { position: [0, 12, 12], target: [0, 0, 0] },
+  overview: { position: [0, 16, 16], target: [0, 0, 0] },
   // Straight down — the classic flat board reading.
   top: { position: [0.001, 17, 0.001], target: [0, 0, 0] },
   // Low angle from the near edge — pieces stand out.

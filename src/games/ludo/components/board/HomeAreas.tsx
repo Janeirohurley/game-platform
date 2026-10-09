@@ -3,6 +3,7 @@
 import { Text } from "@react-three/drei";
 import { getTrack } from "../../utils/positionUtils";
 import { FALLBACK_NAME } from "../../data/boardTheme";
+import { BASE_HALF_SIZE } from "../../data/track";
 import type { BoardPoint } from "../../data/track";
 import type { ColorTheme, GameState, LudoColor } from "../../types/game";
 
@@ -26,7 +27,6 @@ function HomeAreas({
   playerCount: number;
 }) {
   const track = getTrack(playerCount);
-  const isHex = track.shape === "hex";
 
   const getNameForColor = (color: LudoColor): string => {
     const player = gameState.players.find((p) => p.color === color);
@@ -57,11 +57,11 @@ function HomeAreas({
         // Un bras vide n'affiche aucun nom de joueur : la zone reste muette.
         const label = arm.seat ? getNameForColor(arm.seat.color) : "";
 
-        // Le pod de l'hexagone suit l'axe oblique de son bras ; la plaque de
-        // la croix, elle, reste DROITE sur la grille.
-        const angle = isHex ? arm.angle : 0;
-        const half = isHex ? 1.35 : 2.15;
-        const innerHalf = isHex ? 1.0 : 1.6;
+        // Toutes les plaques gardent le même style carré que l'original,
+        // quelle que soit la forme du plateau. Leur centre est déjà placé
+        // dans le secteur entre deux bras par `track.ts`.
+        const half = BASE_HALF_SIZE;
+        const innerHalf = 1.6;
 
         // Repasse un emplacement du monde dans le repère local du groupe.
         // Axe local +x = vers l'extérieur du plateau (le long du bras sur
@@ -69,39 +69,32 @@ function HomeAreas({
         const toLocal = (p: BoardPoint): { x: number; z: number } => {
           const dx = p.x - centroid.x;
           const dz = p.z - centroid.z;
-          if (!isHex) return { x: dx, z: dz };
-          return {
-            x: dx * Math.cos(angle) + dz * Math.sin(angle),
-            z: -dx * Math.sin(angle) + dz * Math.cos(angle),
-          };
+          return { x: dx, z: dz };
         };
 
-        // Libellé au milieu de la plaque sur la croix ; au bord du pod côté
-        // extérieur sur l'hexagone.
-        const labelPosition: [number, number, number] = isHex
-          ? [half - 0.2, 0.19, 0]
-          : [0, 0.19, 0];
+        const labelPosition: [number, number, number] = [0, 0.19, 0];
+        const labelFontSize = Math.min(
+          0.3,
+          2.8 / Math.max(label.length * 0.52, 1),
+        );
 
         return (
           <group
             key={arm.offset}
             position={[centroid.x, 0, centroid.z]}
-            rotation={[0, -angle, 0]}
           >
             <mesh position={[0, 0.16, 0]}>
               <boxGeometry args={[half * 2, 0.02, half * 2]} />
               <meshStandardMaterial
                 color={color}
-                roughness={0.1}
+                roughness={0.55}
                 metalness={0}
-                transparent
-                opacity={0.9}
               />
             </mesh>
 
             <mesh position={[0, 0.17, 0]}>
               <boxGeometry args={[innerHalf * 2, 0.01, innerHalf * 2]} />
-              <meshStandardMaterial color="#FAFAFA" roughness={0.05} metalness={0} />
+              <meshStandardMaterial color="#BDBDBD" roughness={0.7} metalness={0} />
             </mesh>
 
             {/* Emplacements des 4 pièces, aux coordonnées exactes de
@@ -110,13 +103,13 @@ function HomeAreas({
               const local = toLocal(p);
               return (
                 <group key={i} position={[local.x, 0, local.z]}>
-                  <mesh position={[0, 0.175, 0]}>
+                  <mesh position={[0, 0.18, 0]}>
                     <cylinderGeometry args={[0.32, 0.32, 0.005]} />
-                    <meshStandardMaterial color="#A0A0A0" roughness={0.1} metalness={0} />
+                    <meshStandardMaterial color="#69757A" roughness={0.65} metalness={0} />
                   </mesh>
-                  <mesh position={[0, 0.177, 0]}>
+                  <mesh position={[0, 0.183, 0]}>
                     <cylinderGeometry args={[0.24, 0.24, 0.002]} />
-                    <meshStandardMaterial color="#FFFFFF" roughness={0} metalness={0} />
+                    <meshStandardMaterial color="#D6DDDE" roughness={0.45} metalness={0} />
                   </mesh>
                 </group>
               );
@@ -126,7 +119,7 @@ function HomeAreas({
             {label ? (
               <Text
                 position={labelPosition}
-                fontSize={isHex ? 0.3 : 0.36}
+                fontSize={labelFontSize}
                 color="#000000"
                 anchorX="center"
                 anchorY="middle"

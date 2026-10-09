@@ -172,17 +172,28 @@ describe("plateau hexagonal 5-6 joueurs : géométrie", () => {
       }
     });
 
-    it(`${n} joueurs : les zones d'attente sont hors de l'anneau et dans l'empreinte du socle`, () => {
-      const ringMax = Math.max(...track.ring.map((p) => Math.hypot(p.x, p.z)));
+    it(`${n} joueurs : les bases occupent les secteurs entre deux bras`, () => {
       for (const seat of track.seats) {
         expect(seat.base.length).toBe(4);
+        const center = seat.base.reduce(
+          (acc, point) => ({
+            x: acc.x + point.x / seat.base.length,
+            z: acc.z + point.z / seat.base.length,
+          }),
+          { x: 0, z: 0 },
+        );
+        const expectedAngle = seat.angle + Math.PI / 6;
+        const actualAngle = Math.atan2(center.z, center.x);
+        const angularError = Math.atan2(
+          Math.sin(actualAngle - expectedAngle),
+          Math.cos(actualAngle - expectedAngle),
+        );
+        expect(Math.abs(angularError)).toBeLessThan(1e-9);
         for (const slot of seat.base) {
-          // Les pods sont posés juste derrière le bout du bras : le premier
-          // rang dégage la pointe (bord externe ≈ 6.9), le deuxième s'aligne
-          // sur lui. Ils restent dans le socle hexagonal de 20.
-          expect(Math.hypot(slot.x, slot.z)).toBeGreaterThan(ringMax + 1);
-          expect(Math.abs(slot.x)).toBeLessThan(10);
-          expect(Math.abs(slot.z)).toBeLessThan(10);
+          // Le socle hexagonal a un rayon de 10.2 et la plaque reste
+          // compacte à l'intérieur, sans être tournée avec le bras.
+          expect(Math.abs(slot.x)).toBeLessThan(10.2);
+          expect(Math.abs(slot.z)).toBeLessThan(10.2);
         }
       }
     });

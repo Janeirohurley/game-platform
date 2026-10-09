@@ -212,31 +212,38 @@ const CLASSIC_OCCUPIED_ARMS: Readonly<Record<number, readonly number[]>> = {
   3: [0, 13, 26],
   4: [0, 13, 26, 39],
 };
+/** Largeur visuelle commune des plaques de base, en unités de case. */
+export const BASE_HALF_SIZE = 2.15;
+/** Écart entre les quatre anneaux d'une plaque 2 × 2. */
+export const BASE_SLOT_SPAN = 1.05;
+/** Distance des centres de base au centre du plateau, selon sa forme. */
+const CLASSIC_BASE_RADIUS = 4.15 * Math.SQRT2;
+const HEX_BASE_RADIUS = 7.15;
+
 /**
- * Les 4 emplacements d'attente du plateau CLASSIQUE, posés dans le coin du
- * bras, sur la diagonale qui pointe vers lui. Une plaque de Ludo physique
- * attend dans son coin ; pas derrière le bras.
+ * Place une base dans le secteur entre deux bras voisins.
+ *
+ * Le demi-pas angulaire (`π / armCount`) est la règle commune aux plateaux :
+ * 45° pour la croix, 30° pour l'hexagone. Les plaques restent alignées sur
+ * les axes du monde afin que les noms restent horizontaux et lisibles.
  */
-const CLASSIC_BASE_CORNER = [
-  { dx: -1, dz: -1 }, // bras gauche → coin haut-gauche
-  { dx: 1, dz: -1 }, // bras haut   → coin haut-droit
-  { dx: 1, dz: 1 }, // bras droite  → coin bas-droit
-  { dx: -1, dz: 1 }, // bras bas    → coin bas-gauche
-] as const;
-/** Centre de la plaque d'un coin, en unités de case sur la diagonale. */
-const CLASSIC_BASE_CENTER_OFFSET = 4.15;
-/** Écart d'un emplacement au centre de la plaque, sur ses deux axes. */
-const CLASSIC_BASE_SLOT_SPAN = 1.05;
-/**
- * Les 4 emplacements d'attente du plateau HEXAGONAL : 2 rangées de 2,
- * posés juste DERRIÈRE le bout du bras (le plateau n'a pas de coins libres
- * pour y loger des plaques). Le premier rang doit dégager la pointe du bras
- * et son épaule (bord externe ≈ 6.9), le deuxième s'aligne sur lui. Les
- * valeurs « 8 » et « 9,4 » de la version précédente n'entraient pas dans la
- * règle et flottaient sur un socle trop grand.
- */
-const BASE_RADII = [7.6, 8.9];
-const BASE_LATERAL = [-0.62, 0.62];
+function sectorBase(
+  armAngle: number,
+  armCount: number,
+  radius: number,
+): BoardPoint[] {
+  const center = polar(
+    ((armAngle + Math.PI / armCount) * 180) / Math.PI,
+    radius,
+  );
+
+  return [-BASE_SLOT_SPAN, BASE_SLOT_SPAN].flatMap((x) =>
+    [-BASE_SLOT_SPAN, BASE_SLOT_SPAN].map((z) => ({
+      x: center.x + x,
+      z: center.z + z,
+    })),
+  );
+}
 
 /**
  * Les 52 cases de la croix, dans l'ordre de parcours. Les coordonnées sont
@@ -277,20 +284,6 @@ const CLASSIC_RING: readonly BoardPoint[] = CLASSIC_RING_GRID.map(
 function polar(angleDeg: number, radius: number): BoardPoint {
   const rad = (angleDeg * Math.PI) / 180;
   return { x: radius * Math.cos(rad), z: radius * Math.sin(rad) };
-}
-
-/**
- * Décale un point le long du bras et vers son côté.
- * `along` avance vers le centre, `lateral` se décale orthogonalement.
- */
-function onArm(
-  angleRad: number,
-  along: number,
-  lateral: number,
-): BoardPoint {
-  const ux = Math.cos(angleRad);
-  const uz = Math.sin(angleRad);
-  return { x: along * ux - lateral * uz, z: along * uz + lateral * ux };
 }
 
 /**
@@ -354,18 +347,11 @@ function createClassicTrack(playerCount: number): LudoTrack {
     const homeColumn = CLASSIC_LANE_RADII.map((r) =>
       polar(angleDeg, r * HOME_STEP),
     );
-    // La zone d'attente vit dans son COIN (comme un plateau imprimé) :
-    // 2 rangées de 2, écartées de `BASE_SLOT_SPAN` sur les deux axes.
-    const corner = CLASSIC_BASE_CORNER[armIndex];
-    const base: BoardPoint[] = [];
-    for (const sx of [-CLASSIC_BASE_SLOT_SPAN, CLASSIC_BASE_SLOT_SPAN]) {
-      for (const sz of [-CLASSIC_BASE_SLOT_SPAN, CLASSIC_BASE_SLOT_SPAN]) {
-        base.push({
-          x: corner.dx * CLASSIC_BASE_CENTER_OFFSET + sx,
-          z: corner.dz * CLASSIC_BASE_CENTER_OFFSET + sz,
-        });
-      }
-    }
+    const base = sectorBase(
+      angleRad,
+      CLASSIC_ARM_OFFSETS.length,
+      CLASSIC_BASE_RADIUS,
+    );
 
     const seatNumber = occupiedArms.indexOf(armOffset);
     let seat: LudoSeat | null = null;
@@ -510,12 +496,7 @@ function createHexTrack(playerCount: number): LudoTrack {
     const homeColumn: BoardPoint[] = [5, 4, 3, 2, 1, 0].map((y) =>
       hexLocalToWorld(arm, 0, y),
     );
-    const base: BoardPoint[] = [];
-    for (const radius of BASE_RADII) {
-      for (const lateral of BASE_LATERAL) {
-        base.push(onArm(angleRad, radius, lateral));
-      }
-    }
+    const base = sectorBase(angleRad, HEX_ARM_COUNT, HEX_BASE_RADIUS);
 
     let seat: LudoSeat | null = null;
     if (arm < playerCount) {

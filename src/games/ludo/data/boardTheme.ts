@@ -13,8 +13,8 @@ import type { ColorTheme, LudoColor } from "../types/game";
 
 export const BOARD_THEME: ColorTheme = {
   name: "Ocean",
-  boardBase: "#737373",
-  trackTiles: "#E0FFFF",
+  boardBase: "#4C565A",
+  trackTiles: "#A9BCBC",
   players: {
     yellow: "#FFD700",
     red: "#FF6347",

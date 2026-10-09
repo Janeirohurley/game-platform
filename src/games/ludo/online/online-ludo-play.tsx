@@ -324,7 +324,7 @@ export function OnlineLudoPlay({
       {/* R3F scene — LudoBoard renders three.js elements and MUST live
           inside a Canvas, otherwise React treats <mesh>/<boxGeometry> as
           unknown DOM tags and the whole board crashes. */}
-      <Canvas camera={{ position: [0, 12, 12], fov: 60 }}>
+      <Canvas camera={{ position: [0, 16, 16], fov: 60 }}>
         <ambientLight intensity={0.7} />
         <directionalLight position={[10, 10, 5]} intensity={1.0} />
         <pointLight position={[-10, 10, -10]} intensity={0.4} />

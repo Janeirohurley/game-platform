@@ -558,7 +558,7 @@ export default function LudoPlay() {
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 12, 12], fov: 60 }}>
+      <Canvas camera={{ position: [0, 16, 16], fov: 60 }}>
         {/* Enhanced lighting optimized for container */}
         <ambientLight intensity={0.7} />
         <directionalLight position={[10, 10, 5]} intensity={1.0} />

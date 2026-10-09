@@ -93,18 +93,23 @@ const LudoBoard = forwardRef<
     isDiceAnimating: isDiceActive, // Use isDiceActive instead of isDiceAnimating
   }));
 
-  // La croix (2 à 4 joueurs) ne dépasse pas ±5.88 mais ses plaques d'attente
-  // vont jusqu'aux COINS (±6.3) : un socle aux proportions de l'ancien
-  // plateau (demi-côté 7.5 × pas 0.84). L'hexagone monte jusqu'aux pods
-  // d'attente (≈ ±9.6), donc son socle est plus large.
-  const boardBaseSize = getTrack(gameState.playerCount).shape === "hex" ? 20 : 12.6;
+  const isHex = getTrack(gameState.playerCount).shape === "hex";
 
   return (
     <group>
-      {/* Socle épousant la forme du plateau. */}
+      {/* Socle compact : carré pour l'original à quatre bras, hexagone pour
+          les six secteurs. Le socle reste distinct du sol quadrillé. */}
       <mesh ref={meshRef} position={[0, 0, 0]}>
-        <boxGeometry args={[boardBaseSize, 0.3, boardBaseSize]} />
-        <meshStandardMaterial color={currentColors.boardBase} />
+        {isHex ? (
+          <cylinderGeometry args={[10.2, 10.2, 0.3, 6]} />
+        ) : (
+          <boxGeometry args={[12.6, 0.3, 12.6]} />
+        )}
+        <meshStandardMaterial
+          color={currentColors.boardBase}
+          roughness={0.72}
+          metalness={0.05}
+        />
       </mesh>
 
       {/* Board components */}
