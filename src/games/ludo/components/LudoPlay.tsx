@@ -9,6 +9,7 @@ import { getTrack } from "../utils/positionUtils";
 import { DEFAULT_PLAYER_COUNT } from "../data/track";
 import { BOARD_THEME } from "../data/boardTheme";
 import LudoBoard from "./board/LudoBoard";
+import LudoArena from "./board/LudoArena";
 import CameraController from "./camera/CameraController";
 import BlockedMessageNotification from "./camera/BlockedMessageNotification";
 import GameUI from "./ui/GameUI";
@@ -564,8 +565,9 @@ export default function LudoPlay() {
         <directionalLight position={[10, 10, 5]} intensity={1.0} />
         <pointLight position={[-10, 10, -10]} intensity={0.4} />
 
-        {/* 3D Grid Background */}
-        <gridHelper args={[100, 100, "#ffffff", "#4D4D4D"]} />
+        {/* 3D Arena Background : grille pour la croix, plancher de bois
+            pour l'hexagone, comme dans les maquettes. */}
+        <LudoArena playerCount={gameState.playerCount} />
 
         {/* Ludo Board */}
         <LudoBoard

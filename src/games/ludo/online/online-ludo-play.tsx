@@ -15,6 +15,7 @@ import type { LudoPlayerView } from "@/lib/realtime/types";
 import { finishedPositionFor } from "../data/boardPositions";
 import { DEFAULT_PLAYER_COUNT, isLudoColor, type LudoColor } from "../data/track";
 import LudoBoard from "../components/board/LudoBoard";
+import LudoArena from "../components/board/LudoArena";
 import { GameToasts, useGameToasts } from "./game-toasts";
 import {
   CameraRig,
@@ -328,7 +329,9 @@ export function OnlineLudoPlay({
         <ambientLight intensity={0.7} />
         <directionalLight position={[10, 10, 5]} intensity={1.0} />
         <pointLight position={[-10, 10, -10]} intensity={0.4} />
-        <gridHelper args={[100, 100, "#ffffff", "#4D4D4D"]} />
+        {/* 3D Arena Background : grille pour la croix, plancher de bois
+            pour l'hexagone, comme dans les maquettes. */}
+        <LudoArena playerCount={gameState.playerCount} />
 
         <LudoBoard
           ref={boardRef}
