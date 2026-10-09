@@ -3,7 +3,10 @@
 import { Text } from "@react-three/drei";
 import { getTrack } from "../../utils/positionUtils";
 import { FALLBACK_NAME } from "../../data/boardTheme";
-import { BASE_HALF_SIZE } from "../../data/track";
+import {
+  BASE_HALF_SIZE,
+  CLASSIC_BASE_HALF_SIZE,
+} from "../../data/track";
 import type { BoardPoint } from "../../data/track";
 import type { ColorTheme, GameState, LudoColor } from "../../types/game";
 
@@ -27,6 +30,7 @@ function HomeAreas({
   playerCount: number;
 }) {
   const track = getTrack(playerCount);
+  const isHex = track.shape === "hex";
 
   const getNameForColor = (color: LudoColor): string => {
     const player = gameState.players.find((p) => p.color === color);
@@ -60,8 +64,8 @@ function HomeAreas({
         // Toutes les plaques gardent le même style carré que l'original,
         // quelle que soit la forme du plateau. Leur centre est déjà placé
         // dans le secteur entre deux bras par `track.ts`.
-        const half = BASE_HALF_SIZE;
-        const innerHalf = 1.6;
+        const half = isHex ? BASE_HALF_SIZE : CLASSIC_BASE_HALF_SIZE;
+        const innerHalf = isHex ? 1.6 : 1.98;
 
         // Repasse un emplacement du monde dans le repère local du groupe.
         // Axe local +x = vers l'extérieur du plateau (le long du bras sur

@@ -214,10 +214,12 @@ const CLASSIC_OCCUPIED_ARMS: Readonly<Record<number, readonly number[]>> = {
 };
 /** Largeur visuelle commune des plaques de base, en unités de case. */
 export const BASE_HALF_SIZE = 2.15;
+/** La référence 15 × 15 réserve exactement 6 × 6 cases à chaque base. */
+export const CLASSIC_BASE_HALF_SIZE = 3 * HOME_STEP;
 /** Écart entre les quatre anneaux d'une plaque 2 × 2. */
 export const BASE_SLOT_SPAN = 1.05;
 /** Distance des centres de base au centre du plateau, selon sa forme. */
-const CLASSIC_BASE_RADIUS = 4.15 * Math.SQRT2;
+const CLASSIC_BASE_RADIUS = (7.5 - 3) * HOME_STEP * Math.SQRT2;
 // Le coin extérieur de la plaque arrive presque au bord plat du socle
 // hexagonal : baseRadius * cos(30°) + BASE_HALF_SIZE ≈ 10.2 * cos(30°).
 // Cette relation reproduit la marge régulière de la référence 2D sans
