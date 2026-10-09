@@ -57,12 +57,7 @@ function PlayingTrack({
   // le fond gris du socle, et la croix a le même rendu que l'étoile.
   const ringSize = 0.78;
   const homeSize = 0.78;
-  // Contour imprimé de chaque case. Le joint laissé entre deux tuiles laisse
-  // transparaître le gris du socle, mais à l'échelle de la caméra c'est un
-  // filet de 0.06 qu'on perd facilement : le trait rend la grille lisible
-  // d'office, comme les cases noires d'un plateau imprimé. Il est tiré du
-  // noir bleuté du fond, donc il contraste sur toutes les couleurs de siège
-  // (elles sont toutes claires) comme sur les cases neutres.
+  // Filet imprimé des cases de l'hexagone uniquement (voir plus bas).
   const cellEdge = "#16202B";
   const cells = useMemo(
     () =>
@@ -72,44 +67,46 @@ function PlayingTrack({
         // et pas se déguiser en étoile.
         const arm = track.arms.find((a) => a.offset === index) ?? null;
         const seat = arm?.seat ?? null;
-        // Une case sûre qui n'est le départ d'aucun bras est une étoile :
-        // le serveur la protège aussi (voir `createTrack`), on la teinte donc
-        // en neutre sombre pour la distinguer des cases d'entrée.
-        const isStar = !arm && track.isSafeCell(index);
-        return { point, arm, seat, isStar };
+        const safe = track.isSafeCell(index);
+        return { point, seat, safe };
       }),
     [track],
   );
 
   const stars = useMemo(
-    () => cells.filter((cell) => cell.isStar).map((cell) => cell.point),
+    () => cells.filter((cell) => cell.safe).map((cell) => cell.point),
     [cells],
   );
 
   return (
     <group>
-      {cells.map(({ point, arm, seat, isStar }, index) => {
-        // La case d'entrée est tournée vers son bras : le joueur repère
-        // ainsi de quel côté sa sortie se fait, ce que la croix en dur
-        // montrait par un alignement explicite. On tourne sur le BRAS et non
-        // sur le siège, pour qu'un bras vide s'aligne aussi bien qu'un plein.
-        // Plateau hexagonal : toutes les cases suivent l'axe de leur bras.
+      {cells.map(({ point, seat, safe }, index) => {
+        // La case d'entrée est tournée vers son bras sur l'hexagone, où les
+        // bras sont obliques. La croix classique, elle, reste ALIGNÉE sur la
+        // grille, case carrée droite comme sur un plateau imprimé — c'est le
+        // rendu d'origine.
         const rotation: [number, number, number] = isHex
           ? [0, -hexArmAngleOf(point), 0]
-          : arm
-            ? [0, -arm.angle, 0]
-            : [0, 0, 0];
+          : [0, 0, 0];
         const color = seat
           ? colorOf(seat.color)
-          : isStar
+          : safe
             ? neutralSafe
             : trackTiles;
+        // Les filets imprimés n'aident que l'hexagone, dont les cases sont
+        // obliques et se collent les unes aux autres. Sur la croix, la grille
+        // se lit naturellement ; on garde le rendu épuré d'origine.
+        const outlined = isHex;
 
         return (
-          <mesh key={`ring-${index}`} position={[point.x, 0.16, point.z]} rotation={rotation}>
+          <mesh
+            key={`ring-${index}`}
+            position={[point.x, 0.16, point.z]}
+            rotation={rotation}
+          >
             <boxGeometry args={[ringSize, 0.02, ringSize]} />
             <meshStandardMaterial color={color} />
-            <Edges scale={1.001} color={cellEdge} threshold={15} lineWidth={1.5} />
+            {outlined && <Edges scale={1.001} color={cellEdge} threshold={15} lineWidth={1.5} />}
           </mesh>
         );
       })}
@@ -129,7 +126,6 @@ function PlayingTrack({
             <meshStandardMaterial
               color={arm.seat ? colorOf(arm.seat.color) : neutralSafe}
             />
-            <Edges scale={1.001} color={cellEdge} threshold={15} lineWidth={1.5} />
           </mesh>
         )),
       )}

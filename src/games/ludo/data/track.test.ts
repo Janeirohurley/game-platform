@@ -134,14 +134,15 @@ describe("createTrack", () => {
     }
   });
 
-  it("keeps the base behind the arm, outside the ring", () => {
+  it("keeps each waiting slot clear of the ring", () => {
     for (const size of SIZES) {
       const track = createTrack(size);
       for (const seat of track.seats) {
         for (const cell of seat.base) {
-          // A base slot must be further from the centre than every ring
-          // cell, otherwise a piece waiting to leave would sit on the
-          // shared track.
+          // A base slot must never sit on the shared track: a piece waiting
+          // to leave would collide with the passing one. Sur la croix les
+          // plaques vivent dans les COINS, bien au-delà du rayon minimum
+          // de l'anneau.
           const ringRadius = Math.min(...track.ring.map((p) => Math.hypot(p.x, p.z)));
           expect(Math.hypot(cell.x, cell.z)).toBeGreaterThan(ringRadius + 1);
         }

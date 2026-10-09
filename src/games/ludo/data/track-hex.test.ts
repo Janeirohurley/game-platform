@@ -172,14 +172,17 @@ describe("plateau hexagonal 5-6 joueurs : géométrie", () => {
       }
     });
 
-    it(`${n} joueurs : les zones d'attente sont hors de l'anneau et dans le socle de 24`, () => {
+    it(`${n} joueurs : les zones d'attente sont hors de l'anneau et dans l'empreinte du socle`, () => {
       const ringMax = Math.max(...track.ring.map((p) => Math.hypot(p.x, p.z)));
       for (const seat of track.seats) {
         expect(seat.base.length).toBe(4);
         for (const slot of seat.base) {
+          // Les pods sont posés juste derrière le bout du bras : le premier
+          // rang dégage la pointe (bord externe ≈ 6.9), le deuxième s'aligne
+          // sur lui. Ils restent dans le socle hexagonal de 20.
           expect(Math.hypot(slot.x, slot.z)).toBeGreaterThan(ringMax + 1);
-          expect(Math.abs(slot.x)).toBeLessThan(11);
-          expect(Math.abs(slot.z)).toBeLessThan(11);
+          expect(Math.abs(slot.x)).toBeLessThan(10);
+          expect(Math.abs(slot.z)).toBeLessThan(10);
         }
       }
     });

@@ -4,6 +4,7 @@ import { forwardRef, useRef, useState, useImperativeHandle } from "react";
 import * as THREE from "three";
 import type { ColorTheme, GamePiece, GameState } from "../../types/game";
 import { BOARD_THEME } from "../../data/boardTheme";
+import { getTrack } from "../../utils/positionUtils";
 import BoardComponents from "./BoardComponents";
 import DiceComponent from "../dice/DiceComponent";
 
@@ -92,13 +93,17 @@ const LudoBoard = forwardRef<
     isDiceAnimating: isDiceActive, // Use isDiceActive instead of isDiceAnimating
   }));
 
+  // La croix (2 à 4 joueurs) ne dépasse pas ±5.88 mais ses plaques d'attente
+  // vont jusqu'aux COINS (±6.3) : un socle aux proportions de l'ancien
+  // plateau (demi-côté 7.5 × pas 0.84). L'hexagone monte jusqu'aux pods
+  // d'attente (≈ ±9.6), donc son socle est plus large.
+  const boardBaseSize = getTrack(gameState.playerCount).shape === "hex" ? 20 : 12.6;
+
   return (
     <group>
-      {/* Board base. Les zones d'attente les plus lointaines sont à 10.6
-          du centre, donc un socle de 24 laisse 1.4 de marge de chaque côté
-          quelle que soit la taille de la table. */}
+      {/* Socle épousant la forme du plateau. */}
       <mesh ref={meshRef} position={[0, 0, 0]}>
-        <boxGeometry args={[24, 0.3, 24]} />
+        <boxGeometry args={[boardBaseSize, 0.3, boardBaseSize]} />
         <meshStandardMaterial color={currentColors.boardBase} />
       </mesh>
 
