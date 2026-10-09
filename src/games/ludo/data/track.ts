@@ -218,7 +218,11 @@ export const BASE_HALF_SIZE = 2.15;
 export const BASE_SLOT_SPAN = 1.05;
 /** Distance des centres de base au centre du plateau, selon sa forme. */
 const CLASSIC_BASE_RADIUS = 4.15 * Math.SQRT2;
-const HEX_BASE_RADIUS = 7.15;
+// Le coin extérieur de la plaque arrive presque au bord plat du socle
+// hexagonal : baseRadius * cos(30°) + BASE_HALF_SIZE ≈ 10.2 * cos(30°).
+// Cette relation reproduit la marge régulière de la référence 2D sans
+// pousser les bases dans les bras voisins.
+const HEX_BASE_RADIUS = 7.7;
 
 /**
  * Place une base dans le secteur entre deux bras voisins.
