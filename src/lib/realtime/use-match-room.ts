@@ -142,6 +142,21 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
   }, [joinedRoomId, snapshot, viewerUserId]);
 
   useEffect(() => {
+    if (!room) return;
+    return room.onMessage(
+      "joinRequestRegistrationFailed",
+      (payload: { reason?: string }) => {
+        setJoinRequestStatus("failed");
+        setJoinRequestError(
+          payload?.reason === "persistence-unavailable"
+            ? "Le serveur ne peut pas encore confirmer la demande. Réessaie dans un instant."
+            : "La demande n'a pas pu être confirmée.",
+        );
+      },
+    );
+  }, [room]);
+
+  useEffect(() => {
     if (
       !room ||
       !requestIdRef.current ||

@@ -122,6 +122,20 @@ export function MatchScreen({
     };
   }, [room]);
 
+  useEffect(() => {
+    return room.onMessage(
+      "joinRequestRegistrationFailed",
+      (payload: { reason?: string }) => {
+        setJoinRequestStatus("failed");
+        setJoinRequestError(
+          payload?.reason === "persistence-unavailable"
+            ? "Le serveur ne peut pas encore confirmer la demande. Réessaie dans un instant."
+            : "La demande n'a pas pu être confirmée.",
+        );
+      },
+    );
+  }, [room]);
+
   // Voice/video rides on LiveKit: roles and the roster derive from
   // the server state, the media room joins on arrival (listen by
   // default), and the mic is requested only for players. A LiveKit

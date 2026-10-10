@@ -4,6 +4,13 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.2] - 2026-10-10
+
+### Fixed
+
+* Display an explicit retryable failure when the server cannot durably confirm
+  a join request.
+
 ## [0.5.1] - 2026-10-10
 
 ### Fixed
