@@ -91,6 +91,11 @@ export function MatchScreen({
     JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed"
   >("idle");
   const [joinRequestError, setJoinRequestError] = useState<string | null>(null);
+  const joinRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const joinRetryAttempt = useRef(0);
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connected" | "degraded" | "reconnecting" | "synchronizing"
+  >(room.connection?.isOpen ? "synchronizing" : "reconnecting");
 
   useEffect(() => {
     const key = `game-arena:join-request:${room.roomId}:${viewerUserId}`;
@@ -99,6 +104,23 @@ export function MatchScreen({
       joinRequestId.current = null;
     };
   }, [room.roomId, viewerUserId]);
+
+  useEffect(() => {
+    const onDrop = () => setConnectionStatus("reconnecting");
+    const onReconnect = () => setConnectionStatus("synchronizing");
+    const onError = () => setConnectionStatus("degraded");
+    const onLeave = () => setConnectionStatus("reconnecting");
+    room.onDrop(onDrop);
+    room.onReconnect(onReconnect);
+    room.onError(onError);
+    room.onLeave(onLeave);
+    return () => {
+      room.onDrop.remove(onDrop);
+      room.onReconnect.remove(onReconnect);
+      room.onError.remove(onError);
+      room.onLeave.remove(onLeave);
+    };
+  }, [room]);
 
   // Voice/video rides on LiveKit: roles and the roster derive from
   // the server state, the media room joins on arrival (listen by
@@ -198,7 +220,11 @@ export function MatchScreen({
   }, [room, lobby, viewerUserId]);
 
   useEffect(() => {
-    const update = () => setLobby(readLobbySnapshot(room));
+    const update = () => {
+      const next = readLobbySnapshot(room);
+      setLobby(next);
+      if (next) setConnectionStatus("connected");
+    };
     update();
     // onStateChange is both a signal and an event object; the callable
     // form subscribes and returns an unsubscribe function.
@@ -266,6 +292,41 @@ export function MatchScreen({
     }
   }, [lobby, room.roomId, viewerUserId]);
 
+  useEffect(() => {
+    const requestId = joinRequestId.current;
+    if (
+      !requestId ||
+      (joinRequestStatus !== "submitting" && joinRequestStatus !== "retrying") ||
+      connectionStatus !== "connected"
+    ) {
+      return;
+    }
+    const reconciled =
+      lobby?.pendingPlayerRequests.some((item) => item.requestId === requestId) ||
+      lobby?.joinRequestResults?.some((item) => item.requestId === requestId);
+    if (reconciled) return;
+    const attempt = joinRetryAttempt.current;
+    if (attempt >= 5) {
+      setJoinRequestStatus("failed");
+      setJoinRequestError(
+        "La demande n'a pas encore été confirmée. Vérifie la connexion puis réessaie.",
+      );
+      return;
+    }
+    const delay = Math.min(1_000 * 2 ** attempt, 10_000) + Math.random() * 300;
+    const timer = setTimeout(() => {
+      joinRetryAttempt.current = attempt + 1;
+      setJoinRequestStatus("retrying");
+      try {
+        room.send("requestJoinAsPlayer", { requestId });
+      } catch {
+        setJoinRequestError("Connexion instable. Nouvelle tentative en cours…");
+      }
+    }, delay);
+    joinRetryTimer.current = timer;
+    return () => clearTimeout(timer);
+  }, [connectionStatus, joinRequestStatus, lobby, room]);
+
   const submitJoinRequest = () => {
     const requestId = joinRequestId.current ?? crypto.randomUUID();
     joinRequestId.current = requestId;
@@ -273,6 +334,7 @@ export function MatchScreen({
       `game-arena:join-request:${room.roomId}:${viewerUserId}`,
       requestId,
     );
+    joinRetryAttempt.current = 0;
     setJoinRequestStatus("submitting");
     setJoinRequestError(null);
     try {
@@ -387,6 +449,7 @@ export function MatchScreen({
           }}
           requestStatus={joinRequestStatus}
           requestError={joinRequestError}
+          connectionStatus={connectionStatus}
           onRetryRequest={submitJoinRequest}
           onCancelRequest={
             role === "pending"

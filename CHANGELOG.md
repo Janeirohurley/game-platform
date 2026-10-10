@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 * Prevented duplicate join requests when an acknowledgment is lost.
+* Correlated host decisions with the request identifier and resumed direct
+  match-screen submissions after reconnection.
 
 ## [0.4.0] - 2026-10-10
 
