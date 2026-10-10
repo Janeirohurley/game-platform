@@ -4,6 +4,20 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.0] - 2026-10-10
+
+### Added
+
+* Added stable join-request identifiers and authoritative registration feedback.
+* Added reconnect synchronization, bounded retry with exponential backoff and
+  explicit pending/accepted/rejected/expired feedback.
+* Preserved pending host notifications after temporary requester or host
+  disconnections.
+
+### Fixed
+
+* Prevented duplicate join requests when an acknowledgment is lost.
+
 ## [0.4.0] - 2026-10-10
 
 ### Added
