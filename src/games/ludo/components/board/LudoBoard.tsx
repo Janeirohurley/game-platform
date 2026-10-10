@@ -114,9 +114,7 @@ const LudoBoard = forwardRef<
           metalness={0.05}
         />
         {isHex ? (
-          // L'hexagone blanc de la maquette a un contour #111 : le plateau
-          // laisse donc voir son arête sur toute la silhouette.
-          <Edges scale={1.001} color="#111111" threshold={15} lineWidth={2} />
+          <Edges scale={1.002} color="#111111" threshold={15} lineWidth={2} />
         ) : null}
       </mesh>
 
