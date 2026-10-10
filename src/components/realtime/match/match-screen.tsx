@@ -404,8 +404,12 @@ export function MatchScreen({
       <JoinRequestsPanel
         snapshot={lobby}
         role={role}
-        onApprove={(userId) => room.send("approveJoin", { userId })}
-        onReject={(userId) => room.send("rejectJoin", { userId })}
+        onApprove={(userId, requestId) =>
+          room.send("approveJoin", { userId, requestId })
+        }
+        onReject={(userId, requestId) =>
+          room.send("rejectJoin", { userId, requestId })
+        }
       />
 
       {/* Transient match notices (departures, reconnections…), stacked

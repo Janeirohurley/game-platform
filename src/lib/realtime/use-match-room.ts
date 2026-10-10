@@ -22,9 +22,9 @@ export interface MatchActions {
   /** Withdraw your own pending request. */
   cancelJoinRequest: () => void;
   /** Host only — grant a seat to a pending requester. */
-  approveJoin: (userId: string) => void;
+  approveJoin: (userId: string, requestId: string) => void;
   /** Host only — decline a pending requester. */
-  rejectJoin: (userId: string) => void;
+  rejectJoin: (userId: string, requestId: string) => void;
   /** Host only — shut the room down for everyone, for good. */
   closeRoom: () => void;
   /**
@@ -235,8 +235,10 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
       startGame: () => send("startGame"),
       requestJoinAsPlayer: requestJoin,
       cancelJoinRequest: () => send("cancelJoinRequest"),
-      approveJoin: (userId: string) => send("approveJoin", { userId }),
-      rejectJoin: (userId: string) => send("rejectJoin", { userId }),
+      approveJoin: (userId: string, requestId: string) =>
+        send("approveJoin", { userId, requestId }),
+      rejectJoin: (userId: string, requestId: string) =>
+        send("rejectJoin", { userId, requestId }),
       closeRoom: () => send("closeRoom"),
       leaveMatch: () => leave(),
     }),

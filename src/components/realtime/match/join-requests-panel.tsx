@@ -18,8 +18,8 @@ export interface JoinRequestsPanelProps {
   snapshot: LobbySnapshot;
   /** The local viewer's own role (admin sees approve/reject controls). */
   role: MatchRole;
-  onApprove: (userId: string) => void;
-  onReject: (userId: string) => void;
+  onApprove: (userId: string, requestId: string) => void;
+  onReject: (userId: string, requestId: string) => void;
 }
 
 /**
@@ -80,8 +80,8 @@ function RequestRow({
 }: {
   request: LobbyPendingRequestView;
   disabled: boolean;
-  onApprove: (userId: string) => void;
-  onReject: (userId: string) => void;
+  onApprove: (userId: string, requestId: string) => void;
+  onReject: (userId: string, requestId: string) => void;
 }) {
   return (
     <div className="rounded-lg bg-white/5 px-2.5 py-2">
@@ -95,8 +95,8 @@ function RequestRow({
       <div className="mt-2 flex gap-1.5">
         <button
           type="button"
-          onClick={() => onApprove(request.userId)}
-          disabled={disabled}
+          onClick={() => request.requestId && onApprove(request.userId, request.requestId)}
+          disabled={disabled || !request.requestId}
           className="flex flex-1 items-center justify-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <HugeiconsIcon icon={CheckmarkCircleIcon} size={12} strokeWidth={2} />
@@ -104,7 +104,8 @@ function RequestRow({
         </button>
         <button
           type="button"
-          onClick={() => onReject(request.userId)}
+          onClick={() => request.requestId && onReject(request.userId, request.requestId)}
+          disabled={!request.requestId}
           className="flex flex-1 items-center justify-center gap-1 rounded-md bg-white/10 px-2 py-1 text-[11px] font-semibold text-white/85 transition hover:bg-red-500/60 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <HugeiconsIcon icon={UserXIcon} size={12} strokeWidth={2} />
