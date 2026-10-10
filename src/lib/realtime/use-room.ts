@@ -160,6 +160,22 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
         }
       });
 
+      // Colyseus keeps the room instance alive while it performs its own
+      // bounded reconnection attempts. Reflect that intermediate state in
+      // the UI; `onLeave` below is reserved for the point where those
+      // attempts have ended and the token-based fallback must start.
+      const onDrop = () => {
+        if (!disposed) setStatus("reconnecting");
+      };
+      const onReconnect = () => {
+        if (!disposed) {
+          setError(null);
+          setStatus("synchronizing");
+        }
+      };
+      joined.onDrop(onDrop);
+      joined.onReconnect(onReconnect);
+
       joined.onLeave(() => {
         if (!disposed && !intentionalLeaveRef.current) {
           setStatus("reconnecting");

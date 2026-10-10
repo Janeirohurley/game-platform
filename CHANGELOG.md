@@ -4,6 +4,13 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.1] - 2026-10-10
+
+### Fixed
+
+* Marked the room as reconnecting on a temporary Colyseus transport drop and
+  as synchronizing after reconnection, before returning to the connected state.
+
 ## [0.5.0] - 2026-10-10
 
 ### Added
