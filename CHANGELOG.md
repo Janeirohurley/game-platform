@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 * Prevented duplicate join requests when an acknowledgment is lost.
 * Correlated host decisions with the request identifier and resumed direct
   match-screen submissions after reconnection.
+* Pinned Hugeicons to the Linux-compatible case-sensitive import fix.
 
 ## [0.4.0] - 2026-10-10
 
