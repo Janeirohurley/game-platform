@@ -42,9 +42,25 @@ export interface LobbySpectatorView {
 
 /** Someone who asked to play and awaits the admin's decision. */
 export interface LobbyPendingRequestView {
+  requestId?: string;
   userId: string;
   name: string;
   requestedAt: number;
+}
+
+export type JoinRequestStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled"
+  | "expired";
+
+export interface LobbyJoinRequestResultView {
+  requestId: string;
+  userId: string;
+  status: Exclude<JoinRequestStatus, "pending">;
+  updatedAt: number;
+  reason: string;
 }
 
 /** The lobby fields every game room exposes, generically. */
@@ -64,6 +80,8 @@ export interface LobbySnapshot {
   players: LobbyPlayerView[];
   /** Users waiting for admin approval to become players. */
   pendingPlayerRequests: LobbyPendingRequestView[];
+  /** Recent terminal outcomes used to reconcile after reconnect. */
+  joinRequestResults?: LobbyJoinRequestResultView[];
   /** Read-only onlookers — disjoint from players, outside capacity. */
   spectators: LobbySpectatorView[];
   /**

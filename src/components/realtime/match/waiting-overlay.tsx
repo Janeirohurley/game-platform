@@ -8,6 +8,7 @@ import {
   EyeIcon,
   EyeOffIcon,
 } from "@hugeicons/core-free-icons";
+import type { JoinRequestStatus } from "@/lib/realtime/types";
 
 export interface WaitingOverlayProps {
   /** Room id — used to build the invite link. */
@@ -24,6 +25,10 @@ export interface WaitingOverlayProps {
   onCancelRequest?: () => void;
   /** Spectator only — switch to asking for a player seat. */
   onRequestJoin?: () => void;
+  requestStatus?: JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed";
+  requestError?: string | null;
+  onRetryRequest?: () => void;
+  connectionStatus?: string;
 }
 
 /**
@@ -41,6 +46,10 @@ export function WaitingOverlay({
   onCopyInvite,
   onCancelRequest,
   onRequestJoin,
+  requestStatus,
+  requestError,
+  onRetryRequest,
+  connectionStatus,
 }: WaitingOverlayProps) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col items-center gap-2 px-4 text-center">
@@ -48,7 +57,9 @@ export function WaitingOverlay({
         <div className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-xl border border-amber-500/30 bg-black/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
           <p className="flex items-center gap-1.5 text-sm font-medium text-amber-300">
             <HugeiconsIcon icon={Clock01Icon} size={14} strokeWidth={1.8} />
-            Votre demande est en attente de l&apos;approbation du créateur.
+            {requestStatus === "submitting" || requestStatus === "retrying"
+              ? "Confirmation de votre demande en cours…"
+              : "Votre demande est en attente de l&apos;approbation du créateur."}
           </p>
           {onCancelRequest && (
             <button
@@ -60,6 +71,31 @@ export function WaitingOverlay({
             </button>
           )}
         </div>
+      )}
+
+      {requestError && (
+        <div className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-xl border border-rose-500/30 bg-black/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
+          <p className="text-sm font-medium text-rose-200">{requestError}</p>
+          {onRetryRequest && (
+            <button
+              type="button"
+              onClick={onRetryRequest}
+              className="rounded-lg bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/30"
+            >
+              Réessayer
+            </button>
+          )}
+        </div>
+      )}
+
+      {connectionStatus && connectionStatus !== "connected" && (
+        <p className="rounded-lg bg-black/55 px-3 py-1.5 text-xs text-white/75 shadow-lg backdrop-blur-md" role="status">
+          {connectionStatus === "reconnecting"
+            ? "Connexion perdue. Reconnexion en cours…"
+            : connectionStatus === "synchronizing"
+              ? "Connecté. Synchronisation de la demande…"
+              : "Connexion instable. Vérification de la demande…"}
+        </p>
       )}
 
       {isSpectator && onRequestJoin && (

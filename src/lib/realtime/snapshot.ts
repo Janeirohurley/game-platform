@@ -4,6 +4,7 @@ import type { Room } from "@colyseus/sdk";
 
 import type {
   LobbyPendingRequestView,
+  LobbyJoinRequestResultView,
   LobbyPlayerView,
   LobbySnapshot,
   LobbySpectatorView,
@@ -30,6 +31,7 @@ export function readLobbySnapshot(room: Room): LobbySnapshot | null {
           LobbyPlayerView & { voiceMuted?: boolean; adminMuted?: boolean }
         >;
         pendingPlayerRequests: Map<string, LobbyPendingRequestView>;
+        joinRequestResults?: Map<string, LobbyJoinRequestResultView>;
         spectators: Map<string, LobbySpectatorView>;
         currentTurn?: string | null;
         turnDeadline?: number;
@@ -57,6 +59,9 @@ export function readLobbySnapshot(room: Room): LobbySnapshot | null {
     pendingPlayerRequests: [
       ...(state.pendingPlayerRequests?.values() ?? []),
     ].map((request) => ({ ...request })),
+    joinRequestResults: [
+      ...(state.joinRequestResults?.values() ?? []),
+    ].map((result) => ({ ...result })),
     spectators: [...(state.spectators?.values() ?? [])].map(
       (spectator) => ({ ...spectator }),
     ),

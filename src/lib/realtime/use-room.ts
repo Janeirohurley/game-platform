@@ -7,7 +7,14 @@ import { createRoom as createRoomRequest, joinRoom as joinRoomRequest, reconnect
 import { readLobbySnapshot } from "./snapshot";
 import type { LobbySnapshot, RoomPhase } from "./types";
 
-export type RoomStatus = "idle" | "connecting" | "connected" | "error";
+export type RoomStatus =
+  | "idle"
+  | "connecting"
+  | "synchronizing"
+  | "connected"
+  | "degraded"
+  | "reconnecting"
+  | "error";
 
 /** How the local user wants to take part in the room. */
 export type JoinMode = "play" | "watch";
@@ -73,6 +80,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
   const [storedReconnectionToken, setStoredReconnectionToken] = useState<
     string | null
   >(reconnectionToken ?? null);
+  const intentionalLeaveRef = useRef(false);
 
   const onPlayingRef = useRef(onPlaying);
 
@@ -87,9 +95,29 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
 
     let disposed = false;
     let activeRoom: Room | null = null;
+    let activeToken = reconnectionToken ?? null;
+    let retryAttempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    intentionalLeaveRef.current = false;
+
+    const scheduleReconnect = () => {
+      if (disposed || intentionalLeaveRef.current || !activeToken) return;
+      if (retryAttempt >= 5) {
+        setError("La reconnexion a échoué. Vérifie ta connexion puis réessaie.");
+        setStatus("error");
+        return;
+      }
+      const delay = Math.min(1_000 * 2 ** retryAttempt, 10_000) + Math.random() * 300;
+      retryAttempt += 1;
+      retryTimer = setTimeout(() => void connect(true), delay);
+    };
 
     const attach = (joined: Room) => {
       activeRoom = joined;
+      activeToken =
+        (joined as unknown as { reconnectionToken?: string }).reconnectionToken ??
+        activeToken;
+      retryAttempt = 0;
       setRoom(joined);
       setStoredReconnectionToken(
         (joined as unknown as { reconnectionToken?: string })
@@ -98,10 +126,13 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
       // May be null if the first state frame has not arrived yet —
       // the onStateChange subscription below fills it in.
       setSnapshot(readLobbySnapshot(joined));
-      setStatus("connected");
+      setStatus(readLobbySnapshot(joined) ? "connected" : "synchronizing");
 
       joined.onStateChange(() => {
-        if (!disposed) setSnapshot(readLobbySnapshot(joined));
+        if (!disposed) {
+          setSnapshot(readLobbySnapshot(joined));
+          setStatus("connected");
+        }
       });
 
       // Belt and braces: state frames can precede our subscription on
@@ -123,20 +154,28 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
       });
 
       joined.onError((message: unknown) => {
-        if (!disposed) setError(String(message ?? "Erreur temps réel"));
+        if (!disposed) {
+          setError(String(message ?? "Erreur temps réel"));
+          setStatus("degraded");
+        }
       });
 
       joined.onLeave(() => {
-        if (!disposed) setStatus("idle");
+        if (!disposed && !intentionalLeaveRef.current) {
+          setStatus("reconnecting");
+          scheduleReconnect();
+        }
       });
     };
 
-    const connect = async () => {
-      setStatus("connecting");
+    const connect = async (isReconnect = false) => {
+      setStatus(isReconnect ? "reconnecting" : "connecting");
       setError(null);
       try {
         let joined: Room;
-        if (reconnectionToken) {
+        if (isReconnect && activeToken) {
+          joined = await reconnectRoom(activeToken);
+        } else if (reconnectionToken) {
           joined = await reconnectRoom(reconnectionToken);
         } else if (roomId) {
           joined = await joinRoomRequest(gameId, roomId, joinMode);
@@ -155,7 +194,12 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
             ? connectionError.message
             : "Connexion à la room impossible.",
         );
-        setStatus("error");
+        if (isReconnect) {
+          setStatus("reconnecting");
+          scheduleReconnect();
+        } else {
+          setStatus("error");
+        }
       }
     };
 
@@ -163,6 +207,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
 
     return () => {
       disposed = true;
+      if (retryTimer) clearTimeout(retryTimer);
       if (activeRoom) {
         activeRoom.removeAllListeners();
         void activeRoom.leave(true);
@@ -175,6 +220,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
   }, [room]);
 
   const leave = useCallback(() => {
+    intentionalLeaveRef.current = true;
     room?.leave(true);
   }, [room]);
 

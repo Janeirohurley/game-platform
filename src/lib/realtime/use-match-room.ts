@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useRoom, type JoinMode, type RoomStatus } from "./use-room";
-import type { LobbySnapshot } from "./types";
+import type { JoinRequestStatus, LobbySnapshot } from "./types";
 
 /**
  * The viewer's role in the room, as decided by the SERVER state.
@@ -51,6 +51,10 @@ export interface MatchController {
   isPlayer: boolean;
   /** Viewer's own pending request, when they are waiting for approval. */
   pendingRequest: boolean;
+  /** Client-side submission phase, reconciled against server state. */
+  joinRequestStatus: JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed";
+  joinRequestError: string | null;
+  retryJoinRequest: () => void;
   actions: MatchActions;
 }
 
@@ -88,6 +92,90 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
   const { snapshot, status, error, room, roomId: joinedRoomId, reconnectionToken: storedToken, leave } =
     useRoom({ gameId, roomId, targetPlayers, joinMode, reconnectionToken, enabled });
 
+  const requestIdRef = useRef<string | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryAttemptRef = useRef(0);
+  const [joinRequestStatus, setJoinRequestStatus] = useState<
+    JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed"
+  >("idle");
+  const [joinRequestError, setJoinRequestError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !joinedRoomId) return;
+    const key = `game-arena:join-request:${joinedRoomId}:${viewerUserId}`;
+    requestIdRef.current = window.sessionStorage.getItem(key);
+    const retryTimer = retryTimerRef.current;
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [joinedRoomId, viewerUserId]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const ownPending = snapshot.pendingPlayerRequests.find(
+      (request) => request.userId === viewerUserId,
+    );
+    if (!requestIdRef.current && ownPending?.requestId) {
+      requestIdRef.current = ownPending.requestId;
+      if (typeof window !== "undefined" && joinedRoomId) {
+        window.sessionStorage.setItem(
+          `game-arena:join-request:${joinedRoomId}:${viewerUserId}`,
+          ownPending.requestId,
+        );
+      }
+    }
+    if (!requestIdRef.current) return;
+    const requestId = requestIdRef.current;
+    const pending = snapshot.pendingPlayerRequests.find(
+      (request) => request.requestId === requestId,
+    );
+    const result = snapshot.joinRequestResults?.find(
+      (item) => item.requestId === requestId,
+    );
+    if (pending) {
+      setJoinRequestStatus("pending");
+      setJoinRequestError(null);
+    } else if (result) {
+      setJoinRequestStatus(result.status);
+      setJoinRequestError(null);
+    }
+  }, [joinedRoomId, snapshot, viewerUserId]);
+
+  useEffect(() => {
+    if (
+      !room ||
+      !requestIdRef.current ||
+      (joinRequestStatus !== "submitting" && joinRequestStatus !== "retrying")
+    ) {
+      return;
+    }
+    const requestId = requestIdRef.current;
+    const alreadyReconciled =
+      snapshot?.pendingPlayerRequests.some((item) => item.requestId === requestId) ||
+      snapshot?.joinRequestResults?.some((item) => item.requestId === requestId);
+    if (alreadyReconciled) return;
+
+    const attempt = retryAttemptRef.current;
+    if (attempt >= 5) {
+      setJoinRequestStatus("failed");
+      setJoinRequestError("La demande n'a pas encore été confirmée. Réessaie lorsque la connexion sera stable.");
+      return;
+    }
+    const delay = Math.min(1_000 * 2 ** attempt, 10_000) + Math.random() * 300;
+    retryTimerRef.current = setTimeout(() => {
+      retryAttemptRef.current = attempt + 1;
+      setJoinRequestStatus("retrying");
+      try {
+        room.send("requestJoinAsPlayer", { requestId });
+      } catch {
+        setJoinRequestError("Connexion instable. Nouvelle tentative en cours…");
+      }
+    }, delay);
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, [joinRequestStatus, room, snapshot]);
+
   const role: MatchRole = useMemo(() => {
     if (!snapshot) return "spectator";
     if (snapshot.players.some((p) => p.userId === viewerUserId)) {
@@ -110,17 +198,49 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
     [room],
   );
 
+  const requestJoin = useCallback(() => {
+    if (!room) {
+      setJoinRequestStatus("failed");
+      setJoinRequestError("Connexion indisponible. Réessaie lorsque la room sera reconnectée.");
+      return;
+    }
+    const requestId = requestIdRef.current ?? crypto.randomUUID();
+    requestIdRef.current = requestId;
+    if (typeof window !== "undefined" && joinedRoomId) {
+      window.sessionStorage.setItem(
+        `game-arena:join-request:${joinedRoomId}:${viewerUserId}`,
+        requestId,
+      );
+    }
+    retryAttemptRef.current = 0;
+    setJoinRequestError(null);
+    setJoinRequestStatus("submitting");
+    try {
+      room.send("requestJoinAsPlayer", { requestId });
+    } catch (sendError) {
+      setJoinRequestStatus("failed");
+      setJoinRequestError(
+        sendError instanceof Error ? sendError.message : "La demande n'a pas pu être envoyée.",
+      );
+    }
+  }, [joinedRoomId, room, viewerUserId]);
+
+  const retryJoinRequest = useCallback(() => {
+    if (!requestIdRef.current) return requestJoin();
+    requestJoin();
+  }, [requestJoin]);
+
   const actions = useMemo<MatchActions>(
     () => ({
       startGame: () => send("startGame"),
-      requestJoinAsPlayer: () => send("requestJoinAsPlayer"),
+      requestJoinAsPlayer: requestJoin,
       cancelJoinRequest: () => send("cancelJoinRequest"),
       approveJoin: (userId: string) => send("approveJoin", { userId }),
       rejectJoin: (userId: string) => send("rejectJoin", { userId }),
       closeRoom: () => send("closeRoom"),
       leaveMatch: () => leave(),
     }),
-    [send, leave],
+    [leave, requestJoin, send],
   );
 
   return {
@@ -134,6 +254,9 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
     isAdmin,
     isPlayer,
     pendingRequest,
+    joinRequestStatus,
+    joinRequestError,
+    retryJoinRequest,
     actions,
   };
 }

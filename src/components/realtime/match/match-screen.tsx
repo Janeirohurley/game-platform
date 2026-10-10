@@ -5,7 +5,11 @@ import type { ReactNode } from "react";
 import type { Room } from "@colyseus/sdk";
 
 import { readLobbySnapshot } from "@/lib/realtime/snapshot";
-import type { LobbySnapshot, RoomChatMessage } from "@/lib/realtime/types";
+import type {
+  JoinRequestStatus,
+  LobbySnapshot,
+  RoomChatMessage,
+} from "@/lib/realtime/types";
 import type { MatchRole } from "@/lib/realtime/use-match-room";
 import { playSound } from "@/lib/sounds";
 import { Floating } from "@/components/floating";
@@ -82,6 +86,19 @@ export function MatchScreen({
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   /** Lobby settings panel — host edits, everyone else reads. */
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const joinRequestId = useRef<string | null>(null);
+  const [joinRequestStatus, setJoinRequestStatus] = useState<
+    JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed"
+  >("idle");
+  const [joinRequestError, setJoinRequestError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const key = `game-arena:join-request:${room.roomId}:${viewerUserId}`;
+    joinRequestId.current = window.sessionStorage.getItem(key);
+    return () => {
+      joinRequestId.current = null;
+    };
+  }, [room.roomId, viewerUserId]);
 
   // Voice/video rides on LiveKit: roles and the roster derive from
   // the server state, the media room joins on arrival (listen by
@@ -215,6 +232,59 @@ export function MatchScreen({
     }
   }, [lobby]);
 
+  useEffect(() => {
+    if (!lobby) return;
+    const ownPending = lobby.pendingPlayerRequests.find(
+      (item) => item.userId === viewerUserId,
+    );
+    if (!joinRequestId.current && ownPending?.requestId) {
+      joinRequestId.current = ownPending.requestId;
+      window.sessionStorage.setItem(
+        `game-arena:join-request:${room.roomId}:${viewerUserId}`,
+        ownPending.requestId,
+      );
+    }
+    if (!joinRequestId.current) return;
+    const request = lobby.pendingPlayerRequests.find(
+      (item) => item.requestId === joinRequestId.current,
+    );
+    const result = lobby.joinRequestResults?.find(
+      (item) => item.requestId === joinRequestId.current,
+    );
+    if (request) {
+      setJoinRequestStatus("pending");
+      setJoinRequestError(null);
+    } else if (result) {
+      setJoinRequestStatus(result.status);
+      setJoinRequestError(
+        result.status === "rejected"
+          ? "Le créateur a refusé votre demande."
+          : result.status === "expired"
+            ? "Cette demande a expiré."
+            : null,
+      );
+    }
+  }, [lobby, room.roomId, viewerUserId]);
+
+  const submitJoinRequest = () => {
+    const requestId = joinRequestId.current ?? crypto.randomUUID();
+    joinRequestId.current = requestId;
+    window.sessionStorage.setItem(
+      `game-arena:join-request:${room.roomId}:${viewerUserId}`,
+      requestId,
+    );
+    setJoinRequestStatus("submitting");
+    setJoinRequestError(null);
+    try {
+      room.send("requestJoinAsPlayer", { requestId });
+    } catch (error) {
+      setJoinRequestStatus("failed");
+      setJoinRequestError(
+        error instanceof Error ? error.message : "La demande n'a pas pu être envoyée.",
+      );
+    }
+  };
+
   if (!lobby) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-neutral-950 p-6">
@@ -315,6 +385,9 @@ export function MatchScreen({
             }
             document.body.removeChild(textarea);
           }}
+          requestStatus={joinRequestStatus}
+          requestError={joinRequestError}
+          onRetryRequest={submitJoinRequest}
           onCancelRequest={
             role === "pending"
               ? () => room.send("cancelJoinRequest", {})
@@ -322,7 +395,7 @@ export function MatchScreen({
           }
           onRequestJoin={
             role === "spectator" && canRequestJoin
-              ? () => room.send("requestJoinAsPlayer", {})
+              ? submitJoinRequest
               : undefined
           }
         />
