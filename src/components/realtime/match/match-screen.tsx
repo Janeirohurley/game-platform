@@ -321,6 +321,7 @@ export function MatchScreen({
         room.send("requestJoinAsPlayer", { requestId });
       } catch {
         setJoinRequestError("Connexion instable. Nouvelle tentative en cours…");
+        setConnectionStatus("degraded");
       }
     }, delay);
     joinRetryTimer.current = timer;
