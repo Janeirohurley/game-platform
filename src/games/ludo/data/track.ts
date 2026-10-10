@@ -179,6 +179,25 @@ const FIRST_SEAT_ANGLE_DEG = -90;
  * les tuiles font la même taille sur les deux plateaux.
  */
 const HOME_STEP = 0.84;
+/**
+ * Apothème du centre hexagonal, en cases : 157 u sur la maquette 6 joueurs
+ * (case = 46.7 u). Le côté du centre vaut alors 3.88 cases pour un bras de
+ * 3 cases : chaque bras tient dans « son » côté, sans mordre sur ses voisins.
+ *
+ * L'ancienne valeur (sqrt(3) cases d'éloignement, soit un apothème de 2.23)
+ * rapprochait les deux colonnes extérieures de bras voisins à EXACTEMENT une
+ * case, mais comme ces bras sont tournés de 60° leurs cases se recouvraient :
+ * les contours des colonnes rouge et jaune se croisaient près du centre, qui
+ * était plus étroit que les bras.
+ */
+const HEX_HUB_APOTHEM_CELLS = 157 / 46.7;
+/**
+ * Éloignement de l'origine d'un bras hexagonal : la première case d'un bras
+ * (y = 1) a son bord intérieur exactement sur le côté du centre.
+ */
+const HEX_ARM_RADIUS = HEX_HUB_APOTHEM_CELLS - 0.5;
+/** Apothème du centre hexagonal dans le monde (rayon des triangles). */
+export const HEX_HUB_APOTHEM = HEX_HUB_APOTHEM_CELLS * HOME_STEP;
 /** Rayons (en cases) des 6 cases de colonne maison, du bord vers le centre. */
 const CLASSIC_LANE_RADII = [6, 5, 4, 3, 2, 1];
 /**
@@ -221,14 +240,33 @@ export const CLASSIC_BASE_HALF_SIZE = 3 * HOME_STEP;
  */
 export const CLASSIC_BASE_SLOT_SPAN = (41.7 / 36) * HOME_STEP;
 /**
- * Écart des quatre trous d'une base ronde du plateau hexagonal. Reprise
- * de la maquette 6 joueurs : les trous sont à 64 u du centre du disque
- * (100), la case valant 46.7 u.
+ * Apothème du socle hexagonal : le bout des bras (centre de la dernière case
+ * + une demi-case) affleure le bord de l'hexagone, comme sur la maquette 6
+ * joueurs où les bras partent du milieu de chaque côté.
  */
-export const HEX_BASE_SLOT_SPAN = (64 / 46.7) * HOME_STEP;
-/** Distance des centres de base au centre du plateau, selon sa forme. */
+export const HEX_BOARD_APOTHEM = (HEX_ARM_RADIUS + 6 + 0.5) * HOME_STEP;
+/** Rayon (centre → sommet) du socle hexagonal : pointes à gauche et à droite. */
+export const HEX_BOARD_RADIUS = HEX_BOARD_APOTHEM / Math.cos(Math.PI / 6);
+/**
+ * Proportions de la maquette 6 joueurs (apothème 438 u) : base à 367 u du
+ * centre, disque de rayon 100 u, trous à 64 u du centre du disque. Ramenées à
+ * l'apothème du socle, les bases tiennent entre deux bras sans les toucher et
+ * leurs trous restent DANS le disque (64 + 27 < 100).
+ */
+const HEX_PLAN_APOTHEM = 438;
+/** Distance du centre d'une base hexagonale au centre du plateau. */
+const HEX_BASE_RADIUS = (367 / HEX_PLAN_APOTHEM) * HEX_BOARD_APOTHEM;
+/** Distance d'un trou au centre de son disque (maquette : 64 u). */
+export const HEX_BASE_SLOT_SPAN = (64 / HEX_PLAN_APOTHEM) * HEX_BOARD_APOTHEM;
+/**
+ * Rotation (degrés, sens horaire depuis le haut) du carré formé par les 4
+ * trous de chaque base hexagonale, relevée sur l'image de référence, dans
+ * l'ordre des bras : haut, haut-droite, bas-droite, bas, bas-gauche,
+ * haut-gauche. Les trous ne sont PAS alignés sur les axes du monde.
+ */
+const HEX_HOLE_ROTATION_DEG = [30, 0, -30, 30, 0, -30] as const;
+/** Distance des centres de base au centre du plateau croix. */
 const CLASSIC_BASE_RADIUS = (7.5 - 3) * HOME_STEP * Math.SQRT2;
-const HEX_BASE_RADIUS = 7.7;
 
 /**
  * Place une base dans le secteur entre deux bras voisins.
@@ -242,11 +280,28 @@ function sectorBase(
   armCount: number,
   radius: number,
   slotSpan: number,
+  /**
+   * Si fourni : les 4 trous sont posés sur un CERCLE de rayon `slotSpan`
+   * autour du centre de la base, tournés de cette valeur (degrés, sens
+   * horaire depuis le haut) — base ronde du plateau hexagonal. Sinon : carré
+   * 2 x 2 aligné sur les axes — plaque carrée du plateau classique.
+   */
+  holeRotationDeg?: number,
 ): BoardPoint[] {
   const center = polar(
     ((armAngle + Math.PI / armCount) * 180) / Math.PI,
     radius,
   );
+
+  if (holeRotationDeg !== undefined) {
+    return [0, 1, 2, 3].map((j) => {
+      const a = ((holeRotationDeg + 90 * j) * Math.PI) / 180;
+      return {
+        x: center.x + slotSpan * Math.sin(a),
+        z: center.z - slotSpan * Math.cos(a),
+      };
+    });
+  }
 
   return [-slotSpan, slotSpan].flatMap((x) =>
     [-slotSpan, slotSpan].map((z) => ({
@@ -443,14 +498,8 @@ function createClassicTrack(playerCount: number): LudoTrack {
 // la colonne maison. La case 13 * k - 1 n'est jamais empruntée par sa propre
 // couleur : c'est le raccourci vers la maison, comme sur le plateau classique.
 
-/**
- * Éloignement de l'origine d'un bras. sqrt(3) place la dernière case d'un bras
- * à exactement une case de la première du bras suivant : l'anneau se referme
- * sans trou ni chevauchement.
- */
-const HEX_ARM_RADIUS = Math.sqrt(3);
 /** Décalage entre l'indice d'anneau global et l'indice local d'un bras. */
-const HEX_RING_SHIFT = 8;
+export const HEX_RING_SHIFT = 8;
 /** Une case du plateau hexagonal : même pas que la colonne maison classique. */
 const HEX_SCALE = HOME_STEP;
 
@@ -508,7 +557,13 @@ function createHexTrack(playerCount: number): LudoTrack {
     const homeColumn: BoardPoint[] = [5, 4, 3, 2, 1, 0].map((y) =>
       hexLocalToWorld(arm, 0, y),
     );
-    const base = sectorBase(angleRad, HEX_ARM_COUNT, HEX_BASE_RADIUS, HEX_BASE_SLOT_SPAN);
+    const base = sectorBase(
+      angleRad,
+      HEX_ARM_COUNT,
+      HEX_BASE_RADIUS,
+      HEX_BASE_SLOT_SPAN,
+      HEX_HOLE_ROTATION_DEG[arm],
+    );
 
     let seat: LudoSeat | null = null;
     if (arm < playerCount) {

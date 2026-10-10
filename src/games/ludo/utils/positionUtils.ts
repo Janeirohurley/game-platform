@@ -56,16 +56,16 @@ const FINISH_SLOTS: Record<"classic" | "hex", readonly (readonly [number, number
     [0.6, -0.5],
     [1.2, 0],
   ],
-  // Hexagonal : X d'apothème 1.9 (sommets à 2.19, toujours à l'intérieur
-  // des cases intérieures de l'anneau, à 2.44). Même étalement, dernier
-  // emplacement à 1.8 soit 0.1 du bord. Le décalage latéral reste sous
-  // ~24° de l'axe du bras (le secteur en fait 30) : écart 0.9 entre les
-  // pions, jamais collés à la frontière du voisin.
+  // Hexagonal : X d'apothème HEX_HUB_APOTHEM (2.82, comme la maquette).
+  // Même étalement que sur l'ancien centre d'apothème 1.9, ramené à
+  // l'échelle (x 1.49) : dernier emplacement à 2.7 soit 0.12 du bord. Le
+  // décalage latéral reste sous ~24° de l'axe du bras (le secteur en fait
+  // 30) : jamais collés à la frontière du voisin.
   hex: [
-    [0.2, 0],
-    [1.0, 0.45],
-    [1.0, -0.45],
-    [1.8, 0],
+    [0.3, 0],
+    [1.5, 0.67],
+    [1.5, -0.67],
+    [2.7, 0],
   ],
 };
 

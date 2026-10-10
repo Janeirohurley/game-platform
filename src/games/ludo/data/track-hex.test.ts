@@ -3,6 +3,9 @@ import { describe, expect, it } from "bun:test";
 import {
   createTrack,
   HEX_ARM_LENGTH,
+  HEX_BOARD_APOTHEM,
+  HEX_HUB_APOTHEM,
+  HEX_RING_SHIFT,
   HEX_FINISHED_POSITION,
   HEX_HOME_COLUMN_START,
   HEX_RING_LENGTH,
@@ -131,11 +134,22 @@ describe("plateau hexagonal 5-6 joueurs : géométrie", () => {
       expect(track.colors).toEqual(LUDO_PALETTE.slice(0, n));
     });
 
-    it(`${n} joueurs : deux cases voisines de l'anneau sont toujours à un pas, y compris à la jonction des bras`, () => {
+    it(`${n} joueurs : deux cases voisines d'un même bras sont à un pas ; la jonction des bras est plus large`, () => {
+      // Le centre a la taille de la maquette (côté plus large que les bras) :
+      // les deux colonnes qui se font face à la jonction de deux bras ne
+      // sont plus à un pas mais à l'écart du centre — c'est ce qui évite que
+      // leurs cases (tournées de 60°) se recouvrent. À l'intérieur d'un bras
+      // le pas reste exact.
       for (let i = 0; i < HEX_RING_LENGTH; i += 1) {
         const a = track.ring[i];
         const b = track.ring[(i + 1) % HEX_RING_LENGTH];
-        expect(Math.abs(dist(a, b) - PITCH)).toBeLessThan(0.005);
+        const crossesArms = (i + 1 + HEX_RING_SHIFT) % HEX_ARM_LENGTH === 0;
+        if (crossesArms) {
+          expect(dist(a, b)).toBeGreaterThan(PITCH);
+          expect(dist(a, b)).toBeLessThan(PITCH * 2.5);
+        } else {
+          expect(Math.abs(dist(a, b) - PITCH)).toBeLessThan(0.005);
+        }
       }
     });
 
@@ -168,7 +182,9 @@ describe("plateau hexagonal 5-6 joueurs : géométrie", () => {
       for (const seat of track.seats) {
         const radii = seat.homeColumn.map((p) => Math.hypot(p.x, p.z));
         for (let k = 0; k < 5; k += 1) expect(radii[k]).toBeGreaterThan(radii[k + 1]);
-        expect(radii[5]).toBeLessThan(2);
+        // La dernière case de la colonne maison est SOUS le centre
+        // (apothème HEX_HUB_APOTHEM), comme sur la croix classique.
+        expect(radii[5]).toBeLessThan(HEX_HUB_APOTHEM);
       }
     });
 
@@ -190,10 +206,10 @@ describe("plateau hexagonal 5-6 joueurs : géométrie", () => {
         );
         expect(Math.abs(angularError)).toBeLessThan(1e-9);
         for (const slot of seat.base) {
-          // Le socle hexagonal a un rayon de 10.2 et la plaque reste
-          // compacte à l'intérieur, sans être tournée avec le bras.
-          expect(Math.abs(slot.x)).toBeLessThan(10.2);
-          expect(Math.abs(slot.z)).toBeLessThan(10.2);
+          // Le socle hexagonal a pour rayon HEX_BOARD_RADIUS : tout trou de
+          // base reste à l'intérieur de l'hexagone (distance au centre
+          // inférieure à son apothème, plus sûr que le rayon des sommets).
+          expect(Math.hypot(slot.x, slot.z)).toBeLessThan(HEX_BOARD_APOTHEM);
         }
       }
     });

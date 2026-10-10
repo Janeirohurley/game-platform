@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Edges, Text } from "@react-three/drei";
+import FlatMaterial from "./FlatMaterial";
+import { Text } from "@react-three/drei";
 import { getTrack } from "../../utils/positionUtils";
 import { HEX_STAR_FILL, STAR_LIGHT } from "../../data/boardTheme";
 import { SafeZoneStars, type BoardMarker } from "./SafeZoneStars";
@@ -24,14 +25,58 @@ import type { LudoColor } from "../../data/track";
 
 /** Case de l'hexagone : les cellules de la maquette, jointives. */
 const HEX_CELL = 0.84;
-/** Case classique : 33/36 du pas, le joint laissant voir le fond #454545. */
-const CLASSIC_CELL = 0.77;
-/** Joint des cellules classiques : 0.84 - 0.77, soit 3/36 du pas. */
+/**
+ * Case classique : pleine largeur du pas. Le joint de la maquette (3/36 du
+ * pas) n'est plus le fond sombre vu entre deux cases, mais le CONTOUR de
+ * chaque case : le plateau est blanc, les cases blanches.
+ */
+const CLASSIC_CELL = 0.84;
+/** Carré coloré d'un couloir classique : 25.8/33 de la case intérieure. */
 const CLASSIC_INSET = 0.6;
-const CLASSIC_INSET_FRAME = 0.64;
 const VACANT = "#8C8C94";
-const HEX_CELL_EDGE = "#222222";
-const STAR_Y = 0.175;
+
+/**
+ * Contours des cases, en GÉOMÉTRIE et non en lignes GL.
+ *
+ * `<Edges>` trace des lignes de 1 px quelle que soit la résolution : sur un
+ * écran 4K elles deviennent invisibles, et en mouvement elles scintillent
+ * (les « flux » que l'on voyait sur l'hexagone). Un contour fait de deux
+ * boîtes empilées est dessiné comme n'importe quelle surface : net, lissé
+ * par le multi-échantillonnage et stable.
+ */
+const HEX_BORDER = { color: "#222222", width: 0.02 };
+const CLASSIC_BORDER = { color: "#454545", width: 0.035 };
+/** Dessus de la boîte de contour. L'intérieur dépasse de 0.0025. */
+const TILE_Y = 0.16;
+
+function Tile({
+  position,
+  rotation = [0, 0, 0],
+  size,
+  color,
+  border,
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  size: number;
+  color: string;
+  border: { color: string; width: number };
+}) {
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh position={[0, TILE_Y, 0]}>
+        <boxGeometry args={[size, 0.02, size]} />
+        <FlatMaterial color={border.color} />
+      </mesh>
+      <mesh position={[0, TILE_Y + 0.0105, 0]}>
+        <boxGeometry args={[size - 2 * border.width, 0.005, size - 2 * border.width]} />
+        <FlatMaterial color={color} />
+      </mesh>
+    </group>
+  );
+}
+/** Les numéros se posent au-dessus des cases du couloir (dessus à 0.175). */
+const NUMBER_Y = 0.182;
 
 const SIXTY_DEG = Math.PI / 3;
 
@@ -170,17 +215,14 @@ function PlayingTrack({
           return trackTiles;
         })();
         return (
-          <mesh
+          <Tile
             key={`ring-${index}`}
-            position={[point.x, 0.16, point.z]}
+            position={[point.x, 0, point.z]}
             rotation={rotationOf(point)}
-          >
-            <boxGeometry args={[ringSize, 0.02, ringSize]} />
-            <meshStandardMaterial color={color} />
-            {isHex ? (
-              <Edges scale={1.001} color={HEX_CELL_EDGE} threshold={15} lineWidth={1.2} />
-            ) : null}
-          </mesh>
+            size={ringSize}
+            color={color}
+            border={isHex ? HEX_BORDER : CLASSIC_BORDER}
+          />
         );
       })}
 
@@ -200,33 +242,32 @@ function PlayingTrack({
               : VACANT;
           if (isHex) {
             return (
-              <mesh
+              <Tile
                 key={`home-${arm.offset}-${index}`}
-                position={[point.x, 0.165, point.z]}
+                position={[point.x, 0, point.z]}
                 rotation={rotationOf(point)}
-              >
-                <boxGeometry args={[HEX_CELL, 0.02, HEX_CELL]} />
-                <meshStandardMaterial color={color} />
-                <Edges scale={1.001} color={HEX_CELL_EDGE} threshold={15} lineWidth={1.2} />
-              </mesh>
+                size={HEX_CELL}
+                color={color}
+                border={HEX_BORDER}
+              />
             );
           }
+          // Classique : case blanche à contour, carré coloré posé en retrait
+          // (dessus à 0.1775, au-dessus de l'intérieur de la case à 0.1725).
           return (
             <group
               key={`home-${arm.offset}-${index}`}
               position={[point.x, 0, point.z]}
             >
-              <mesh position={[0, 0.16, 0]}>
-                <boxGeometry args={[CLASSIC_CELL, 0.02, CLASSIC_CELL]} />
-                <meshStandardMaterial color={trackTiles} />
-              </mesh>
-              <mesh position={[0, 0.163, 0]}>
-                <boxGeometry args={[CLASSIC_INSET_FRAME, 0.006, CLASSIC_INSET_FRAME]} />
-                <meshStandardMaterial color="#FFFFFF" transparent opacity={0.4} />
-              </mesh>
-              <mesh position={[0, 0.166, 0]}>
+              <Tile
+                position={[0, 0, 0]}
+                size={CLASSIC_CELL}
+                color={trackTiles}
+                border={CLASSIC_BORDER}
+              />
+              <mesh position={[0, TILE_Y + 0.016, 0]}>
                 <boxGeometry args={[CLASSIC_INSET, 0.004, CLASSIC_INSET]} />
-                <meshStandardMaterial color={color} />
+                <FlatMaterial color={color} />
               </mesh>
             </group>
           );
@@ -255,7 +296,7 @@ function PlayingTrack({
             return corridor.map(({ point, number }) => (
               <group
                 key={`corridor-${arm.offset}-${number}`}
-                position={[point.x, STAR_Y, point.z]}
+                position={[point.x, NUMBER_Y, point.z]}
                 rotation={[0, corridorAngleOf(arm.angle), 0]}
               >
                 <Text

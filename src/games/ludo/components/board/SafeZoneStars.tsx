@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import FlatMaterial from "./FlatMaterial";
 import * as THREE from "three";
 import type { BoardPoint } from "../../data/track";
 
@@ -26,7 +27,10 @@ function starPoints(outer: number, inner: number): THREE.Vector2[] {
   const points: THREE.Vector2[] = [];
   for (let i = 0; i < 10; i += 1) {
     const radius = i % 2 === 0 ? outer : inner;
-    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    // Pointe vers +y de la forme, qui devient -z (le HAUT de l'écran) une fois
+    // la forme couchée sur le plateau. L'ancien départ à -PI/2 renversait
+    // les étoiles, pointe vers le bas.
+    const angle = Math.PI / 2 + (i * Math.PI) / 5;
     points.push(new THREE.Vector2(radius * Math.cos(angle), radius * Math.sin(angle)));
   }
   return points;
@@ -38,34 +42,35 @@ function starPoints(outer: number, inner: number): THREE.Vector2[] {
  * à 82 % du rayon pour se lire comme un trait).
  */
 function starGeometry(outer: number, filled: boolean): THREE.ShapeGeometry {
-  const shape = new THREE.Shape(starPoints(outer, outer * (filled ? 0.35 : 0.82)));
+  const shape = new THREE.Shape(starPoints(outer, outer * (filled ? 0.4 : 0.42)));
   if (!filled) {
+    // Trait fin : la maquette trace l'étoile en contour de 1.2 u pour un rayon
+    // de 12 u, soit environ 10 % du rayon. Un évidement à 84 % (au lieu de
+    // 82 % sur un pentagone) donne ce trait ; à 82 % l'étoile sortait en tache épaisse.
     shape.holes.push(
-      new THREE.Path(starPoints(outer * 0.82, outer * 0.82 * 0.35)),
+      new THREE.Path(starPoints(outer * 0.84, outer * 0.84 * 0.42)),
     );
   }
   return new THREE.ShapeGeometry(shape);
 }
 
-/** Flèche pointant vers +x, dans le plan horizontal du plateau. */
-function arrowGeometry(width: number): THREE.ShapeGeometry {
-  const h = Math.min(width * 0.18, 0.11);
-  const wing = width * 0.54;
-  const shape = new THREE.Shape([
-    // Pointe
-    new THREE.Vector2(width * 0.5, 0),
-    // Cran arrière droit
-    new THREE.Vector2(h, h),
-    new THREE.Vector2(h, wing),
-    new THREE.Vector2(-h, wing),
-    new THREE.Vector2(-h, h),
-    // Empennage gauche
-    new THREE.Vector2(-width * 0.5, 0),
-    new THREE.Vector2(-h, -h),
-    new THREE.Vector2(-h, -wing),
-    new THREE.Vector2(h, -wing),
-    new THREE.Vector2(h, -h),
-  ]);
+/**
+ * Flèche SIMPLE (hampe + pointe) pointant vers +x, dans le plan horizontal.
+ *
+ * Reprise du polygone de la maquette 6 joueurs `-6,-14 6,-14 6,0 14,0 0,16
+ * -14,0 -6,0` (hampe de 12 u, pointe de 28 u de large, longueur 30 u), à
+ * l'échelle d'une case (46.7 u = 0.84). L'ancienne forme avait deux
+ * empennages et se lisait comme une double flèche « ↔ ».
+ */
+const ARROW_UNIT = 0.84 / 46.7;
+function arrowGeometry(): THREE.ShapeGeometry {
+  // Maquette : l'axe est y (de -14 à 16). On le couche sur x et on recentre.
+  const model: [number, number][] = [
+    [-6, -14], [6, -14], [6, 0], [14, 0], [0, 16], [-14, 0], [-6, 0],
+  ];
+  const shape = new THREE.Shape(
+    model.map(([mx, my]) => new THREE.Vector2((my - 1) * ARROW_UNIT, mx * ARROW_UNIT)),
+  );
   return new THREE.ShapeGeometry(shape);
 }
 
@@ -80,7 +85,7 @@ export function SafeZoneStars({ markers }: { markers: readonly BoardMarker[] }) 
     return cache;
   }, [markers]);
 
-  const arrowGeo = useMemo(() => arrowGeometry(0.5), []);
+  const arrowGeo = useMemo(() => arrowGeometry(), []);
 
   return (
     <group>
@@ -92,10 +97,8 @@ export function SafeZoneStars({ markers }: { markers: readonly BoardMarker[] }) 
             position={[marker.point.x, 0.175, marker.point.z]}
             rotation={[-Math.PI / 2, 0, 0]}
           >
-            <meshStandardMaterial
+            <FlatMaterial
               color={marker.color}
-              roughness={0.55}
-              metalness={0}
               side={THREE.DoubleSide}
             />
           </mesh>
@@ -106,10 +109,8 @@ export function SafeZoneStars({ markers }: { markers: readonly BoardMarker[] }) 
             rotation={[0, marker.angle, 0]}
           >
             <mesh geometry={arrowGeo} rotation={[-Math.PI / 2, 0, 0]}>
-              <meshStandardMaterial
+              <FlatMaterial
                 color={marker.color}
-                roughness={0.6}
-                metalness={0}
                 side={THREE.DoubleSide}
               />
             </mesh>

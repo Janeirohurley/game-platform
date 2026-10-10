@@ -9,7 +9,7 @@ import { getTrack } from "../utils/positionUtils";
 import { DEFAULT_PLAYER_COUNT } from "../data/track";
 import { BOARD_THEME } from "../data/boardTheme";
 import LudoBoard from "./board/LudoBoard";
-import LudoArena from "./board/LudoArena";
+import LudoScene, { LUDO_CANVAS_PROPS } from "./board/LudoScene";
 import CameraController from "./camera/CameraController";
 import BlockedMessageNotification from "./camera/BlockedMessageNotification";
 import GameUI from "./ui/GameUI";
@@ -559,15 +559,13 @@ export default function LudoPlay() {
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 16, 16], fov: 60 }}>
-        {/* Enhanced lighting optimized for container */}
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[10, 10, 5]} intensity={1.0} />
-        <pointLight position={[-10, 10, -10]} intensity={0.4} />
-
-        {/* 3D Arena Background : grille pour la croix, plancher de bois
-            pour l'hexagone, comme dans les maquettes. */}
-        <LudoArena playerCount={gameState.playerCount} />
+      {/* LUDO_CANVAS_PROPS : ombres, dpr jusqu'à 2x (écrans 4K), MSAA, plan
+          proche à 0.5 contre le scintillement. */}
+      <Canvas {...LUDO_CANVAS_PROPS}>
+        {/* Décor de jeu : table en bois, lumières, ombres, poussière. Il
+            remplace les lumières ad hoc et l'ancien LudoArena (grille de
+            débogage / planche coupée). */}
+        <LudoScene playerCount={gameState.playerCount} />
 
         {/* Ludo Board */}
         <LudoBoard

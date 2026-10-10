@@ -1,11 +1,12 @@
 "use client";
 
 import { forwardRef, useRef, useState, useImperativeHandle } from "react";
+import FlatMaterial from "./FlatMaterial";
 import * as THREE from "three";
-import { Edges } from "@react-three/drei";
 import type { ColorTheme, GamePiece, GameState } from "../../types/game";
 import { themeFor } from "../../data/boardTheme";
 import { getTrack } from "../../utils/positionUtils";
+import { HEX_BOARD_RADIUS } from "../../data/track";
 import BoardComponents from "./BoardComponents";
 import DiceComponent from "../dice/DiceComponent";
 
@@ -100,22 +101,38 @@ const LudoBoard = forwardRef<
 
   return (
     <group>
-      {/* Socle compact : carré pour l'original à quatre bras, hexagone pour
-          les six secteurs. Le socle reste distinct du sol quadrillé. */}
-      <mesh ref={meshRef} position={[0, 0, 0]}>
+      {/* Socle : carré pour l'original à quatre bras, hexagone pour les six
+          secteurs. Deux pièces : un corps sombre un peu plus large (le bord
+          et l'épaisseur visibles, donc un contour net en GÉOMÉTRIE — plus de
+          lignes GL de 1 px qui scintillent) et une plaque supérieure de la
+          couleur du plateau (blanc). */}
+      <mesh
+        ref={meshRef}
+        position={[0, 0, 0]}
+        // Un cylindre à 6 faces a un sommet vers +z (pointes en haut et en
+        // bas) ; la maquette a les pointes à gauche et à droite, côtés plats
+        // en haut et en bas : rotation de 30°.
+        rotation={isHex ? [0, Math.PI / 6, 0] : [0, 0, 0]}
+      >
         {isHex ? (
-          <cylinderGeometry args={[10.2, 10.2, 0.3, 6]} />
+          <cylinderGeometry
+            args={[HEX_BOARD_RADIUS + 0.06, HEX_BOARD_RADIUS + 0.06, 0.3, 6]}
+          />
         ) : (
-          <boxGeometry args={[12.6, 0.3, 12.6]} />
+          <boxGeometry args={[12.6 + 0.08, 0.3, 12.6 + 0.08]} />
         )}
-        <meshStandardMaterial
-          color={currentColors.boardBase}
-          roughness={0.72}
-          metalness={0.05}
-        />
+        <FlatMaterial color="#1d1d1d" />
+      </mesh>
+      <mesh
+        position={[0, 0.1515, 0]}
+        rotation={isHex ? [0, Math.PI / 6, 0] : [0, 0, 0]}
+      >
         {isHex ? (
-          <Edges scale={1.002} color="#111111" threshold={15} lineWidth={2} />
-        ) : null}
+          <cylinderGeometry args={[HEX_BOARD_RADIUS, HEX_BOARD_RADIUS, 0.003, 6]} />
+        ) : (
+          <boxGeometry args={[12.6, 0.003, 12.6]} />
+        )}
+        <FlatMaterial color={currentColors.boardBase} />
       </mesh>
 
       {/* Board components */}

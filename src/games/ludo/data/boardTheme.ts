@@ -18,8 +18,10 @@ import type { ColorTheme, LudoColor } from "../types/game";
 /** Palette du plateau classique, reprise de la maquette 4 joueurs. */
 export const CLASSIC_THEME: ColorTheme = {
   name: "Classique (maquette 4 joueurs)",
-  boardBase: "#454545",
-  trackTiles: "#b0c2c2",
+  // Plateau et cases BLANCS (demande de design) : les joints de la maquette
+  // sont dessinés en contour de case (`PlayingTrack`), pas par un fond gris.
+  boardBase: "#ffffff",
+  trackTiles: "#ffffff",
   players: {
     yellow: "#c6a617",
     red: "#d44630",

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import FlatMaterial from "./FlatMaterial";
 import * as THREE from "three";
 import { getTrack } from "../../utils/positionUtils";
 import { centerColorFor } from "../../data/boardTheme";
+import { HEX_HUB_APOTHEM } from "../../data/track";
 
 // Le centre du plateau, subdivisé sous forme de X : un triangle par bras,
 // tous réunis au centre, la base de chacun tournée vers SA colonne maison.
@@ -27,8 +29,11 @@ const VACANT_SIDE = "#8C8C94";
 // Dimensions au prorata de la maquette : fan des 6 triangles d'apothème 1.9
 // (l'apothème joue le rôle du rayon 181 du hub), le disque blanc fait
 // 100/181 * 1.9 et le disque bordeaux 72/181 * 1.9.
-const HUB_WHITE_RADIUS = 1.05;
-const HUB_BORDEAUX_RADIUS = 0.756;
+// Proportions de la maquette (apothème 157 u) : disque blanc 100 u, bordeaux 72 u.
+const HUB_WHITE_RADIUS = HEX_HUB_APOTHEM * (100 / 157);
+const HUB_BORDEAUX_RADIUS = HEX_HUB_APOTHEM * (72 / 157);
+/** Le trophée a été dessiné pour un centre d'apothème 1.9. */
+const TROPHY_SCALE = HEX_HUB_APOTHEM / 1.9;
 
 // Apothème du X = tout le grand carré central, pas seulement le petit
 // milieu : c'est la surface que délimitent les bras et l'anneau, et elle
@@ -42,7 +47,7 @@ const HUB_BORDEAUX_RADIUS = 0.756;
 // piste reste entière.
 // Hexagonal : mêmes calculs sur la jonction hexagonale, dont les cases
 // intérieures sont à r = 2.444 — apothème 1.9, sommets à 2.19.
-const CENTRE_APOTHEM = { classic: 1.29, hex: 1.9 };
+const CENTRE_APOTHEM = { classic: 1.29, hex: HEX_HUB_APOTHEM };
 
 /**
  * Triangle d'un bras, dans SON repère local (l'axe du bras est le x local).
@@ -102,7 +107,7 @@ function CenterArea({ playerCount }: { playerCount: number }) {
         <group key={arm.offset} rotation={[0, -arm.angle, 0]}>
           <mesh position={[0, 0.185, 0]}>
             <primitive object={sectorGeometries[index]} attach="geometry" />
-            <meshStandardMaterial
+            <FlatMaterial
               color={arm.seat ? centerColorFor(track.shape, arm.seat.color) : VACANT_SIDE}
               side={THREE.DoubleSide}
             />
@@ -116,35 +121,37 @@ function CenterArea({ playerCount }: { playerCount: number }) {
         <group position={[0, 0, 0]}>
           <mesh position={[0, 0.187, 0]}>
             <cylinderGeometry args={[HUB_WHITE_RADIUS, HUB_WHITE_RADIUS, 0.015, 48]} />
-            <meshStandardMaterial color="#FFFFFF" transparent opacity={0.55} roughness={0.4} />
+            <FlatMaterial color="#FFFFFF" transparent opacity={0.55} />
           </mesh>
           <mesh position={[0, 0.19, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[HUB_WHITE_RADIUS, 0.05, 12, 48]} />
-            <meshStandardMaterial color="#FFFFFF" transparent opacity={0.7} roughness={0.4} />
+            <FlatMaterial color="#FFFFFF" transparent opacity={0.7} />
           </mesh>
           <mesh position={[0, 0.192, 0]}>
             <cylinderGeometry args={[HUB_BORDEAUX_RADIUS, HUB_BORDEAUX_RADIUS, 0.012, 48]} />
-            <meshStandardMaterial color="#a0104a" roughness={0.5} />
+            <FlatMaterial color="#a0104a" />
           </mesh>
 
           {/* Trophée doré : la maquette dessine l'emoji 🏆 au centre, il
               est redressé en une petite coupe posée sur le disque. */}
-          <mesh position={[0, 0.205, 0]}>
+          <group position={[0, 0.19, 0]} scale={TROPHY_SCALE}>
+          <mesh position={[0, 0.015, 0]}>
             <cylinderGeometry args={[0.09, 0.11, 0.025, 24]} />
             <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
           </mesh>
-          <mesh position={[0, 0.25, 0]}>
+          <mesh position={[0, 0.06, 0]}>
             <cylinderGeometry args={[0.035, 0.05, 0.06, 16]} />
             <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
           </mesh>
-          <mesh position={[0, 0.31, 0]} scale={[1, 0.8, 1]}>
+          <mesh position={[0, 0.12, 0]} scale={[1, 0.8, 1]}>
             <sphereGeometry args={[0.085, 24, 16]} />
             <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
           </mesh>
-          <mesh position={[0, 0.335, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0.145, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.06, 0.02, 12, 24]} />
             <meshStandardMaterial color="#e8c25a" roughness={0.3} metalness={0.7} />
           </mesh>
+          </group>
         </group>
       ) : null}
     </group>

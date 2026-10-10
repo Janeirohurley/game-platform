@@ -15,7 +15,7 @@ import type { LudoPlayerView } from "@/lib/realtime/types";
 import { finishedPositionFor } from "../data/boardPositions";
 import { DEFAULT_PLAYER_COUNT, isLudoColor, type LudoColor } from "../data/track";
 import LudoBoard from "../components/board/LudoBoard";
-import LudoArena from "../components/board/LudoArena";
+import LudoScene, { LUDO_CANVAS_PROPS } from "../components/board/LudoScene";
 import { GameToasts, useGameToasts } from "./game-toasts";
 import {
   CameraRig,
@@ -325,13 +325,11 @@ export function OnlineLudoPlay({
       {/* R3F scene — LudoBoard renders three.js elements and MUST live
           inside a Canvas, otherwise React treats <mesh>/<boxGeometry> as
           unknown DOM tags and the whole board crashes. */}
-      <Canvas camera={{ position: [0, 16, 16], fov: 60 }}>
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[10, 10, 5]} intensity={1.0} />
-        <pointLight position={[-10, 10, -10]} intensity={0.4} />
-        {/* 3D Arena Background : grille pour la croix, plancher de bois
-            pour l'hexagone, comme dans les maquettes. */}
-        <LudoArena playerCount={gameState.playerCount} />
+      <Canvas {...LUDO_CANVAS_PROPS}>
+        {/* Décor de jeu : table en bois, lumières, ombres, poussière. Il
+            remplace les lumières ad hoc et l'ancien LudoArena (grille de
+            débogage / planche coupée). */}
+        <LudoScene playerCount={gameState.playerCount} />
 
         <LudoBoard
           ref={boardRef}

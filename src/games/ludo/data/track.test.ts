@@ -7,6 +7,7 @@ import {
   RING_LENGTH,
   LUDO_PALETTE,
   type LudoColor,
+  HEX_HUB_APOTHEM,
 } from "./track";
 import {
   getPositionCoordinates,
@@ -129,7 +130,11 @@ describe("createTrack", () => {
           );
         }
         // The last private cell sits in the middle, where finished pieces go.
-        expect(Math.hypot(seat.homeColumn[5].x, seat.homeColumn[5].z)).toBeLessThan(1.5);
+        // Classique : sous le X central (1.5). Hexagonal : sous le centre
+        // d'apothème HEX_HUB_APOTHEM, plus large que sur l'ancien plateau.
+        expect(Math.hypot(seat.homeColumn[5].x, seat.homeColumn[5].z)).toBeLessThan(
+          track.shape === "hex" ? HEX_HUB_APOTHEM : 1.5,
+        );
       }
     }
   });
@@ -245,9 +250,11 @@ describe("getPositionCoordinates", () => {
           ).toBeGreaterThan(0);
           // Rien ne sort du X central : il remplit tout le grand carré du milieu
           // (base des triangles collée aux coins internes des cases de l'anneau,
-          // charpentée à 1.29 en classique, 1.9 en hexagonal), et un pion qui
-          // débordait irait masquer les cases de coin de l'anneau.
-          expect(Math.hypot(x, z)).toBeLessThan(track.shape === "hex" ? 1.9 : 1.29);
+          // charpentée à 1.29 en classique, HEX_HUB_APOTHEM en hexagonal), et
+          // un pion qui débordait irait masquer les cases de coin de l'anneau.
+          expect(Math.hypot(x, z)).toBeLessThan(
+            track.shape === "hex" ? HEX_HUB_APOTHEM : 1.29,
+          );
         }
       }
     }

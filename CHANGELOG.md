@@ -4,6 +4,34 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.4.0] - 2026-10-10
+
+### Added
+
+#### Ludo scene
+
+* Added a dedicated 3D game scene with a wood table, directional and spot lighting, fog, contact shadows and a subtle dust effect.
+* Added deterministic wood and floor textures for a consistent visual result across renders.
+* Added `FlatMaterial` for board surfaces so theme colors are rendered without unwanted lighting, fog or tone-mapping shifts.
+
+### Changed
+
+#### Ludo board rendering
+
+* Replaced the debug grid and cut-out arena floor with the new table scene in local and online Ludo games.
+* Improved four-player and six-player board proportions, hexagonal base geometry, center hub sizing and board edge rendering.
+* Updated home areas, playing tracks, safe-zone stars and directional arrows to match the reference board layouts more precisely.
+* Kept the board colors faithful to the visual theme while preserving illuminated materials for pieces and scene props.
+
+### Fixed
+
+* Corrected track coordinates and position calculations for square and hexagonal boards.
+* Removed thin GL edge lines that could flicker and replaced them with solid geometric borders.
+
+### Tests
+
+* Updated track and hex-track tests to cover the corrected geometry and positions.
+
 ## [0.1.0] - 2026-09-20
 
 ### Added
