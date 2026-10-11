@@ -4,6 +4,14 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.3] - 2026-10-11
+
+### Fixed
+
+* Continue bounded join-request retries until the server confirms registration
+  or the automatic retry limit is reached.
+* Explain when a pending join request ended because its room was closed.
+
 ## [0.5.2] - 2026-10-10
 
 ### Fixed
