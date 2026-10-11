@@ -93,6 +93,7 @@ export function MatchScreen({
   const [joinRequestError, setJoinRequestError] = useState<string | null>(null);
   const joinRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinRetryAttempt = useRef(0);
+  const [, setJoinRetryTick] = useState(0);
   const retryRequestAfterReconnect = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "degraded" | "reconnecting" | "synchronizing"
@@ -391,6 +392,9 @@ export function MatchScreen({
         setJoinRequestError("Connexion instable. Nouvelle tentative en cours…");
         setConnectionStatus("degraded");
       }
+      // `retrying` is already set after the first attempt; bump a separate
+      // dependency so each bounded retry schedules the next backoff step.
+      setJoinRetryTick((tick) => tick + 1);
     }, delay);
     joinRetryTimer.current = timer;
     return () => clearTimeout(timer);

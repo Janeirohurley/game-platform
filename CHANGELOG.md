@@ -4,6 +4,13 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.4] - 2026-10-11
+
+### Fixed
+
+* Continue automatic join-request retries on the match screen until server
+  confirmation or the configured retry limit.
+
 ## [0.5.3] - 2026-10-11
 
 ### Fixed
