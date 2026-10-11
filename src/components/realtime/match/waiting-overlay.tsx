@@ -52,12 +52,12 @@ export function WaitingOverlay({
   return (
     <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col items-center gap-2 px-4 text-center">
       {pendingRequest && (
-        <div className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-xl border border-amber-500/30 bg-black/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
+        <div role="status" className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-xl border border-amber-500/30 bg-black/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
           <p className="flex items-center gap-1.5 text-sm font-medium text-amber-300">
             <HugeiconsIcon icon={Clock01Icon} size={14} strokeWidth={1.8} />
             {requestStatus === "submitting" || requestStatus === "retrying"
               ? "Confirmation de votre demande en cours…"
-              : "Votre demande est en attente de l&apos;approbation du créateur."}
+              : "Votre demande est en attente de l’approbation du créateur."}
           </p>
           {onCancelRequest && (
             <button
@@ -72,7 +72,7 @@ export function WaitingOverlay({
       )}
 
       {requestError && (
-        <div className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-xl border border-rose-500/30 bg-black/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
+        <div role="alert" className="pointer-events-auto flex flex-col items-center gap-1.5 rounded-xl border border-rose-500/30 bg-black/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-md">
           <p className="text-sm font-medium text-rose-200">{requestError}</p>
           {onRetryRequest && (
             <button
@@ -84,6 +84,18 @@ export function WaitingOverlay({
             </button>
           )}
         </div>
+      )}
+
+      {!pendingRequest && requestStatus === "accepted" && (
+        <p role="status" className="pointer-events-auto rounded-xl border border-emerald-500/30 bg-black/60 px-4 py-2.5 text-sm font-medium text-emerald-200 shadow-lg backdrop-blur-md">
+          Votre demande a été acceptée.
+        </p>
+      )}
+
+      {!pendingRequest && requestStatus === "cancelled" && (
+        <p role="status" className="pointer-events-auto rounded-xl border border-white/15 bg-black/60 px-4 py-2.5 text-sm font-medium text-white/80 shadow-lg backdrop-blur-md">
+          Votre demande a été annulée.
+        </p>
       )}
 
       {isSpectator && onRequestJoin && (

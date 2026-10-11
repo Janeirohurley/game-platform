@@ -112,6 +112,19 @@ export function MatchScreen({
   const reconnectInFlight = useRef(false);
   const intentionalLeave = useRef(false);
 
+  // A refresh can happen after the request was sent but before the server
+  // acknowledgement arrived. Restore the same id so reconciliation can find
+  // an already-registered request, or retry it idempotently if it was not.
+  useEffect(() => {
+    const requestId = window.sessionStorage.getItem(
+      `game-arena:join-request:${room.roomId}:${viewerUserId}`,
+    );
+    if (!requestId) return;
+    joinRequestId.current = requestId;
+    setJoinRequestStatus("retrying");
+    setJoinRequestError("Vérification de votre demande après reconnexion…");
+  }, [room.roomId, viewerUserId]);
+
   const recoverConnection = useCallback(
     async function reconnect(manual = false): Promise<void> {
       if (reconnectInFlight.current) return;
