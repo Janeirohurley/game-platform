@@ -1,0 +1,450 @@
+/*
+ * Console Tetris — reproduction du design de react-tetris (chvin, Apache-2.0).
+ * Toutes les cotes sont en pixels sur une console de 640 x 960 : c'est
+ * `ConsoleFit` qui la met à l'échelle de l'écran avec `transform: scale`.
+ * Les couleurs sont volontairement FIXES (pas de thème clair/sombre) : la
+ * console est un objet physique qui doit rester identique sur n'importe
+ * quelle page.
+ */
+
+.app,
+.app * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.app {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 640px;
+  padding-top: 42px;
+  border-radius: 20px;
+  background: #efcc19;
+  box-shadow:
+    0 0 10px #fff inset,
+    0 24px 60px rgba(0, 0, 0, 0.35);
+  color: #000;
+  font: 20px/1 "Helvetica Neue", Helvetica, Arial, sans-serif;
+  transform-origin: top left;
+}
+
+.rect {
+  position: relative;
+  width: 480px;
+  margin: 0 auto;
+  padding: 45px 0 35px;
+  border: solid #000;
+  border-width: 0 10px 10px;
+}
+
+/* Petit recul de la console quand on fait tomber une pièce. */
+.rect.drop {
+  transform: translateY(5px);
+}
+
+.screen {
+  position: relative;
+  width: 390px;
+  height: 478px;
+  margin: 0 auto;
+  border: solid 5px;
+  border-color: #987f0f #fae36c #fae36c #987f0f;
+}
+
+.panel {
+  width: 380px;
+  height: 468px;
+  margin: 0 auto;
+  padding: 8px;
+  border: 2px solid #494536;
+  background: #9ead86;
+}
+
+/* ---------- Décor du cadre ---------- */
+
+.title {
+  position: absolute;
+  top: -12px;
+  left: 0;
+  width: 100%;
+  font-size: 30px;
+  font-weight: normal;
+  text-align: center;
+}
+
+.topBorder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+}
+
+.topBorderGroup {
+  display: flex;
+  gap: 10px;
+}
+
+.topBorderGroup > span {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: #000;
+}
+
+.topBorderGroupRight {
+  flex-direction: row-reverse;
+}
+
+.decoView {
+  position: absolute;
+  top: 20px;
+  right: -70px;
+  width: 44px;
+}
+
+.decoViewLeft {
+  right: auto;
+  left: -70px;
+}
+
+.decoRow {
+  display: flex;
+  height: 22px;
+}
+
+.decoGap {
+  width: 22px;
+  height: 22px;
+}
+
+/* ---------- Cases LCD (matrice, décor, aperçu) ---------- */
+
+.cell {
+  display: block;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0 2px 2px 0;
+  padding: 2px;
+  border: 2px solid #879372;
+}
+
+.cell::after {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: #879372;
+}
+
+.cell.on {
+  border-color: #000;
+}
+
+.cell.on::after {
+  background: #000;
+}
+
+/* ---------- Matrice de jeu ---------- */
+
+.matrixWrap {
+  position: relative;
+  width: 228px;
+}
+
+.matrix {
+  display: grid;
+  grid-template-columns: repeat(10, 22px);
+  width: 228px;
+  padding: 3px 1px 1px 3px;
+  border: 2px solid #000;
+}
+
+.row {
+  display: contents;
+}
+
+/* Fin de partie : les lignes se remplissent du bas vers le haut. */
+.over .cell {
+  animation: lcdBorder 0.15s forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+.over .cell::after {
+  animation: lcdFill 0.15s forwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes lcdBorder {
+  to {
+    border-color: #000;
+  }
+}
+
+@keyframes lcdFill {
+  to {
+    background: #000;
+  }
+}
+
+.gameOver {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(158, 173, 134, 0.88);
+  text-align: center;
+  letter-spacing: 4px;
+  text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.35);
+  animation: fadeIn 0.3s 1.2s both;
+}
+
+.gameOver strong {
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+.gameOver span {
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- Panneau d'état ---------- */
+
+.state {
+  position: absolute;
+  top: 0;
+  right: 15px;
+  width: 108px;
+}
+
+.stateLabel {
+  height: 57px;
+  padding: 10px 0 0;
+  line-height: 47px;
+  white-space: nowrap;
+}
+
+.stateValue {
+  display: flex;
+  justify-content: flex-end;
+  height: 24px;
+}
+
+.nextGrid {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.nextRow {
+  display: flex;
+  width: 88px;
+  height: 22px;
+}
+
+.bottom {
+  position: absolute;
+  top: 426px;
+  left: 0;
+  width: 114px;
+  height: 24px;
+}
+
+.musicIcon {
+  position: absolute;
+  top: 2px;
+  left: -12px;
+}
+
+.pauseIcon {
+  position: absolute;
+  top: 3px;
+  left: 18px;
+}
+
+.lcdGhost {
+  opacity: 0.12;
+}
+
+.blink {
+  animation: blink 0.5s steps(1) infinite;
+}
+
+@keyframes blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.12;
+  }
+}
+
+.clock {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+/* ---------- Clavier ---------- */
+
+.keyboard {
+  position: relative;
+  width: 580px;
+  height: 330px;
+  margin: 20px auto 0;
+}
+
+.button {
+  position: absolute;
+  color: #111;
+  line-height: 1.6;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.circle {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 1px solid #000;
+  border-radius: 50%;
+  box-shadow: 0 3px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.circle::before,
+.circle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 5px 10px rgba(255, 255, 255, 0.8) inset;
+}
+
+.circle::after {
+  box-shadow: 0 -5px 10px rgba(0, 0, 0, 0.8) inset;
+}
+
+.circle.active::before {
+  box-shadow: 0 -3px 6px rgba(255, 255, 255, 0.6) inset;
+}
+
+.circle.active::after {
+  box-shadow: 0 5px 5px rgba(0, 0, 0, 0.6) inset;
+}
+
+.circle:focus-visible {
+  outline: 3px solid #000;
+  outline-offset: 3px;
+}
+
+.blue {
+  background: linear-gradient(to bottom, #6e77ef, #4652f3);
+}
+
+.green {
+  background: linear-gradient(to bottom, #4bc441, #0ec400);
+}
+
+.red {
+  background: linear-gradient(to bottom, #dc3333, #de0000);
+}
+
+.s0 .circle {
+  width: 160px;
+  height: 160px;
+}
+
+.s1 .circle {
+  width: 100px;
+  height: 100px;
+}
+
+.s2 {
+  font-size: 16px;
+}
+
+.s2 .circle {
+  width: 52px;
+  height: 52px;
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.s2 .circle::before {
+  box-shadow: 0 3px 6px rgba(255, 255, 255, 0.8) inset;
+}
+
+.s2 .circle::after {
+  box-shadow: 0 -3px 6px rgba(0, 0, 0, 0.8) inset;
+}
+
+.s2 .circle.active::before {
+  box-shadow: 0 -1px 2px rgba(255, 255, 255, 0.6) inset;
+}
+
+.s2 .circle.active::after {
+  box-shadow: 0 3px 3px rgba(0, 0, 0, 0.7) inset;
+}
+
+.arrow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  margin: -16px 0 0 -8px;
+  fill: #111;
+  pointer-events: none;
+}
+
+.label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Le libellé « Tourner » est à droite du bouton, comme sur la console d'origine. */
+.labelSide {
+  top: 5px;
+  left: 102px;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .over .cell,
+  .over .cell::after {
+    animation: none;
+  }
+
+  .gameOver {
+    animation: none;
+  }
+
+  .blink {
+    animation: none;
+    opacity: 1;
+  }
+}

@@ -104,6 +104,21 @@ export const GAMES: readonly GameEntry[] = [
     glow: "bg-amber-400/20",
   },
   {
+    "id" : "tetris",
+    "slug" : "tetris",
+    "title" : "Tetris",
+    "description" : "Le jeu de tetris classique — empilez les pièces et nettoyez les lignes.",
+    "category" : "Arcade",
+    "minPlayers" : 1,
+    "maxPlayers" : 1,
+    "status" : "live",
+    "playableOnline" : false,
+    "icon" : "TE",
+    "image" : "/tetris.png",
+    "accent" : "from-purple-300 via-pink-500 to-rose-700",
+    "glow" : "bg-purple-400/20"
+  },
+  {
     id: "rally",
     slug: "rally",
     title: "Rally",
