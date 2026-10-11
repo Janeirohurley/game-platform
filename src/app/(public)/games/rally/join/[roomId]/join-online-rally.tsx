@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Room } from "@colyseus/sdk";
 
-import {
-  fetchRealtimeToken,
-  getRealtimeClient,
-  watchRoom,
-} from "@/lib/realtime";
+import { joinRoom, reconnectRoom, watchRoom } from "@/lib/realtime";
+import { clearRoomSession, persistRoomSession, readRoomSession } from "@/lib/realtime/session-url";
 import { MatchScreen } from "@/components/realtime/match";
 import { RallyRoomView } from "@/games/rally/online/rally-room-view";
 
@@ -28,6 +25,46 @@ export function JoinOnlineRally({ roomId, viewerUserId }: JoinOnlineRallyProps) 
   const [choice, setChoice] = useState<JoinChoice>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(() => readRoomSession(roomId) !== null);
+
+  useEffect(() => {
+    const session = readRoomSession(roomId);
+    if (!session) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const joined = await reconnectRoom(session.reconnectionToken).catch(() =>
+          session.mode === "watch" ? watchRoom(roomId) : joinRoom("rally", roomId, session.mode),
+        );
+        if (cancelled) { void joined.leave(); return; }
+        persistRoomSession(joined, session.mode);
+        setChoice(session.mode);
+        setRoom(joined);
+      } catch {
+        clearRoomSession(roomId);
+        setError("Impossible de restaurer ta connexion. Réessaie de rejoindre la room.");
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [roomId]);
+
+  const beginJoin = (mode: "play" | "watch") => {
+    setChoice(mode);
+    setError(null);
+    void (async () => {
+      try {
+        const joined = mode === "watch" ? await watchRoom(roomId) : await joinRoom("rally", roomId, mode);
+        persistRoomSession(joined, mode);
+        setRoom(joined);
+      } catch (joinError) {
+        setError(joinError instanceof Error ? joinError.message : "Impossible de rejoindre cette partie.");
+      }
+    })();
+  };
+
+  if (restoring) return <p className="text-sm text-neutral-400" role="status">Restauration de la partie…</p>;
 
   if (!choice) {
     return (
@@ -42,14 +79,14 @@ export function JoinOnlineRally({ roomId, viewerUserId }: JoinOnlineRallyProps) 
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => setChoice("play")}
+            onClick={() => beginJoin("play")}
             className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
           >
             Rejoindre comme joueur
           </button>
           <button
             type="button"
-            onClick={() => setChoice("watch")}
+            onClick={() => beginJoin("watch")}
             className="rounded-lg border border-white/20 px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/10"
           >
             Regarder (sans compte)
@@ -60,27 +97,6 @@ export function JoinOnlineRally({ roomId, viewerUserId }: JoinOnlineRallyProps) 
   }
 
   if (!room && !error) {
-    void (async () => {
-      try {
-        // Watching needs no account — guest token, straight in. Playing
-        // needs one: the platform must know who would sit at the table.
-        const joined =
-          choice === "watch"
-            ? await watchRoom(roomId)
-            : await getRealtimeClient().joinById(roomId, {
-                token: await fetchRealtimeToken(),
-                mode: "play",
-              });
-        setRoom(joined);
-      } catch (joinError) {
-        setError(
-          joinError instanceof Error
-            ? joinError.message
-            : "Impossible de rejoindre cette partie.",
-        );
-      }
-    })();
-
     return (
       <p className="text-sm text-neutral-400" role="status">
         Connexion à la partie…
@@ -111,9 +127,12 @@ export function JoinOnlineRally({ roomId, viewerUserId }: JoinOnlineRallyProps) 
       room={room}
       gameId="rally"
       viewerUserId={viewerUserId}
+      joinMode={choice}
+      onRoomReconnected={setRoom}
       backHref="/games/rally/play"
       backLabel="Retour à Rally"
       onLeft={() => {
+        clearRoomSession(roomId);
         router.push("/games/rally");
       }}
     >

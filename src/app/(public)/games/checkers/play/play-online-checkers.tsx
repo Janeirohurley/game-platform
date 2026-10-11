@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 import type { Room } from "@colyseus/sdk";
 
-import { createRoom } from "@/lib/realtime/client";
+import { createRoom, joinRoom, reconnectRoom } from "@/lib/realtime/client";
+import { clearRoomSession, persistRoomSession, readRoomIdFromUrl, readRoomSession } from "@/lib/realtime/session-url";
 import { MatchScreen } from "@/components/realtime/match";
 import { CheckersRoomView } from "@/games/checkers/online/checkers-room-view";
 
@@ -30,22 +31,33 @@ export function PlayOnlineCheckers({
 
   const handleLeave = useMemo(() => {
     return (joined: Room) => {
+      clearRoomSession(joined.roomId);
       void joined.leave(true);
       setGone(true);
     };
   }, []);
 
-  if (!room && !error && !gone) {
-    void createRoom(gameId, 2)
-      .then(setRoom)
-      .catch((createError: unknown) =>
-        setError(
-          createError instanceof Error
-            ? createError.message
-            : "Création de la table impossible.",
-        ),
-      );
-  }
+  useEffect(() => {
+    if (room || error || gone) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const roomId = readRoomIdFromUrl();
+        const session = roomId ? readRoomSession(roomId) : null;
+        const restored = roomId
+          ? session
+            ? await reconnectRoom(session.reconnectionToken).catch(() => joinRoom(gameId, roomId, session.mode))
+            : await joinRoom(gameId, roomId, "play")
+          : await createRoom(gameId, 2);
+        if (cancelled) { void restored.leave(); return; }
+        persistRoomSession(restored, session?.mode ?? "play");
+        setRoom(restored);
+      } catch (createError) {
+        if (!cancelled) setError(createError instanceof Error ? createError.message : "Création ou restauration de la table impossible.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [gameId, room, error, gone]);
 
   if (gone || error) {
     return (
@@ -93,6 +105,8 @@ export function PlayOnlineCheckers({
       room={room}
       gameId={gameId}
       viewerUserId={viewerUserId}
+      joinMode="play"
+      onRoomReconnected={setRoom}
       backHref="/games/checkers/play"
       backLabel="Retour aux dames"
       onLeft={() => handleLeave(room)}

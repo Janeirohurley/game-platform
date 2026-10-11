@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Room } from "@colyseus/sdk";
 
 import {
-  fetchRealtimeToken,
-  getRealtimeClient,
+  joinRoom,
   reconnectRoom,
   watchRoom,
 } from "@/lib/realtime";
@@ -50,8 +49,18 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
     let cancelled = false;
     void (async () => {
       try {
-        const joined = await reconnectRoom(session.reconnectionToken);
-        if (!cancelled) setRoom(joined);
+        const joined = await reconnectRoom(session.reconnectionToken).catch(() =>
+          session.mode === "watch"
+            ? watchRoom(roomId)
+            : joinRoom("ludo", roomId, session.mode),
+        );
+        if (!cancelled) {
+          persistRoomSession(joined, session.mode);
+          setChoice(session.mode);
+          setRoom(joined);
+        } else {
+          void joined.leave();
+        }
       } catch {
         clearRoomSession(roomId); // gone or expired — back to the choice
       } finally {
@@ -62,6 +71,20 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
       cancelled = true;
     };
   }, [roomId]);
+
+  const beginJoin = (mode: "play" | "watch") => {
+    setChoice(mode);
+    setError(null);
+    void (async () => {
+      try {
+        const joined = mode === "watch" ? await watchRoom(roomId) : await joinRoom("ludo", roomId, mode);
+        persistRoomSession(joined, mode);
+        setRoom(joined);
+      } catch (joinError) {
+        setError(joinError instanceof Error ? joinError.message : "Impossible de rejoindre cette room.");
+      }
+    })();
+  };
 
   if (restoring) {
     return (
@@ -84,14 +107,14 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => setChoice("play")}
+            onClick={() => beginJoin("play")}
             className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
           >
             Rejoindre comme joueur
           </button>
           <button
             type="button"
-            onClick={() => setChoice("watch")}
+            onClick={() => beginJoin("watch")}
             className="rounded-lg border border-white/20 px-4 py-2.5 text-sm font-semibold text-white/85 transition hover:bg-white/10"
           >
             Regarder (sans compte)
@@ -102,28 +125,6 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
   }
 
   if (!room && !error) {
-    void (async () => {
-      try {
-        // Watching needs no account — guest token, straight in. Playing
-        // needs one: the platform must know who would sit at the table.
-        const joined =
-          choice === "watch"
-            ? await watchRoom(roomId)
-            : await getRealtimeClient().joinById(roomId, {
-                token: await fetchRealtimeToken(),
-                mode: "play",
-              });
-        persistRoomSession(joined, choice);
-        setRoom(joined);
-      } catch (joinError) {
-        setError(
-          joinError instanceof Error
-            ? joinError.message
-            : "Impossible de rejoindre cette room.",
-        );
-      }
-    })();
-
     return (
       <p className="text-sm text-neutral-400" role="status">
         Connexion à la room…
@@ -153,6 +154,8 @@ export function JoinOnlineLudo({ roomId, viewerUserId }: JoinOnlineLudoProps) {
     <LudoRoomView
       room={room}
       viewerUserId={viewerUserId}
+      joinMode={readRoomSession(roomId)?.mode ?? choice ?? "play"}
+      onRoomReconnected={setRoom}
       onLeft={() => {
         clearRoomSession(roomId);
         router.push("/games/ludo");

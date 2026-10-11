@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 import type { Room } from "@colyseus/sdk";
 
-import { createRoom } from "@/lib/realtime/client";
+import { createRoom, joinRoom, reconnectRoom } from "@/lib/realtime/client";
+import { clearRoomSession, persistRoomSession, readRoomIdFromUrl, readRoomSession } from "@/lib/realtime/session-url";
 import { MatchScreen } from "@/components/realtime/match";
 import { RallyRoomView } from "@/games/rally/online/rally-room-view";
 
@@ -23,17 +24,27 @@ export function PlayOnlineRally({
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
 
-  if (!room && !error && !gone) {
-    void createRoom(gameId, 2)
-      .then(setRoom)
-      .catch((createError: unknown) =>
-        setError(
-          createError instanceof Error
-            ? createError.message
-            : "Création de la table impossible.",
-        ),
-      );
-  }
+  useEffect(() => {
+    if (room || error || gone) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const roomId = readRoomIdFromUrl();
+        const session = roomId ? readRoomSession(roomId) : null;
+        const restored = roomId
+          ? session
+            ? await reconnectRoom(session.reconnectionToken).catch(() => joinRoom(gameId, roomId, session.mode))
+            : await joinRoom(gameId, roomId, "play")
+          : await createRoom(gameId, 2);
+        if (cancelled) { void restored.leave(); return; }
+        persistRoomSession(restored, session?.mode ?? "play");
+        setRoom(restored);
+      } catch (createError) {
+        if (!cancelled) setError(createError instanceof Error ? createError.message : "Création ou restauration de la table impossible.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [gameId, room, error, gone]);
 
   if (gone || error) {
     return (
@@ -81,14 +92,16 @@ export function PlayOnlineRally({
       room={room}
       gameId={gameId}
       viewerUserId={viewerUserId}
+      joinMode="play"
+      onRoomReconnected={setRoom}
       backHref="/games/rally/play"
       backLabel="Retour à Rally"
-      onLeft={() => setGone(true)}
+      onLeft={() => { clearRoomSession(room.roomId); setGone(true); }}
     >
       <RallyRoomView
         room={room}
         viewerUserId={viewerUserId}
-        onLeave={() => setGone(true)}
+        onLeave={() => { clearRoomSession(room.roomId); setGone(true); }}
       />
     </MatchScreen>
   );

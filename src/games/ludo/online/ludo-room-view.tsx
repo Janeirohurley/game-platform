@@ -11,6 +11,8 @@ import { OnlineLudoPlay, type ServerLudoSnapshot } from "./online-ludo-play";
 export interface LudoRoomViewProps {
   room: Room;
   viewerUserId: string;
+  joinMode: "play" | "watch";
+  onRoomReconnected: (room: Room) => void;
   /** Fired after a confirmed leave (the double-confirmation lives in the match screen). */
   onLeft: () => void;
 }
@@ -67,6 +69,8 @@ function readState(room: Room): ServerLudoSnapshot | null {
 export function LudoRoomView({
   room,
   viewerUserId,
+  joinMode,
+  onRoomReconnected,
   onLeft,
 }: LudoRoomViewProps) {
   const [game, setGame] = useState<ServerLudoSnapshot | null>(() =>
@@ -121,6 +125,8 @@ export function LudoRoomView({
       room={room}
       gameId={game.gameId}
       viewerUserId={viewerUserId}
+      joinMode={joinMode}
+      onRoomReconnected={onRoomReconnected}
       backHref="/games/ludo/play"
       backLabel="Retour au Ludo"
       onLeft={onLeft}

@@ -7,6 +7,7 @@ export interface RoomClosedNoticeProps {
   /** Where "back" leads — usually the game's play page or catalog. */
   backHref: string;
   backLabel?: string;
+  onBack?: () => void;
   /** True when the viewer had a pending request that the room closed. */
   joinRequestClosed?: boolean;
 }
@@ -18,6 +19,7 @@ export interface RoomClosedNoticeProps {
 export function RoomClosedNotice({
   backHref,
   backLabel = "Retour au catalogue",
+  onBack,
   joinRequestClosed = false,
 }: RoomClosedNoticeProps) {
   return (
@@ -34,6 +36,7 @@ export function RoomClosedNotice({
         </p>
         <a
           href={backHref}
+          onClick={onBack}
           className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
         >
           <HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={1.8} />

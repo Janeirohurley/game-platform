@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Room } from "@colyseus/sdk";
 
 import { readLobbySnapshot } from "@/lib/realtime/snapshot";
+import { joinRoom, reconnectRoom, watchRoom } from "@/lib/realtime/client";
+import { clearRoomSession, persistRoomSession } from "@/lib/realtime/session-url";
 import type {
   JoinRequestStatus,
   LobbySnapshot,
@@ -38,6 +40,9 @@ export interface MatchScreenProps {
   room: Room;
   gameId: string;
   viewerUserId: string;
+  joinMode: "play" | "watch";
+  /** Parent replaces the room so game views resubscribe to restored state. */
+  onRoomReconnected: (room: Room) => void;
   /** Where "back" leads once the room is closed. */
   backHref: string;
   backLabel?: string;
@@ -66,6 +71,8 @@ export function MatchScreen({
   room,
   gameId,
   viewerUserId,
+  joinMode,
+  onRoomReconnected,
   backHref,
   backLabel,
   onLeft,
@@ -96,9 +103,71 @@ export function MatchScreen({
   const [, setJoinRetryTick] = useState(0);
   const retryRequestAfterReconnect = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState<
-    "connected" | "degraded" | "reconnecting" | "synchronizing"
+    "connected" | "degraded" | "reconnecting" | "synchronizing" | "failed"
   >(room.connection?.isOpen ? "synchronizing" : "reconnecting");
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const previousConnectionStatus = useRef(connectionStatus);
+  const reconnectAttempts = useRef(0);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectInFlight = useRef(false);
+  const intentionalLeave = useRef(false);
+
+  const recoverConnection = useCallback(
+    async function reconnect(manual = false): Promise<void> {
+      if (reconnectInFlight.current) return;
+      if (manual) {
+        reconnectAttempts.current = 0;
+        if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      }
+      reconnectInFlight.current = true;
+      setConnectionStatus("reconnecting");
+      setConnectionError(null);
+      try {
+        let restored: Room;
+        try {
+          restored = await reconnectRoom(room.reconnectionToken);
+        } catch {
+          // A timed-out seat token can still recover by authenticated room
+          // identity; watchRoom also keeps anonymous spectators watch-only.
+          restored =
+            joinMode === "watch"
+              ? await watchRoom(room.roomId)
+              : await joinRoom(gameId, room.roomId, joinMode);
+        }
+        reconnectAttempts.current = 0;
+        setConnectionStatus("synchronizing");
+        persistRoomSession(restored, joinMode);
+        onRoomReconnected(restored);
+      } catch {
+        const attempt = ++reconnectAttempts.current;
+        if (attempt >= 5) {
+          setConnectionStatus("failed");
+          setConnectionError(
+            "La reconnexion automatique a échoué. Réessaie ou quitte la partie.",
+          );
+          return;
+        }
+        const delay = Math.min(1_000 * 2 ** attempt, 10_000) + Math.random() * 300;
+        reconnectTimer.current = setTimeout(() => {
+          void reconnect(false);
+        }, delay);
+      } finally {
+        reconnectInFlight.current = false;
+      }
+    },
+    [gameId, joinMode, onRoomReconnected, room],
+  );
+
+  useEffect(() => {
+    intentionalLeave.current = false;
+    reconnectAttempts.current = 0;
+    persistRoomSession(room, joinMode);
+    return () => {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+      reconnectInFlight.current = false;
+    };
+  }, [joinMode, room]);
 
   useEffect(() => {
     const key = `game-arena:join-request:${room.roomId}:${viewerUserId}`;
@@ -112,7 +181,11 @@ export function MatchScreen({
     const onDrop = () => setConnectionStatus("reconnecting");
     const onReconnect = () => setConnectionStatus("synchronizing");
     const onError = () => setConnectionStatus("degraded");
-    const onLeave = () => setConnectionStatus("reconnecting");
+    const onLeave = () => {
+      if (intentionalLeave.current) return;
+      setConnectionStatus("reconnecting");
+      void recoverConnection();
+    };
     room.onDrop(onDrop);
     room.onReconnect(onReconnect);
     room.onError(onError);
@@ -123,7 +196,7 @@ export function MatchScreen({
       room.onError.remove(onError);
       room.onLeave.remove(onLeave);
     };
-  }, [room]);
+  }, [recoverConnection, room]);
 
   useEffect(() => {
     return room.onMessage(
@@ -280,7 +353,13 @@ export function MatchScreen({
     const update = () => {
       const next = readLobbySnapshot(room);
       setLobby(next);
-      if (next) setConnectionStatus("connected");
+      if (next) {
+        reconnectAttempts.current = 0;
+        if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+        reconnectTimer.current = null;
+        setConnectionError(null);
+        setConnectionStatus("connected");
+      }
     };
     update();
     // onStateChange is both a signal and an event object; the callable
@@ -466,6 +545,7 @@ export function MatchScreen({
       <RoomClosedNotice
         backHref={backHref}
         backLabel={backLabel}
+        onBack={() => clearRoomSession(room.roomId)}
         joinRequestClosed={pendingRequestWasClosed}
       />
     );
@@ -497,6 +577,33 @@ export function MatchScreen({
       {/* The HUD stays through EVERY phase — waiting, playing, finished:
           it is the match's identity card, it must never blink away. */}
       <MatchHud snapshot={lobby} isAdmin={isAdmin} />
+
+      {connectionStatus !== "connected" && (
+        <div
+          className="pointer-events-auto absolute left-1/2 top-16 z-[60] flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 rounded-xl border border-white/10 bg-neutral-950/90 px-4 py-2.5 text-center text-xs text-white shadow-lg backdrop-blur-md"
+          role="status"
+          aria-live="polite"
+        >
+          <p>
+            {connectionStatus === "reconnecting"
+              ? "Connexion perdue. Reconnexion en cours…"
+              : connectionStatus === "synchronizing"
+                ? "Reconnecté. Synchronisation de la partie…"
+                : connectionStatus === "failed"
+                  ? connectionError
+                  : "Connexion instable. Vérification de la partie…"}
+          </p>
+          {connectionStatus === "failed" && (
+            <button
+              type="button"
+              onClick={() => void recoverConnection(true)}
+              className="rounded-lg bg-white/10 px-3 py-1.5 font-semibold text-white transition hover:bg-white/20"
+            >
+              Réessayer la reconnexion
+            </button>
+          )}
+        </div>
+      )}
 
       {/* The admin's start control lives alone in the top-right corner,
           visible only while the lobby is waiting or ready. */}
@@ -559,7 +666,6 @@ export function MatchScreen({
           }}
           requestStatus={joinRequestStatus}
           requestError={joinRequestError}
-          connectionStatus={connectionStatus}
           onRetryRequest={submitJoinRequest}
           onCancelRequest={
             role === "pending"
@@ -650,6 +756,8 @@ export function MatchScreen({
         <LeaveConfirmDialog
           onConfirm={() => {
             setConfirmLeave(false);
+            intentionalLeave.current = true;
+            clearRoomSession(room.roomId);
             room.leave(true);
             onLeft?.();
           }}

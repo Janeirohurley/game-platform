@@ -28,7 +28,6 @@ export interface WaitingOverlayProps {
   requestStatus?: JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed";
   requestError?: string | null;
   onRetryRequest?: () => void;
-  connectionStatus?: string;
 }
 
 /**
@@ -49,7 +48,6 @@ export function WaitingOverlay({
   requestStatus,
   requestError,
   onRetryRequest,
-  connectionStatus,
 }: WaitingOverlayProps) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex flex-col items-center gap-2 px-4 text-center">
@@ -86,16 +84,6 @@ export function WaitingOverlay({
             </button>
           )}
         </div>
-      )}
-
-      {connectionStatus && connectionStatus !== "connected" && (
-        <p className="rounded-lg bg-black/55 px-3 py-1.5 text-xs text-white/75 shadow-lg backdrop-blur-md" role="status">
-          {connectionStatus === "reconnecting"
-            ? "Connexion perdue. Reconnexion en cours…"
-            : connectionStatus === "synchronizing"
-              ? "Connecté. Synchronisation de la demande…"
-              : "Connexion instable. Vérification de la demande…"}
-        </p>
       )}
 
       {isSpectator && onRequestJoin && (

@@ -4,6 +4,17 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.5] - 2026-10-11
+
+### Fixed
+
+* Recover host and participant room sessions after page refresh in Checkers
+  and Rally instead of creating a disconnected replacement room.
+* Restore timed-out participant sessions by room identity and keep the latest
+  Colyseus reconnection token for subsequent recovery.
+* Retry room reconnection after automatic transport recovery is exhausted and
+  expose an explicit retry action instead of leaving the screen reconnecting.
+
 ## [0.5.4] - 2026-10-11
 
 ### Fixed

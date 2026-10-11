@@ -177,6 +177,7 @@ export function PlayOnlineLudo({
       <ConnectedMatch
         room={room}
         viewerUserId={viewerUserId}
+        onRoomReconnected={setRoom}
         onLeft={() => {
           clearRoomSession(room.roomId);
           setRoom(null);
@@ -268,6 +269,7 @@ export function PlayOnlineLudo({
 interface ConnectedMatchProps {
   room: Room;
   viewerUserId: string;
+  onRoomReconnected: (room: Room) => void;
   onLeft: () => void;
 }
 
@@ -277,19 +279,18 @@ interface ConnectedMatchProps {
  * the room, so a refresh restores it through reconnection rather than
  * ending the match.
  */
-function ConnectedMatch({ room, viewerUserId, onLeft }: ConnectedMatchProps) {
+function ConnectedMatch({
+  room,
+  viewerUserId,
+  onRoomReconnected,
+  onLeft,
+}: ConnectedMatchProps) {
   const [closed, setClosed] = useState(false);
-  const [gone, setGone] = useState(false);
-  // One-shot wiring, exactly like the SDK examples: handlers survive
-  // re-renders, the state updates are the render's concern.
-  useMemo(() => {
-    room.onLeave(() => setGone(true));
-    room.onMessage("roomClosed", () => {
-      // Terminal for everyone: wipe the session markers so a refresh
-      // can never resurrect a dead room.
-      clearRoomSession(room.roomId);
+  useEffect(() => {
+    const unsubscribe = room.onMessage("roomClosed", () => {
       setClosed(true);
     });
+    return unsubscribe;
   }, [room]);
 
   if (closed) {
@@ -297,24 +298,8 @@ function ConnectedMatch({ room, viewerUserId, onLeft }: ConnectedMatchProps) {
       <RoomClosedNotice
         backHref="/games/ludo/play"
         backLabel="Retour au Ludo"
+        onBack={() => clearRoomSession(room.roomId)}
       />
-    );
-  }
-
-  if (gone) {
-    return (
-      <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-200 bg-white/70 px-6 py-12 text-center dark:border-white/[0.07] dark:bg-white/[0.02]">
-        <p className="text-sm text-slate-600 dark:text-white/60">
-          Tu as quitté la partie.
-        </p>
-        <button
-          type="button"
-          onClick={onLeft}
-          className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-white/90"
-        >
-          Retour aux parties
-        </button>
-      </div>
     );
   }
 
@@ -322,6 +307,8 @@ function ConnectedMatch({ room, viewerUserId, onLeft }: ConnectedMatchProps) {
     <LudoRoomView
       room={room}
       viewerUserId={viewerUserId}
+      joinMode={readRoomSession(room.roomId)?.mode ?? "play"}
+      onRoomReconnected={onRoomReconnected}
       onLeft={onLeft}
     />
   );
