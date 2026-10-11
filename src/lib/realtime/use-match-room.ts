@@ -101,6 +101,7 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
     JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed"
   >("idle");
   const [joinRequestError, setJoinRequestError] = useState<string | null>(null);
+  const [, setRetryTick] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined" || !joinedRoomId) return;
@@ -239,6 +240,9 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
       } catch {
         setJoinRequestError("Connexion instable. Nouvelle tentative en cours…");
       }
+        // `retrying` is already the current status after the first attempt;
+        // changing only that state would not re-arm this effect.
+        setRetryTick((tick) => tick + 1);
     }, delay);
     return () => {
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
