@@ -7,6 +7,8 @@ export interface RoomClosedNoticeProps {
   /** Where "back" leads — usually the game's play page or catalog. */
   backHref: string;
   backLabel?: string;
+  /** True when the viewer had a pending request that the room closed. */
+  joinRequestClosed?: boolean;
 }
 
 /**
@@ -16,6 +18,7 @@ export interface RoomClosedNoticeProps {
 export function RoomClosedNotice({
   backHref,
   backLabel = "Retour au catalogue",
+  joinRequestClosed = false,
 }: RoomClosedNoticeProps) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-neutral-950 p-6">
@@ -25,8 +28,9 @@ export function RoomClosedNotice({
         </span>
         <h1 className="mt-4 text-lg font-semibold">La room a été fermée</h1>
         <p className="mt-2 text-sm text-white/60">
-          Le créateur a mis fin à la partie. Cette session est terminée
-          définitivement — il faut en créer une nouvelle pour rejouer.
+          {joinRequestClosed
+            ? "Le créateur a fermé la room pendant que ta demande était en attente. Cette demande est terminée; tu peux choisir une autre partie."
+            : "Le créateur a mis fin à la partie. Cette session est terminée définitivement — il faut en créer une nouvelle pour rejouer."}
         </p>
         <a
           href={backHref}

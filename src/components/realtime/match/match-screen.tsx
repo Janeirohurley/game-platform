@@ -455,7 +455,16 @@ export function MatchScreen({
   }
 
   if (lobby.phase === "closed") {
-    return <RoomClosedNotice backHref={backHref} backLabel={backLabel} />;
+    const pendingRequestWasClosed = lobby.joinRequestResults?.some(
+      (result) => result.userId === viewerUserId && result.reason === "room-closed",
+    ) ?? false;
+    return (
+      <RoomClosedNotice
+        backHref={backHref}
+        backLabel={backLabel}
+        joinRequestClosed={pendingRequestWasClosed}
+      />
+    );
   }
 
   const role: MatchRole = lobby.players.some((p) => p.userId === viewerUserId)
