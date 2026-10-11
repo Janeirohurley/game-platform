@@ -1,0 +1,1238 @@
+diff -ruN ludo_orig/components/LudoPlay.tsx stage/ludo/components/LudoPlay.tsx
+--- ludo_orig/components/LudoPlay.tsx	2026-10-10 05:12:37.440864702 +0000
++++ stage/ludo/components/LudoPlay.tsx	2026-10-10 10:02:42.686522671 +0000
+@@ -9,7 +9,7 @@
+ import { DEFAULT_PLAYER_COUNT } from "../data/track";
+ import { BOARD_THEME } from "../data/boardTheme";
+ import LudoBoard from "./board/LudoBoard";
+-import LudoArena from "./board/LudoArena";
++import LudoScene, { LUDO_CANVAS_PROPS } from "./board/LudoScene";
+ import CameraController from "./camera/CameraController";
+ import BlockedMessageNotification from "./camera/BlockedMessageNotification";
+ import GameUI from "./ui/GameUI";
+@@ -559,15 +559,13 @@
+         </div>
+       )}
+ 
+-      <Canvas camera={{ position: [0, 16, 16], fov: 60 }}>
+-        {/* Enhanced lighting optimized for container */}
+-        <ambientLight intensity={0.7} />
+-        <directionalLight position={[10, 10, 5]} intensity={1.0} />
+-        <pointLight position={[-10, 10, -10]} intensity={0.4} />
+-
+-        {/* 3D Arena Background : grille pour la croix, plancher de bois
+-            pour l'hexagone, comme dans les maquettes. */}
+-        <LudoArena playerCount={gameState.playerCount} />
++      {/* LUDO_CANVAS_PROPS : ombres, dpr jusqu'à 2x (écrans 4K), MSAA, plan
++          proche à 0.5 contre le scintillement. */}
++      <Canvas {...LUDO_CANVAS_PROPS}>
++        {/* Décor de jeu : table en bois, lumières, ombres, poussière. Il
++            remplace les lumières ad hoc et l'ancien LudoArena (grille de
++            débogage / planche coupée). */}
++        <LudoScene playerCount={gameState.playerCount} />
+ 
+         {/* Ludo Board */}
+         <LudoBoard
+diff -ruN ludo_orig/components/board/CenterArea.tsx stage/ludo/components/board/CenterArea.tsx
+--- ludo_orig/components/board/CenterArea.tsx	2026-10-10 05:12:37.440952340 +0000
++++ stage/ludo/components/board/CenterArea.tsx	2026-10-10 10:02:42.686611629 +0000
+@@ -1,9 +1,11 @@
+ "use client";
+ 
+ import { useEffect, useMemo } from "react";
++import FlatMaterial from "./FlatMaterial";
+ import * as THREE from "three";
+ import { getTrack } from "../../utils/positionUtils";
+ import { centerColorFor } from "../../data/boardTheme";
++import { HEX_HUB_APOTHEM } from "../../data/track";
+ 
+ // Le centre du plateau, subdivisé sous forme de X : un triangle par bras,
+ // tous réunis au centre, la base de chacun tournée vers SA colonne maison.
+@@ -27,8 +29,11 @@
+ // Dimensions au prorata de la maquette : fan des 6 triangles d'apothème 1.9
+ // (l'apothème joue le rôle du rayon 181 du hub), le disque blanc fait
+ // 100/181 * 1.9 et le disque bordeaux 72/181 * 1.9.
+-const HUB_WHITE_RADIUS = 1.05;
+-const HUB_BORDEAUX_RADIUS = 0.756;
++// Proportions de la maquette (apothème 157 u) : disque blanc 100 u, bordeaux 72 u.
++const HUB_WHITE_RADIUS = HEX_HUB_APOTHEM * (100 / 157);
++const HUB_BORDEAUX_RADIUS = HEX_HUB_APOTHEM * (72 / 157);
++/** Le trophée a été dessiné pour un centre d'apothème 1.9. */
++const TROPHY_SCALE = HEX_HUB_APOTHEM / 1.9;
+ 
+ // Apothème du X = tout le grand carré central, pas seulement le petit
+ // milieu : c'est la surface que délimitent les bras et l'anneau, et elle
+@@ -42,7 +47,7 @@
+ // piste reste entière.
+ // Hexagonal : mêmes calculs sur la jonction hexagonale, dont les cases
+ // intérieures sont à r = 2.444 — apothème 1.9, sommets à 2.19.
+-const CENTRE_APOTHEM = { classic: 1.29, hex: 1.9 };
++const CENTRE_APOTHEM = { classic: 1.29, hex: HEX_HUB_APOTHEM };
+ 
+ /**
+  * Triangle d'un bras, dans SON repère local (l'axe du bras est le x local).
+@@ -102,7 +107,7 @@
+         <group key={arm.offset} rotation={[0, -arm.angle, 0]}>
+           <mesh position={[0, 0.185, 0]}>
+             <primitive object={sectorGeometries[index]} attach="geometry" />
+-            <meshStandardMaterial
++            <FlatMaterial
+               color={arm.seat ? centerColorFor(track.shape, arm.seat.color) : VACANT_SIDE}
+               side={THREE.DoubleSide}
+             />
+@@ -116,35 +121,37 @@
+         <group position={[0, 0, 0]}>
+           <mesh position={[0, 0.187, 0]}>
+             <cylinderGeometry args={[HUB_WHITE_RADIUS, HUB_WHITE_RADIUS, 0.015, 48]} />
+-            <meshStandardMaterial color="#FFFFFF" transparent opacity={0.55} roughness={0.4} />
++            <FlatMaterial color="#FFFFFF" transparent opacity={0.55} />
+           </mesh>
+           <mesh position={[0, 0.19, 0]} rotation={[Math.PI / 2, 0, 0]}>
+             <torusGeometry args={[HUB_WHITE_RADIUS, 0.05, 12, 48]} />
+-            <meshStandardMaterial color="#FFFFFF" transparent opacity={0.7} roughness={0.4} />
++            <FlatMaterial color="#FFFFFF" transparent opacity={0.7} />
+           </mesh>
+           <mesh position={[0, 0.192, 0]}>
+             <cylinderGeometry args={[HUB_BORDEAUX_RADIUS, HUB_BORDEAUX_RADIUS, 0.012, 48]} />
+-            <meshStandardMaterial color="#a0104a" roughness={0.5} />
++            <FlatMaterial color="#a0104a" />
+           </mesh>
+ 
+           {/* Trophée doré : la maquette dessine l'emoji 🏆 au centre, il
+               est redressé en une petite coupe posée sur le disque. */}
+-          <mesh position={[0, 0.205, 0]}>
++          <group position={[0, 0.19, 0]} scale={TROPHY_SCALE}>
++          <mesh position={[0, 0.015, 0]}>
+             <cylinderGeometry args={[0.09, 0.11, 0.025, 24]} />
+             <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
+           </mesh>
+-          <mesh position={[0, 0.25, 0]}>
++          <mesh position={[0, 0.06, 0]}>
+             <cylinderGeometry args={[0.035, 0.05, 0.06, 16]} />
+             <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
+           </mesh>
+-          <mesh position={[0, 0.31, 0]} scale={[1, 0.8, 1]}>
++          <mesh position={[0, 0.12, 0]} scale={[1, 0.8, 1]}>
+             <sphereGeometry args={[0.085, 24, 16]} />
+             <meshStandardMaterial color="#d4a437" roughness={0.3} metalness={0.7} />
+           </mesh>
+-          <mesh position={[0, 0.335, 0]} rotation={[Math.PI / 2, 0, 0]}>
++          <mesh position={[0, 0.145, 0]} rotation={[Math.PI / 2, 0, 0]}>
+             <torusGeometry args={[0.06, 0.02, 12, 24]} />
+             <meshStandardMaterial color="#e8c25a" roughness={0.3} metalness={0.7} />
+           </mesh>
++          </group>
+         </group>
+       ) : null}
+     </group>
+diff -ruN ludo_orig/components/board/FlatMaterial.tsx stage/ludo/components/board/FlatMaterial.tsx
+--- ludo_orig/components/board/FlatMaterial.tsx	1970-01-01 00:00:00.000000000 +0000
++++ stage/ludo/components/board/FlatMaterial.tsx	2026-10-10 10:02:42.686691893 +0000
+@@ -0,0 +1,21 @@
++"use client";
++
++import type { MeshBasicMaterialProps } from "@react-three/fiber";
++
++/**
++ * Matériau plat du plateau : la couleur de la maquette, sans éclairage.
++ *
++ * Les maquettes 2D (`ludo-4-joueurs.html`, `ludo-6-joueurs.html`) sont des
++ * aplats. Avec un `meshStandardMaterial`, l'ambiante 0.7 + la directionnelle
++ * assombrissaient chaque teinte (le blanc de l'hexagone sortait gris, le jaune
++ * virait au brun) et le tone mapping ACES de R3F désaturait le reste.
++ * `toneMapped={false}` + `meshBasicMaterial` restituent exactement les valeurs
++ * hexadécimales du thème. `fog={false}` : le brouillard de la pièce (voir
++ * `LudoScene`) ne doit pas pâlir le plateau. Les pions gardent leur matériau
++ * éclairé.
++ */
++export function FlatMaterial(props: MeshBasicMaterialProps) {
++  return <meshBasicMaterial toneMapped={false} fog={false} {...props} />;
++}
++
++export default FlatMaterial;
+diff -ruN ludo_orig/components/board/HomeAreas.tsx stage/ludo/components/board/HomeAreas.tsx
+--- ludo_orig/components/board/HomeAreas.tsx	2026-10-10 05:12:37.440969439 +0000
++++ stage/ludo/components/board/HomeAreas.tsx	2026-10-10 10:02:42.686625095 +0000
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import { Text } from "@react-three/drei";
++import FlatMaterial from "./FlatMaterial";
+ import { getTrack } from "../../utils/positionUtils";
+ import { BASE_FRAME, FALLBACK_NAME } from "../../data/boardTheme";
+ import {
+@@ -83,11 +84,11 @@
+                     dessous : c'est le contour #222 du cercle de la maquette. */}
+                 <mesh position={[0, 0.15, 0]}>
+                   <cylinderGeometry args={[HEX_PLATE_RADIUS + 0.04, HEX_PLATE_RADIUS + 0.04, 0.02]} />
+-                  <meshStandardMaterial color="#222222" roughness={0.55} metalness={0} />
++                  <FlatMaterial color="#222222" />
+                 </mesh>
+                 <mesh position={[0, 0.155, 0]}>
+                   <cylinderGeometry args={[HEX_PLATE_RADIUS, HEX_PLATE_RADIUS, 0.02]} />
+-                  <meshStandardMaterial color={color} roughness={0.55} metalness={0} />
++                  <FlatMaterial color={color} />
+                 </mesh>
+                 {arm.base.map((p, i) => {
+                   const local = toLocal(p);
+@@ -97,11 +98,11 @@
+                           #fff à contour #222 de la maquette. */}
+                       <mesh position={[0, 0.176, 0]}>
+                         <cylinderGeometry args={[HEX_HOLE_RADIUS * 1.18, HEX_HOLE_RADIUS * 1.18, 0.005]} />
+-                        <meshStandardMaterial color="#222222" roughness={0.6} metalness={0} />
++                        <FlatMaterial color="#222222" />
+                       </mesh>
+                       <mesh position={[0, 0.179, 0]}>
+                         <cylinderGeometry args={[HEX_HOLE_RADIUS, HEX_HOLE_RADIUS, 0.003]} />
+-                        <meshStandardMaterial color="#FFFFFF" roughness={0.3} metalness={0} />
++                        <FlatMaterial color="#FFFFFF" />
+                       </mesh>
+                     </group>
+                   );
+@@ -113,11 +114,13 @@
+                     maquette 4 joueurs. */}
+                 <mesh position={[0, 0.16, 0]}>
+                   <boxGeometry args={[CLASSIC_BASE_HALF_SIZE * 2, 0.02, CLASSIC_BASE_HALF_SIZE * 2]} />
+-                  <meshStandardMaterial color={frame} roughness={0.55} metalness={0} />
++                  <FlatMaterial color={frame} />
+                 </mesh>
+-                <mesh position={[0, 0.164, 0]}>
++                {/* Panneau : dessus à 0.172, AU-DESSUS du cadre (0.17). Avant,
++                    les deux dessus étaient coplanaires et scintillaient. */}
++                <mesh position={[0, 0.166, 0]}>
+                   <boxGeometry args={[1.95 * 2, 0.012, 1.95 * 2]} />
+-                  <meshStandardMaterial color="#c3c3c3" roughness={0.7} metalness={0} />
++                  <FlatMaterial color="#c3c3c3" />
+                 </mesh>
+ 
+                 {/* ANNEAUX gris (#7b7b7b, r 13 u de maquette bord compris) aux
+@@ -129,13 +132,13 @@
+                   const local = toLocal(p);
+                   return (
+                     <group key={i} position={[local.x, 0, local.z]}>
+-                      <mesh position={[0, 0.175, 0]}>
++                      <mesh position={[0, 0.176, 0]}>
+                         <cylinderGeometry args={[0.303, 0.303, 0.006]} />
+-                        <meshStandardMaterial color="#7b7b7b" roughness={0.6} metalness={0} />
++                        <FlatMaterial color="#7b7b7b" />
+                       </mesh>
+-                      <mesh position={[0, 0.178, 0]}>
++                      <mesh position={[0, 0.181, 0]}>
+                         <cylinderGeometry args={[0.21, 0.21, 0.004]} />
+-                        <meshStandardMaterial color="#c3c3c3" roughness={0.7} metalness={0} />
++                        <FlatMaterial color="#c3c3c3" />
+                       </mesh>
+                     </group>
+                   );
+diff -ruN ludo_orig/components/board/LudoArena.tsx stage/ludo/components/board/LudoArena.tsx
+--- ludo_orig/components/board/LudoArena.tsx	2026-10-10 05:12:37.440918441 +0000
++++ stage/ludo/components/board/LudoArena.tsx	2026-10-10 10:02:42.686578279 +0000
+@@ -1,54 +1,11 @@
+-import { useMemo } from "react";
+-import * as THREE from "three";
+-import { getTrack } from "../../utils/positionUtils";
+-
+-const WOOD_LIGHT = "#5b3b28";
+-const WOOD_DARK = "#4a2f20";
+-const WOOD_SEAM = "#2e1c12";
++import LudoScene from "./LudoScene";
+ 
+ /**
+- * Reproduction fidèle du fond bois du HTML de référence 6 joueurs.
+- * Canvas 1080 (largeur) × 940 (hauteur) : 6 planches de 160 de haut,
+- * séparées par un trait #2e1c12 (strokeRect). Placé à y = -20 dans l'échelle
+- * SVG, ramené dans le monde (board.scale U).
++ * Conservé pour ne pas casser les imports existants : le décor est
++ * maintenant `LudoScene` (table de jeu, lumières, ombres). L'ancien décor —
++ * `gridHelper` pour la croix et planche de bois découpée pour l'hexagone —
++ * est supprimé.
+  */
+-function WoodFloor() {
+-  const woodTexture = useMemo(() => {
+-    const canvas = document.createElement("canvas");
+-    canvas.width = 1080;
+-    canvas.height = 940;
+-    const ctx = canvas.getContext("2d");
+-    if (ctx) {
+-      for (let i = 0; i < 6; i++) {
+-        ctx.fillStyle = i % 2 ? WOOD_DARK : WOOD_LIGHT;
+-        ctx.fillRect(0, i * 160, 1080, 160);
+-        ctx.strokeStyle = WOOD_SEAM;
+-        ctx.lineWidth = 3;
+-        ctx.strokeRect(0, i * 160, 1080, 160);
+-      }
+-    }
+-    const texture = new THREE.CanvasTexture(canvas);
+-    texture.wrapS = THREE.ClampToEdgeWrapping;
+-    texture.wrapT = THREE.ClampToEdgeWrapping;
+-    texture.needsUpdate = true;
+-    return texture;
+-  }, []);
+-
+-  return (
+-    <mesh position={[0, -0.427, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+-      <planeGeometry args={[23.126, 20.128]} />
+-      <meshStandardMaterial map={woodTexture} roughness={0.95} metalness={0} />
+-    </mesh>
+-  );
++export default function LudoArena({ playerCount }: { playerCount: number }) {
++  return <LudoScene playerCount={playerCount} />;
+ }
+-
+-export default function LudoArena({
+-  playerCount,
+-}: {
+-  playerCount: number;
+-}) {
+-  if (getTrack(playerCount).shape === "hex") {
+-    return <WoodFloor />;
+-  }
+-  return <gridHelper args={[100, 100, "#ffffff", "#4D4D4D"]} />;
+-}
+\ No newline at end of file
+diff -ruN ludo_orig/components/board/LudoBoard.tsx stage/ludo/components/board/LudoBoard.tsx
+--- ludo_orig/components/board/LudoBoard.tsx	2026-10-10 05:12:37.440987037 +0000
++++ stage/ludo/components/board/LudoBoard.tsx	2026-10-10 10:02:42.686638796 +0000
+@@ -1,11 +1,12 @@
+ "use client";
+ 
+ import { forwardRef, useRef, useState, useImperativeHandle } from "react";
++import FlatMaterial from "./FlatMaterial";
+ import * as THREE from "three";
+-import { Edges } from "@react-three/drei";
+ import type { ColorTheme, GamePiece, GameState } from "../../types/game";
+ import { themeFor } from "../../data/boardTheme";
+ import { getTrack } from "../../utils/positionUtils";
++import { HEX_BOARD_RADIUS } from "../../data/track";
+ import BoardComponents from "./BoardComponents";
+ import DiceComponent from "../dice/DiceComponent";
+ 
+@@ -100,22 +101,38 @@
+ 
+   return (
+     <group>
+-      {/* Socle compact : carré pour l'original à quatre bras, hexagone pour
+-          les six secteurs. Le socle reste distinct du sol quadrillé. */}
+-      <mesh ref={meshRef} position={[0, 0, 0]}>
++      {/* Socle : carré pour l'original à quatre bras, hexagone pour les six
++          secteurs. Deux pièces : un corps sombre un peu plus large (le bord
++          et l'épaisseur visibles, donc un contour net en GÉOMÉTRIE — plus de
++          lignes GL de 1 px qui scintillent) et une plaque supérieure de la
++          couleur du plateau (blanc). */}
++      <mesh
++        ref={meshRef}
++        position={[0, 0, 0]}
++        // Un cylindre à 6 faces a un sommet vers +z (pointes en haut et en
++        // bas) ; la maquette a les pointes à gauche et à droite, côtés plats
++        // en haut et en bas : rotation de 30°.
++        rotation={isHex ? [0, Math.PI / 6, 0] : [0, 0, 0]}
++      >
+         {isHex ? (
+-          <cylinderGeometry args={[10.2, 10.2, 0.3, 6]} />
++          <cylinderGeometry
++            args={[HEX_BOARD_RADIUS + 0.06, HEX_BOARD_RADIUS + 0.06, 0.3, 6]}
++          />
+         ) : (
+-          <boxGeometry args={[12.6, 0.3, 12.6]} />
++          <boxGeometry args={[12.6 + 0.08, 0.3, 12.6 + 0.08]} />
+         )}
+-        <meshStandardMaterial
+-          color={currentColors.boardBase}
+-          roughness={0.72}
+-          metalness={0.05}
+-        />
++        <FlatMaterial color="#1d1d1d" />
++      </mesh>
++      <mesh
++        position={[0, 0.1515, 0]}
++        rotation={isHex ? [0, Math.PI / 6, 0] : [0, 0, 0]}
++      >
+         {isHex ? (
+-          <Edges scale={1.002} color="#111111" threshold={15} lineWidth={2} />
+-        ) : null}
++          <cylinderGeometry args={[HEX_BOARD_RADIUS, HEX_BOARD_RADIUS, 0.003, 6]} />
++        ) : (
++          <boxGeometry args={[12.6, 0.003, 12.6]} />
++        )}
++        <FlatMaterial color={currentColors.boardBase} />
+       </mesh>
+ 
+       {/* Board components */}
+diff -ruN ludo_orig/components/board/LudoScene.tsx stage/ludo/components/board/LudoScene.tsx
+--- ludo_orig/components/board/LudoScene.tsx	1970-01-01 00:00:00.000000000 +0000
++++ stage/ludo/components/board/LudoScene.tsx	2026-10-10 10:02:42.686664273 +0000
+@@ -0,0 +1,291 @@
++"use client";
++
++import { useMemo, useRef } from "react";
++import * as THREE from "three";
++import { useFrame, useThree, type CanvasProps } from "@react-three/fiber";
++import { ContactShadows } from "@react-three/drei";
++
++// La scène autour du plateau : une table de jeu en bois dans une pièce
++// sombre, éclairée par une lampe, avec des ombres et un peu de poussière
++// dans la lumière.
++//
++// Elle remplace la grille `gridHelper` (une grille de débogage de three.js)
++// et la planche de bois découpée au format de la maquette : ni l'une ni
++// l'autre n'avaient de bord crédible. Ici la table est ronde, elle déborde
++// largement de ce que la caméra peut voir (distance max 40) et ses bords se
++// perdent dans l'ombre et le brouillard de la pièce — on joue À une table.
++//
++// Aucune ressource externe : le bois est généré en canvas (déterministe) et
++// la poussière est dessinée à la main, donc rien à télécharger.
++
++/** Props de <Canvas> pour un rendu net, y compris sur écran 4K. */
++export const LUDO_CANVAS_PROPS: Partial<CanvasProps> = {
++  // Ombres douces projetées par les pions et le dé sur la table.
++  shadows: true,
++  // Densité de pixels : jusqu'à 2x. Sans ça R3F reste à 1x et le plateau est
++  // flou sur un écran 4K / Retina.
++  dpr: [1, 2],
++  gl: { antialias: true, powerPreference: "high-performance" },
++  // near 0.5 au lieu de 0.1 : bien plus de précision de profondeur pour les
++  // couches fines du plateau (cases, étoiles, cadres), donc plus de
++  // scintillement (z-fighting) à distance.
++  camera: { position: [0, 16, 16], fov: 60, near: 0.5, far: 200 },
++};
++
++const TABLE_RADIUS = 22;
++/** Dessus de la table : juste sous le socle (dont le dessous est à -0.15). */
++const TABLE_TOP = -0.18;
++const ROOM = "#0a0810";
++
++/** Générateur pseudo-aléatoire déterministe (le bois est le même à chaque rendu). */
++function mulberry32(seed: number) {
++  let a = seed;
++  return () => {
++    a |= 0;
++    a = (a + 0x6d2b79f5) | 0;
++    let t = Math.imul(a ^ (a >>> 15), 1 | a);
++    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
++  };
++}
++
++/**
++ * Parquet de 8 planches, avec veines, nœuds et joints. Les veines ont un
++ * nombre entier de périodes sur la largeur : la texture se répète sans
++ * couture visible.
++ */
++function makeWoodTexture(maxAnisotropy: number): THREE.CanvasTexture {
++  const size = 2048;
++  const planks = 8;
++  const h = size / planks;
++  const canvas = document.createElement("canvas");
++  canvas.width = canvas.height = size;
++  const g = canvas.getContext("2d");
++  if (!g) return new THREE.CanvasTexture(canvas);
++  const rnd = mulberry32(1337);
++
++  for (let p = 0; p < planks; p += 1) {
++    const y0 = p * h;
++    const light = 21 + rnd() * 7;
++    g.fillStyle = `hsl(${22 + rnd() * 5} ${40 + rnd() * 8}% ${light}%)`;
++    g.fillRect(0, y0, size, h);
++
++    for (let i = 0; i < 80; i += 1) {
++      const y = y0 + rnd() * h;
++      const amp = 2 + rnd() * 6;
++      const k1 = 2 + Math.floor(rnd() * 6);
++      const k2 = 5 + Math.floor(rnd() * 8);
++      const phase = rnd() * Math.PI * 2;
++      const dark = rnd() < 0.6;
++      g.strokeStyle = dark
++        ? `rgba(22,10,4,${0.06 + rnd() * 0.14})`
++        : `rgba(150,92,48,${0.05 + rnd() * 0.1})`;
++      g.lineWidth = 0.6 + rnd() * 2;
++      g.beginPath();
++      for (let x = 0; x <= size; x += 16) {
++        const yy =
++          y +
++          Math.sin((x / size) * Math.PI * 2 * k1 + phase) * amp +
++          Math.sin((x / size) * Math.PI * 2 * k2 + phase * 1.7) * amp * 0.3;
++        if (x === 0) g.moveTo(x, yy);
++        else g.lineTo(x, yy);
++      }
++      g.stroke();
++    }
++
++    if (rnd() < 0.55) {
++      const kx = rnd() * size;
++      const ky = y0 + h * (0.25 + rnd() * 0.5);
++      const grad = g.createRadialGradient(kx, ky, 2, kx, ky, 26 + rnd() * 18);
++      grad.addColorStop(0, "rgba(20,8,3,0.65)");
++      grad.addColorStop(0.5, "rgba(60,28,12,0.25)");
++      grad.addColorStop(1, "rgba(60,28,12,0)");
++      g.fillStyle = grad;
++      g.beginPath();
++      g.ellipse(kx, ky, 70, 26, 0, 0, Math.PI * 2);
++      g.fill();
++    }
++
++    g.fillStyle = "rgba(6,3,1,0.9)";
++    g.fillRect(0, y0, size, 3);
++    g.fillStyle = "rgba(255,205,150,0.07)";
++    g.fillRect(0, y0 + 3, size, 2);
++  }
++
++  const texture = new THREE.CanvasTexture(canvas);
++  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
++  texture.repeat.set(3, 3);
++  texture.anisotropy = maxAnisotropy;
++  const srgb = (THREE as unknown as { SRGBColorSpace?: string }).SRGBColorSpace;
++  if (srgb) (texture as unknown as { colorSpace: string }).colorSpace = srgb;
++  texture.needsUpdate = true;
++  return texture;
++}
++
++function Table() {
++  const gl = useThree((state) => state.gl);
++  const wood = useMemo(
++    () => makeWoodTexture(gl.capabilities.getMaxAnisotropy()),
++    [gl],
++  );
++
++  return (
++    <group>
++      {/* Plateau de la table. Cylindre : groupes 0 = tranche, 1 = dessus, 2 = dessous. */}
++      <mesh position={[0, TABLE_TOP - 0.3, 0]} receiveShadow>
++        <cylinderGeometry args={[TABLE_RADIUS, TABLE_RADIUS, 0.6, 128]} />
++        <meshStandardMaterial attach="material-0" color="#24130a" roughness={0.55} />
++        <meshStandardMaterial attach="material-1" map={wood} roughness={0.48} metalness={0} />
++        <meshStandardMaterial attach="material-2" color="#120a05" roughness={0.9} />
++      </mesh>
++
++      {/* Chant arrondi de la table. */}
++      <mesh position={[0, TABLE_TOP, 0]} rotation={[Math.PI / 2, 0, 0]}>
++        <torusGeometry args={[TABLE_RADIUS - 0.04, 0.2, 20, 160]} />
++        <meshStandardMaterial color="#2c170b" roughness={0.4} />
++      </mesh>
++
++      {/* Filet de laiton incrusté près du bord. */}
++      <mesh position={[0, TABLE_TOP + 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]}>
++        <ringGeometry args={[TABLE_RADIUS - 1.7, TABLE_RADIUS - 1.55, 160]} />
++        <meshStandardMaterial color="#c9a05a" roughness={0.32} metalness={0.55} />
++      </mesh>
++
++      {/* Sol de la pièce : très sombre, avalé par le brouillard. */}
++      <mesh position={[0, TABLE_TOP - 2.4, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
++        <circleGeometry args={[220, 64]} />
++        <meshStandardMaterial color="#0d0a10" roughness={1} />
++      </mesh>
++    </group>
++  );
++}
++
++/** Disque lumineux doux, pour que les grains de poussière soient ronds. */
++function makeDotTexture(): THREE.CanvasTexture {
++  const c = document.createElement("canvas");
++  c.width = c.height = 64;
++  const g = c.getContext("2d");
++  if (g) {
++    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
++    grad.addColorStop(0, "rgba(255,255,255,1)");
++    grad.addColorStop(0.4, "rgba(255,255,255,0.45)");
++    grad.addColorStop(1, "rgba(255,255,255,0)");
++    g.fillStyle = grad;
++    g.fillRect(0, 0, 64, 64);
++  }
++  return new THREE.CanvasTexture(c);
++}
++
++/** Grains de poussière qui flottent lentement dans la lumière de la lampe. */
++function Dust({ count = 90 }: { count?: number }) {
++  const geometry = useRef<THREE.BufferGeometry>(null);
++  const dot = useMemo(() => makeDotTexture(), []);
++  const { positions, speeds } = useMemo(() => {
++    const rnd = mulberry32(42);
++    const p = new Float32Array(count * 3);
++    const s = new Float32Array(count);
++    for (let i = 0; i < count; i += 1) {
++      const r = Math.sqrt(rnd()) * 15;
++      const a = rnd() * Math.PI * 2;
++      p[i * 3] = Math.cos(a) * r;
++      p[i * 3 + 1] = 1 + rnd() * 9;
++      p[i * 3 + 2] = Math.sin(a) * r;
++      s[i] = 0.04 + rnd() * 0.08;
++    }
++    return { positions: p, speeds: s };
++  }, [count]);
++
++  useFrame((_, delta) => {
++    const attribute = geometry.current?.getAttribute("position");
++    if (!attribute) return;
++    const dt = Math.min(delta, 0.05);
++    for (let i = 0; i < count; i += 1) {
++      let y = attribute.getY(i) + speeds[i] * dt;
++      if (y > 10) y = 1;
++      attribute.setY(i, y);
++      attribute.setX(i, attribute.getX(i) + Math.sin(y * 1.7 + i) * 0.0015);
++    }
++    attribute.needsUpdate = true;
++  });
++
++  return (
++    <points frustumCulled={false}>
++      <bufferGeometry ref={geometry}>
++        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
++      </bufferGeometry>
++      <pointsMaterial
++        map={dot}
++        color="#ffe2b0"
++        size={0.16}
++        sizeAttenuation
++        transparent
++        opacity={0.4}
++        depthWrite={false}
++        fog={false}
++      />
++    </points>
++  );
++}
++
++/**
++ * Scène complète : pièce, table, lumières, ombres, poussière. À poser dans
++ * <Canvas> à la place des lumières ad hoc et de l'ancien `LudoArena`.
++ * `playerCount` est conservé pour compatibilité : la même table convient
++ * aux deux plateaux.
++ */
++export default function LudoScene(_props: { playerCount?: number }) {
++  return (
++    <>
++      <color attach="background" args={[ROOM]} />
++      <fog attach="fog" args={[ROOM, 42, 95]} />
++
++      {/* Lumière d'ambiance chaude, remplissage froid venu d'en bas. */}
++      <ambientLight intensity={0.45} color="#ffe8cf" />
++      <hemisphereLight args={["#fff1dd", "#1a1424", 0.55]} />
++
++      {/* Lumière principale : c'est elle qui projette les ombres. */}
++      <directionalLight
++        position={[9, 18, 7]}
++        intensity={1.25}
++        color="#fff0d8"
++        castShadow
++        shadow-mapSize={[2048, 2048]}
++        shadow-camera-left={-14}
++        shadow-camera-right={14}
++        shadow-camera-top={14}
++        shadow-camera-bottom={-14}
++        shadow-camera-near={1}
++        shadow-camera-far={60}
++        shadow-bias={-0.0004}
++        shadow-normalBias={0.02}
++      />
++
++      {/* Lampe suspendue : un halo chaud sur la table, sans atténuation avec
++          la distance (decay 0), donc le même rendu sur toutes les versions
++          de three. */}
++      <spotLight
++        position={[0, 24, 0]}
++        angle={0.62}
++        penumbra={1}
++        intensity={1.1}
++        decay={0}
++        color="#ffd9a8"
++      />
++
++      <Table />
++
++      {/* Ombre de contact douce du socle et des pièces sur le bois. */}
++      <ContactShadows
++        position={[0, TABLE_TOP + 0.012, 0]}
++        opacity={0.6}
++        scale={24}
++        blur={2.4}
++        far={3}
++        resolution={1024}
++        color="#000000"
++      />
++
++      <Dust />
++    </>
++  );
++}
+diff -ruN ludo_orig/components/board/PlayingTrack.tsx stage/ludo/components/board/PlayingTrack.tsx
+--- ludo_orig/components/board/PlayingTrack.tsx	2026-10-10 05:12:37.441004212 +0000
++++ stage/ludo/components/board/PlayingTrack.tsx	2026-10-10 10:02:42.686678898 +0000
+@@ -1,7 +1,8 @@
+ "use client";
+ 
+ import { useMemo } from "react";
+-import { Edges, Text } from "@react-three/drei";
++import FlatMaterial from "./FlatMaterial";
++import { Text } from "@react-three/drei";
+ import { getTrack } from "../../utils/positionUtils";
+ import { HEX_STAR_FILL, STAR_LIGHT } from "../../data/boardTheme";
+ import { SafeZoneStars, type BoardMarker } from "./SafeZoneStars";
+@@ -24,14 +25,59 @@
+ 
+ /** Case de l'hexagone : les cellules de la maquette, jointives. */
+ const HEX_CELL = 0.84;
+-/** Case classique : 33/36 du pas, le joint laissant voir le fond #454545. */
+-const CLASSIC_CELL = 0.77;
+-/** Joint des cellules classiques : 0.84 - 0.77, soit 3/36 du pas. */
++/**
++ * Case classique : pleine largeur du pas. Le joint de la maquette (3/36 du
++ * pas) n'est plus le fond sombre vu entre deux cases, mais le CONTOUR de
++ * chaque case : le plateau est blanc, les cases blanches.
++ */
++const CLASSIC_CELL = 0.84;
++/** Carré coloré d'un couloir classique : 25.8/33 de la case intérieure. */
+ const CLASSIC_INSET = 0.6;
+-const CLASSIC_INSET_FRAME = 0.64;
+ const VACANT = "#8C8C94";
+-const HEX_CELL_EDGE = "#222222";
++
++/**
++ * Contours des cases, en GÉOMÉTRIE et non en lignes GL.
++ *
++ * `<Edges>` trace des lignes de 1 px quelle que soit la résolution : sur un
++ * écran 4K elles deviennent invisibles, et en mouvement elles scintillent
++ * (les « flux » que l'on voyait sur l'hexagone). Un contour fait de deux
++ * boîtes empilées est dessiné comme n'importe quelle surface : net, lissé
++ * par le multi-échantillonnage et stable.
++ */
++const HEX_BORDER = { color: "#222222", width: 0.02 };
++const CLASSIC_BORDER = { color: "#454545", width: 0.035 };
++/** Dessus de la boîte de contour. L'intérieur dépasse de 0.0025. */
++const TILE_Y = 0.16;
++
++function Tile({
++  position,
++  rotation = [0, 0, 0],
++  size,
++  color,
++  border,
++}: {
++  position: [number, number, number];
++  rotation?: [number, number, number];
++  size: number;
++  color: string;
++  border: { color: string; width: number };
++}) {
++  return (
++    <group position={position} rotation={rotation}>
++      <mesh position={[0, TILE_Y, 0]}>
++        <boxGeometry args={[size, 0.02, size]} />
++        <FlatMaterial color={border.color} />
++      </mesh>
++      <mesh position={[0, TILE_Y + 0.0105, 0]}>
++        <boxGeometry args={[size - 2 * border.width, 0.005, size - 2 * border.width]} />
++        <FlatMaterial color={color} />
++      </mesh>
++    </group>
++  );
++}
+ const STAR_Y = 0.175;
++/** Les numéros se posent au-dessus des cases du couloir (dessus à 0.175). */
++const NUMBER_Y = 0.182;
+ 
+ const SIXTY_DEG = Math.PI / 3;
+ 
+@@ -170,17 +216,14 @@
+           return trackTiles;
+         })();
+         return (
+-          <mesh
++          <Tile
+             key={`ring-${index}`}
+-            position={[point.x, 0.16, point.z]}
++            position={[point.x, 0, point.z]}
+             rotation={rotationOf(point)}
+-          >
+-            <boxGeometry args={[ringSize, 0.02, ringSize]} />
+-            <meshStandardMaterial color={color} />
+-            {isHex ? (
+-              <Edges scale={1.001} color={HEX_CELL_EDGE} threshold={15} lineWidth={1.2} />
+-            ) : null}
+-          </mesh>
++            size={ringSize}
++            color={color}
++            border={isHex ? HEX_BORDER : CLASSIC_BORDER}
++          />
+         );
+       })}
+ 
+@@ -200,33 +243,32 @@
+               : VACANT;
+           if (isHex) {
+             return (
+-              <mesh
++              <Tile
+                 key={`home-${arm.offset}-${index}`}
+-                position={[point.x, 0.165, point.z]}
++                position={[point.x, 0, point.z]}
+                 rotation={rotationOf(point)}
+-              >
+-                <boxGeometry args={[HEX_CELL, 0.02, HEX_CELL]} />
+-                <meshStandardMaterial color={color} />
+-                <Edges scale={1.001} color={HEX_CELL_EDGE} threshold={15} lineWidth={1.2} />
+-              </mesh>
++                size={HEX_CELL}
++                color={color}
++                border={HEX_BORDER}
++              />
+             );
+           }
++          // Classique : case blanche à contour, carré coloré posé en retrait
++          // (dessus à 0.1775, au-dessus de l'intérieur de la case à 0.1725).
+           return (
+             <group
+               key={`home-${arm.offset}-${index}`}
+               position={[point.x, 0, point.z]}
+             >
+-              <mesh position={[0, 0.16, 0]}>
+-                <boxGeometry args={[CLASSIC_CELL, 0.02, CLASSIC_CELL]} />
+-                <meshStandardMaterial color={trackTiles} />
+-              </mesh>
+-              <mesh position={[0, 0.163, 0]}>
+-                <boxGeometry args={[CLASSIC_INSET_FRAME, 0.006, CLASSIC_INSET_FRAME]} />
+-                <meshStandardMaterial color="#FFFFFF" transparent opacity={0.4} />
+-              </mesh>
+-              <mesh position={[0, 0.166, 0]}>
++              <Tile
++                position={[0, 0, 0]}
++                size={CLASSIC_CELL}
++                color={trackTiles}
++                border={CLASSIC_BORDER}
++              />
++              <mesh position={[0, TILE_Y + 0.016, 0]}>
+                 <boxGeometry args={[CLASSIC_INSET, 0.004, CLASSIC_INSET]} />
+-                <meshStandardMaterial color={color} />
++                <FlatMaterial color={color} />
+               </mesh>
+             </group>
+           );
+@@ -255,7 +297,7 @@
+             return corridor.map(({ point, number }) => (
+               <group
+                 key={`corridor-${arm.offset}-${number}`}
+-                position={[point.x, STAR_Y, point.z]}
++                position={[point.x, NUMBER_Y, point.z]}
+                 rotation={[0, corridorAngleOf(arm.angle), 0]}
+               >
+                 <Text
+diff -ruN ludo_orig/components/board/SafeZoneStars.tsx stage/ludo/components/board/SafeZoneStars.tsx
+--- ludo_orig/components/board/SafeZoneStars.tsx	2026-10-10 05:12:37.441024141 +0000
++++ stage/ludo/components/board/SafeZoneStars.tsx	2026-10-10 10:02:42.686651437 +0000
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import { useMemo } from "react";
++import FlatMaterial from "./FlatMaterial";
+ import * as THREE from "three";
+ import type { BoardPoint } from "../../data/track";
+ 
+@@ -26,7 +27,10 @@
+   const points: THREE.Vector2[] = [];
+   for (let i = 0; i < 10; i += 1) {
+     const radius = i % 2 === 0 ? outer : inner;
+-    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
++    // Pointe vers +y de la forme, qui devient -z (le HAUT de l'écran) une fois
++    // la forme couchée sur le plateau. L'ancien départ à -PI/2 renversait
++    // les étoiles, pointe vers le bas.
++    const angle = Math.PI / 2 + (i * Math.PI) / 5;
+     points.push(new THREE.Vector2(radius * Math.cos(angle), radius * Math.sin(angle)));
+   }
+   return points;
+@@ -38,34 +42,35 @@
+  * à 82 % du rayon pour se lire comme un trait).
+  */
+ function starGeometry(outer: number, filled: boolean): THREE.ShapeGeometry {
+-  const shape = new THREE.Shape(starPoints(outer, outer * (filled ? 0.35 : 0.82)));
++  const shape = new THREE.Shape(starPoints(outer, outer * (filled ? 0.4 : 0.42)));
+   if (!filled) {
++    // Trait fin : la maquette trace l'étoile en contour de 1.2 u pour un rayon
++    // de 12 u, soit environ 10 % du rayon. Un évidement à 84 % (au lieu de
++    // 82 % sur un pentagone) donne ce trait ; à 82 % l'étoile sortait en tache épaisse.
+     shape.holes.push(
+-      new THREE.Path(starPoints(outer * 0.82, outer * 0.82 * 0.35)),
++      new THREE.Path(starPoints(outer * 0.84, outer * 0.84 * 0.42)),
+     );
+   }
+   return new THREE.ShapeGeometry(shape);
+ }
+ 
+-/** Flèche pointant vers +x, dans le plan horizontal du plateau. */
+-function arrowGeometry(width: number): THREE.ShapeGeometry {
+-  const h = Math.min(width * 0.18, 0.11);
+-  const wing = width * 0.54;
+-  const shape = new THREE.Shape([
+-    // Pointe
+-    new THREE.Vector2(width * 0.5, 0),
+-    // Cran arrière droit
+-    new THREE.Vector2(h, h),
+-    new THREE.Vector2(h, wing),
+-    new THREE.Vector2(-h, wing),
+-    new THREE.Vector2(-h, h),
+-    // Empennage gauche
+-    new THREE.Vector2(-width * 0.5, 0),
+-    new THREE.Vector2(-h, -h),
+-    new THREE.Vector2(-h, -wing),
+-    new THREE.Vector2(h, -wing),
+-    new THREE.Vector2(h, -h),
+-  ]);
++/**
++ * Flèche SIMPLE (hampe + pointe) pointant vers +x, dans le plan horizontal.
++ *
++ * Reprise du polygone de la maquette 6 joueurs `-6,-14 6,-14 6,0 14,0 0,16
++ * -14,0 -6,0` (hampe de 12 u, pointe de 28 u de large, longueur 30 u), à
++ * l'échelle d'une case (46.7 u = 0.84). L'ancienne forme avait deux
++ * empennages et se lisait comme une double flèche « ↔ ».
++ */
++const ARROW_UNIT = 0.84 / 46.7;
++function arrowGeometry(): THREE.ShapeGeometry {
++  // Maquette : l'axe est y (de -14 à 16). On le couche sur x et on recentre.
++  const model: [number, number][] = [
++    [-6, -14], [6, -14], [6, 0], [14, 0], [0, 16], [-14, 0], [-6, 0],
++  ];
++  const shape = new THREE.Shape(
++    model.map(([mx, my]) => new THREE.Vector2((my - 1) * ARROW_UNIT, mx * ARROW_UNIT)),
++  );
+   return new THREE.ShapeGeometry(shape);
+ }
+ 
+@@ -80,7 +85,7 @@
+     return cache;
+   }, [markers]);
+ 
+-  const arrowGeo = useMemo(() => arrowGeometry(0.5), []);
++  const arrowGeo = useMemo(() => arrowGeometry(), []);
+ 
+   return (
+     <group>
+@@ -92,10 +97,8 @@
+             position={[marker.point.x, 0.175, marker.point.z]}
+             rotation={[-Math.PI / 2, 0, 0]}
+           >
+-            <meshStandardMaterial
++            <FlatMaterial
+               color={marker.color}
+-              roughness={0.55}
+-              metalness={0}
+               side={THREE.DoubleSide}
+             />
+           </mesh>
+@@ -106,10 +109,8 @@
+             rotation={[0, marker.angle, 0]}
+           >
+             <mesh geometry={arrowGeo} rotation={[-Math.PI / 2, 0, 0]}>
+-              <meshStandardMaterial
++              <FlatMaterial
+                 color={marker.color}
+-                roughness={0.6}
+-                metalness={0}
+                 side={THREE.DoubleSide}
+               />
+             </mesh>
+diff -ruN ludo_orig/data/boardTheme.ts stage/ludo/data/boardTheme.ts
+--- ludo_orig/data/boardTheme.ts	2026-10-10 05:12:37.441323370 +0000
++++ stage/ludo/data/boardTheme.ts	2026-10-10 10:02:42.686861700 +0000
+@@ -18,8 +18,10 @@
+ /** Palette du plateau classique, reprise de la maquette 4 joueurs. */
+ export const CLASSIC_THEME: ColorTheme = {
+   name: "Classique (maquette 4 joueurs)",
+-  boardBase: "#454545",
+-  trackTiles: "#b0c2c2",
++  // Plateau et cases BLANCS (demande de design) : les joints de la maquette
++  // sont dessinés en contour de case (`PlayingTrack`), pas par un fond gris.
++  boardBase: "#ffffff",
++  trackTiles: "#ffffff",
+   players: {
+     yellow: "#c6a617",
+     red: "#d44630",
+diff -ruN ludo_orig/data/track-hex.test.ts stage/ludo/data/track-hex.test.ts
+--- ludo_orig/data/track-hex.test.ts	2026-10-10 05:12:37.441343195 +0000
++++ stage/ludo/data/track-hex.test.ts	2026-10-10 10:02:42.686874984 +0000
+@@ -3,6 +3,9 @@
+ import {
+   createTrack,
+   HEX_ARM_LENGTH,
++  HEX_BOARD_APOTHEM,
++  HEX_HUB_APOTHEM,
++  HEX_RING_SHIFT,
+   HEX_FINISHED_POSITION,
+   HEX_HOME_COLUMN_START,
+   HEX_RING_LENGTH,
+@@ -131,11 +134,22 @@
+       expect(track.colors).toEqual(LUDO_PALETTE.slice(0, n));
+     });
+ 
+-    it(`${n} joueurs : deux cases voisines de l'anneau sont toujours à un pas, y compris à la jonction des bras`, () => {
++    it(`${n} joueurs : deux cases voisines d'un même bras sont à un pas ; la jonction des bras est plus large`, () => {
++      // Le centre a la taille de la maquette (côté plus large que les bras) :
++      // les deux colonnes qui se font face à la jonction de deux bras ne
++      // sont plus à un pas mais à l'écart du centre — c'est ce qui évite que
++      // leurs cases (tournées de 60°) se recouvrent. À l'intérieur d'un bras
++      // le pas reste exact.
+       for (let i = 0; i < HEX_RING_LENGTH; i += 1) {
+         const a = track.ring[i];
+         const b = track.ring[(i + 1) % HEX_RING_LENGTH];
+-        expect(Math.abs(dist(a, b) - PITCH)).toBeLessThan(0.005);
++        const crossesArms = (i + 1 + HEX_RING_SHIFT) % HEX_ARM_LENGTH === 0;
++        if (crossesArms) {
++          expect(dist(a, b)).toBeGreaterThan(PITCH);
++          expect(dist(a, b)).toBeLessThan(PITCH * 2.5);
++        } else {
++          expect(Math.abs(dist(a, b) - PITCH)).toBeLessThan(0.005);
++        }
+       }
+     });
+ 
+@@ -168,7 +182,9 @@
+       for (const seat of track.seats) {
+         const radii = seat.homeColumn.map((p) => Math.hypot(p.x, p.z));
+         for (let k = 0; k < 5; k += 1) expect(radii[k]).toBeGreaterThan(radii[k + 1]);
+-        expect(radii[5]).toBeLessThan(2);
++        // La dernière case de la colonne maison est SOUS le centre
++        // (apothème HEX_HUB_APOTHEM), comme sur la croix classique.
++        expect(radii[5]).toBeLessThan(HEX_HUB_APOTHEM);
+       }
+     });
+ 
+@@ -190,10 +206,10 @@
+         );
+         expect(Math.abs(angularError)).toBeLessThan(1e-9);
+         for (const slot of seat.base) {
+-          // Le socle hexagonal a un rayon de 10.2 et la plaque reste
+-          // compacte à l'intérieur, sans être tournée avec le bras.
+-          expect(Math.abs(slot.x)).toBeLessThan(10.2);
+-          expect(Math.abs(slot.z)).toBeLessThan(10.2);
++          // Le socle hexagonal a pour rayon HEX_BOARD_RADIUS : tout trou de
++          // base reste à l'intérieur de l'hexagone (distance au centre
++          // inférieure à son apothème, plus sûr que le rayon des sommets).
++          expect(Math.hypot(slot.x, slot.z)).toBeLessThan(HEX_BOARD_APOTHEM);
+         }
+       }
+     });
+diff -ruN ludo_orig/data/track.test.ts stage/ludo/data/track.test.ts
+--- ludo_orig/data/track.test.ts	2026-10-10 05:12:37.441362843 +0000
++++ stage/ludo/data/track.test.ts	2026-10-10 10:02:42.686892338 +0000
+@@ -7,6 +7,7 @@
+   RING_LENGTH,
+   LUDO_PALETTE,
+   type LudoColor,
++  HEX_HUB_APOTHEM,
+ } from "./track";
+ import {
+   getPositionCoordinates,
+@@ -129,7 +130,11 @@
+           );
+         }
+         // The last private cell sits in the middle, where finished pieces go.
+-        expect(Math.hypot(seat.homeColumn[5].x, seat.homeColumn[5].z)).toBeLessThan(1.5);
++        // Classique : sous le X central (1.5). Hexagonal : sous le centre
++        // d'apothème HEX_HUB_APOTHEM, plus large que sur l'ancien plateau.
++        expect(Math.hypot(seat.homeColumn[5].x, seat.homeColumn[5].z)).toBeLessThan(
++          track.shape === "hex" ? HEX_HUB_APOTHEM : 1.5,
++        );
+       }
+     }
+   });
+@@ -245,9 +250,11 @@
+           ).toBeGreaterThan(0);
+           // Rien ne sort du X central : il remplit tout le grand carré du milieu
+           // (base des triangles collée aux coins internes des cases de l'anneau,
+-          // charpentée à 1.29 en classique, 1.9 en hexagonal), et un pion qui
+-          // débordait irait masquer les cases de coin de l'anneau.
+-          expect(Math.hypot(x, z)).toBeLessThan(track.shape === "hex" ? 1.9 : 1.29);
++          // charpentée à 1.29 en classique, HEX_HUB_APOTHEM en hexagonal), et
++          // un pion qui débordait irait masquer les cases de coin de l'anneau.
++          expect(Math.hypot(x, z)).toBeLessThan(
++            track.shape === "hex" ? HEX_HUB_APOTHEM : 1.29,
++          );
+         }
+       }
+     }
+diff -ruN ludo_orig/data/track.ts stage/ludo/data/track.ts
+--- ludo_orig/data/track.ts	2026-10-10 05:12:37.441384119 +0000
++++ stage/ludo/data/track.ts	2026-10-10 10:02:42.686910645 +0000
+@@ -179,6 +179,25 @@
+  * les tuiles font la même taille sur les deux plateaux.
+  */
+ const HOME_STEP = 0.84;
++/**
++ * Apothème du centre hexagonal, en cases : 157 u sur la maquette 6 joueurs
++ * (case = 46.7 u). Le côté du centre vaut alors 3.88 cases pour un bras de
++ * 3 cases : chaque bras tient dans « son » côté, sans mordre sur ses voisins.
++ *
++ * L'ancienne valeur (sqrt(3) cases d'éloignement, soit un apothème de 2.23)
++ * rapprochait les deux colonnes extérieures de bras voisins à EXACTEMENT une
++ * case, mais comme ces bras sont tournés de 60° leurs cases se recouvraient :
++ * les contours des colonnes rouge et jaune se croisaient près du centre, qui
++ * était plus étroit que les bras.
++ */
++const HEX_HUB_APOTHEM_CELLS = 157 / 46.7;
++/**
++ * Éloignement de l'origine d'un bras hexagonal : la première case d'un bras
++ * (y = 1) a son bord intérieur exactement sur le côté du centre.
++ */
++const HEX_ARM_RADIUS = HEX_HUB_APOTHEM_CELLS - 0.5;
++/** Apothème du centre hexagonal dans le monde (rayon des triangles). */
++export const HEX_HUB_APOTHEM = HEX_HUB_APOTHEM_CELLS * HOME_STEP;
+ /** Rayons (en cases) des 6 cases de colonne maison, du bord vers le centre. */
+ const CLASSIC_LANE_RADII = [6, 5, 4, 3, 2, 1];
+ /**
+@@ -221,14 +240,33 @@
+  */
+ export const CLASSIC_BASE_SLOT_SPAN = (41.7 / 36) * HOME_STEP;
+ /**
+- * Écart des quatre trous d'une base ronde du plateau hexagonal. Reprise
+- * de la maquette 6 joueurs : les trous sont à 64 u du centre du disque
+- * (100), la case valant 46.7 u.
++ * Apothème du socle hexagonal : le bout des bras (centre de la dernière case
++ * + une demi-case) affleure le bord de l'hexagone, comme sur la maquette 6
++ * joueurs où les bras partent du milieu de chaque côté.
++ */
++export const HEX_BOARD_APOTHEM = (HEX_ARM_RADIUS + 6 + 0.5) * HOME_STEP;
++/** Rayon (centre → sommet) du socle hexagonal : pointes à gauche et à droite. */
++export const HEX_BOARD_RADIUS = HEX_BOARD_APOTHEM / Math.cos(Math.PI / 6);
++/**
++ * Proportions de la maquette 6 joueurs (apothème 438 u) : base à 367 u du
++ * centre, disque de rayon 100 u, trous à 64 u du centre du disque. Ramenées à
++ * l'apothème du socle, les bases tiennent entre deux bras sans les toucher et
++ * leurs trous restent DANS le disque (64 + 27 < 100).
++ */
++const HEX_PLAN_APOTHEM = 438;
++/** Distance du centre d'une base hexagonale au centre du plateau. */
++const HEX_BASE_RADIUS = (367 / HEX_PLAN_APOTHEM) * HEX_BOARD_APOTHEM;
++/** Distance d'un trou au centre de son disque (maquette : 64 u). */
++export const HEX_BASE_SLOT_SPAN = (64 / HEX_PLAN_APOTHEM) * HEX_BOARD_APOTHEM;
++/**
++ * Rotation (degrés, sens horaire depuis le haut) du carré formé par les 4
++ * trous de chaque base hexagonale, relevée sur l'image de référence, dans
++ * l'ordre des bras : haut, haut-droite, bas-droite, bas, bas-gauche,
++ * haut-gauche. Les trous ne sont PAS alignés sur les axes du monde.
+  */
+-export const HEX_BASE_SLOT_SPAN = (64 / 46.7) * HOME_STEP;
+-/** Distance des centres de base au centre du plateau, selon sa forme. */
++const HEX_HOLE_ROTATION_DEG = [30, 0, -30, 30, 0, -30] as const;
++/** Distance des centres de base au centre du plateau croix. */
+ const CLASSIC_BASE_RADIUS = (7.5 - 3) * HOME_STEP * Math.SQRT2;
+-const HEX_BASE_RADIUS = 7.7;
+ 
+ /**
+  * Place une base dans le secteur entre deux bras voisins.
+@@ -242,12 +280,29 @@
+   armCount: number,
+   radius: number,
+   slotSpan: number,
++  /**
++   * Si fourni : les 4 trous sont posés sur un CERCLE de rayon `slotSpan`
++   * autour du centre de la base, tournés de cette valeur (degrés, sens
++   * horaire depuis le haut) — base ronde du plateau hexagonal. Sinon : carré
++   * 2 x 2 aligné sur les axes — plaque carrée du plateau classique.
++   */
++  holeRotationDeg?: number,
+ ): BoardPoint[] {
+   const center = polar(
+     ((armAngle + Math.PI / armCount) * 180) / Math.PI,
+     radius,
+   );
+ 
++  if (holeRotationDeg !== undefined) {
++    return [0, 1, 2, 3].map((j) => {
++      const a = ((holeRotationDeg + 90 * j) * Math.PI) / 180;
++      return {
++        x: center.x + slotSpan * Math.sin(a),
++        z: center.z - slotSpan * Math.cos(a),
++      };
++    });
++  }
++
+   return [-slotSpan, slotSpan].flatMap((x) =>
+     [-slotSpan, slotSpan].map((z) => ({
+       x: center.x + x,
+@@ -443,14 +498,8 @@
+ // la colonne maison. La case 13 * k - 1 n'est jamais empruntée par sa propre
+ // couleur : c'est le raccourci vers la maison, comme sur le plateau classique.
+ 
+-/**
+- * Éloignement de l'origine d'un bras. sqrt(3) place la dernière case d'un bras
+- * à exactement une case de la première du bras suivant : l'anneau se referme
+- * sans trou ni chevauchement.
+- */
+-const HEX_ARM_RADIUS = Math.sqrt(3);
+ /** Décalage entre l'indice d'anneau global et l'indice local d'un bras. */
+-const HEX_RING_SHIFT = 8;
++export const HEX_RING_SHIFT = 8;
+ /** Une case du plateau hexagonal : même pas que la colonne maison classique. */
+ const HEX_SCALE = HOME_STEP;
+ 
+@@ -508,7 +557,13 @@
+     const homeColumn: BoardPoint[] = [5, 4, 3, 2, 1, 0].map((y) =>
+       hexLocalToWorld(arm, 0, y),
+     );
+-    const base = sectorBase(angleRad, HEX_ARM_COUNT, HEX_BASE_RADIUS, HEX_BASE_SLOT_SPAN);
++    const base = sectorBase(
++      angleRad,
++      HEX_ARM_COUNT,
++      HEX_BASE_RADIUS,
++      HEX_BASE_SLOT_SPAN,
++      HEX_HOLE_ROTATION_DEG[arm],
++    );
+ 
+     let seat: LudoSeat | null = null;
+     if (arm < playerCount) {
+diff -ruN ludo_orig/online/online-ludo-play.tsx stage/ludo/online/online-ludo-play.tsx
+--- ludo_orig/online/online-ludo-play.tsx	2026-10-10 05:12:37.441445015 +0000
++++ stage/ludo/online/online-ludo-play.tsx	2026-10-10 10:02:42.686953750 +0000
+@@ -15,7 +15,7 @@
+ import { finishedPositionFor } from "../data/boardPositions";
+ import { DEFAULT_PLAYER_COUNT, isLudoColor, type LudoColor } from "../data/track";
+ import LudoBoard from "../components/board/LudoBoard";
+-import LudoArena from "../components/board/LudoArena";
++import LudoScene, { LUDO_CANVAS_PROPS } from "../components/board/LudoScene";
+ import { GameToasts, useGameToasts } from "./game-toasts";
+ import {
+   CameraRig,
+@@ -325,13 +325,11 @@
+       {/* R3F scene — LudoBoard renders three.js elements and MUST live
+           inside a Canvas, otherwise React treats <mesh>/<boxGeometry> as
+           unknown DOM tags and the whole board crashes. */}
+-      <Canvas camera={{ position: [0, 16, 16], fov: 60 }}>
+-        <ambientLight intensity={0.7} />
+-        <directionalLight position={[10, 10, 5]} intensity={1.0} />
+-        <pointLight position={[-10, 10, -10]} intensity={0.4} />
+-        {/* 3D Arena Background : grille pour la croix, plancher de bois
+-            pour l'hexagone, comme dans les maquettes. */}
+-        <LudoArena playerCount={gameState.playerCount} />
++      <Canvas {...LUDO_CANVAS_PROPS}>
++        {/* Décor de jeu : table en bois, lumières, ombres, poussière. Il
++            remplace les lumières ad hoc et l'ancien LudoArena (grille de
++            débogage / planche coupée). */}
++        <LudoScene playerCount={gameState.playerCount} />
+ 
+         <LudoBoard
+           ref={boardRef}
+diff -ruN ludo_orig/utils/positionUtils.ts stage/ludo/utils/positionUtils.ts
+--- ludo_orig/utils/positionUtils.ts	2026-10-10 05:12:37.441559952 +0000
++++ stage/ludo/utils/positionUtils.ts	2026-10-10 10:02:42.687104953 +0000
+@@ -56,16 +56,16 @@
+     [0.6, -0.5],
+     [1.2, 0],
+   ],
+-  // Hexagonal : X d'apothème 1.9 (sommets à 2.19, toujours à l'intérieur
+-  // des cases intérieures de l'anneau, à 2.44). Même étalement, dernier
+-  // emplacement à 1.8 soit 0.1 du bord. Le décalage latéral reste sous
+-  // ~24° de l'axe du bras (le secteur en fait 30) : écart 0.9 entre les
+-  // pions, jamais collés à la frontière du voisin.
++  // Hexagonal : X d'apothème HEX_HUB_APOTHEM (2.82, comme la maquette).
++  // Même étalement que sur l'ancien centre d'apothème 1.9, ramené à
++  // l'échelle (x 1.49) : dernier emplacement à 2.7 soit 0.12 du bord. Le
++  // décalage latéral reste sous ~24° de l'axe du bras (le secteur en fait
++  // 30) : jamais collés à la frontière du voisin.
+   hex: [
+-    [0.2, 0],
+-    [1.0, 0.45],
+-    [1.0, -0.45],
+-    [1.8, 0],
++    [0.3, 0],
++    [1.5, 0.67],
++    [1.5, -0.67],
++    [2.7, 0],
+   ],
+ };
+ 

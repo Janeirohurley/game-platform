@@ -36,11 +36,11 @@ Navigateur                            Next.js (Vercel)              LiveKit (SFU
 
 **Deux transports, deux propriétaires, aucune confusion :**
 
-| | Colyseus (`server-games`) | LiveKit |
-|---|---|---|
-| transporte | état de jeu, matchmaking | **média uniquement** (audio/vidéo) |
-| Qui décide qui parle | la room (rôles du snapshot) | les grants du token |
-| Dépend de l'autre | non | non |
+|                      | Colyseus (`server-games`)   | LiveKit                            |
+| -------------------- | --------------------------- | ---------------------------------- |
+| transporte           | état de jeu, matchmaking    | **média uniquement** (audio/vidéo) |
+| Qui décide qui parle | la room (rôles du snapshot) | les grants du token                |
+| Dépend de l'autre    | non                         | non                                |
 
 Une panne LiveKit dégrade la voix/vidéo **et rien d'autre** : le plateau
 continue de tourner, car `src/lib/livekit/*` n'est jamais importé par le
@@ -66,12 +66,12 @@ Colyseus en nom de room LiveKit : `game-room-<id>`.
 
 `GET /api/livekit/token?roomId=<id>`
 
-| Cas | Session | Vérification d'appartenance | Grants |
-|---|---|---|---|
-| Joueur connecté | **requise** (401 sinon) | **oui**, serveur-à-serveur contre la room réelle | `roomJoin` + publish + subscribe + data |
-| Spectateur connecté | requise | oui, rôle `spectator` renvoyé par le serveur | `roomJoin` + subscribe **seulement** |
-| Invité anonyme (`&scope=spectator`) | **aucune** | **non** — le room id est le credential | `roomJoin` + subscribe **seulement** |
-| Identité | — | — | dérivée de l'user id (`user-<id>`) ou `guest-<uuid>` |
+| Cas                                 | Session                 | Vérification d'appartenance                      | Grants                                               |
+| ----------------------------------- | ----------------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| Joueur connecté                     | **requise** (401 sinon) | **oui**, serveur-à-serveur contre la room réelle | `roomJoin` + publish + subscribe + data              |
+| Spectateur connecté                 | requise                 | oui, rôle `spectator` renvoyé par le serveur     | `roomJoin` + subscribe **seulement**                 |
+| Invité anonyme (`&scope=spectator`) | **aucune**              | **non** — le room id est le credential           | `roomJoin` + subscribe **seulement**                 |
+| Identité                            | —                       | —                                                | dérivée de l'user id (`user-<id>`) ou `guest-<uuid>` |
 
 L'ordre de la route est : **configuration** (fail closed 500) →
 **validation du `roomId`** (400) → **cas invité** (200) →
@@ -93,11 +93,11 @@ survivre à un rafraîchissement de page en plein match.
 
 ## Rôles et permissions médias
 
-| Rôle | Micro / vidéo | Écoute | Données | Déclenche `getUserMedia` |
-|---|---|---|---|---|
-| Joueur (assis) | oui | oui | oui | **oui, au clic uniquement** |
-| Spectateur | **non** | oui | non | **jamais** |
-| Invité anonyme | **non** | oui | non | **jamais** |
+| Rôle           | Micro / vidéo | Écoute | Données | Déclenche `getUserMedia`    |
+| -------------- | ------------- | ------ | ------- | --------------------------- |
+| Joueur (assis) | oui           | oui    | oui     | **oui, au clic uniquement** |
+| Spectateur     | **non**       | oui    | non     | **jamais**                  |
+| Invité anonyme | **non**       | oui    | non     | **jamais**                  |
 
 L'interdiction de publier est portée par le **token** (`canPublish: false`),
 pas seulement par l'UI : un spectateur ne peut pas microstructure, même
@@ -137,13 +137,13 @@ serveur de jeux. Si le jeu marche en production et que la voix renvoie
 
 ## Variables d'environnement
 
-| Variable | Lu par | Rôle |
-|---|---|---|
-| `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | `src/lib/livekit/config.ts` | Signature des tokens. **Serveur seul.** |
-| `NEXT_PUBLIC_LIVEKIT_URL` | `src/lib/livekit/config.ts` | `wss://` du serveur média. **Public par nature** (c'est une adresse, pas une credential) — et **jamais** un nom d'hôte Docker interne (`ws://livekit:7880`), qui ne résout que dans le réseau compose. |
-| `REALTIME_SERVER_URL` | `src/lib/livekit/room-membership.ts` | Adresse **serveur-à-serveur** du serveur Colyseus. Volontairement distincte de `NEXT_PUBLIC_REALTIME_URL` : le navigateur et le plateforme nomment le même serveur différemment (LAN en local, public en prod). **Obligatoire en production**, sinon le module throw. |
-| `REALTIME_TOKEN_SECRET` | idem | Secret partagé avec `server-games`. **16 caractères minimum.** |
-| `WALLET_DEFAULT_CURRENCY`, `DATABASE_URL`, … | — | sans rapport avec la voix. |
+| Variable                                     | Lu par                               | Rôle                                                                                                                                                                                                                                                                  |
+| -------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`     | `src/lib/livekit/config.ts`          | Signature des tokens. **Serveur seul.**                                                                                                                                                                                                                               |
+| `NEXT_PUBLIC_LIVEKIT_URL`                    | `src/lib/livekit/config.ts`          | `wss://` du serveur média. **Public par nature** (c'est une adresse, pas une credential) — et **jamais** un nom d'hôte Docker interne (`ws://livekit:7880`), qui ne résout que dans le réseau compose.                                                                |
+| `REALTIME_SERVER_URL`                        | `src/lib/livekit/room-membership.ts` | Adresse **serveur-à-serveur** du serveur Colyseus. Volontairement distincte de `NEXT_PUBLIC_REALTIME_URL` : le navigateur et le plateforme nomment le même serveur différemment (LAN en local, public en prod). **Obligatoire en production**, sinon le module throw. |
+| `REALTIME_TOKEN_SECRET`                      | idem                                 | Secret partagé avec `server-games`. **16 caractères minimum.**                                                                                                                                                                                                        |
+| `WALLET_DEFAULT_CURRENCY`, `DATABASE_URL`, … | —                                    | sans rapport avec la voix.                                                                                                                                                                                                                                            |
 
 `.env.exemple` ne contient **aucune** de ces variables voix : elles
 doivent être ajoutées à la main.
@@ -154,14 +154,14 @@ Ce 503 est le symptôme générique de « la vérification n'a pas pu être
 faite ». Chaque cause est désormais journalisée **côté serveur** avec sa
 `cause` et son `detail` — jamais renvoyée au client.
 
-| `cause` journalisée | Signification | Correctif |
-|---|---|---|
-| `secret_missing` | `REALTIME_TOKEN_SECRET` absent ou < 16 car. | Renseigner la variable |
-| `url_missing` | `REALTIME_SERVER_URL` absent en production | Renseigner la variable |
-| `network` | requête jamais aboutie : DNS, connexion refusée, TLS, IP privée bloquée | **pointer vers l'adresse publique** |
-| `timeout` | pas de réponse en 3 s | instance trop lente / trop loin |
-| `http_status` | le serveur a répondu non-2xx | `403` ⇒ **secret divergent** entre Vercel et Render |
-| `invalid_payload` | 2xx mais corps inattendu (page d'erreur de proxy) | vérifier le TLS / le reverse proxy |
+| `cause` journalisée | Signification                                                           | Correctif                                           |
+| ------------------- | ----------------------------------------------------------------------- | --------------------------------------------------- |
+| `secret_missing`    | `REALTIME_TOKEN_SECRET` absent ou < 16 car.                             | Renseigner la variable                              |
+| `url_missing`       | `REALTIME_SERVER_URL` absent en production                              | Renseigner la variable                              |
+| `network`           | requête jamais aboutie : DNS, connexion refusée, TLS, IP privée bloquée | **pointer vers l'adresse publique**                 |
+| `timeout`           | pas de réponse en 3 s                                                   | instance trop lente / trop loin                     |
+| `http_status`       | le serveur a répondu non-2xx                                            | `403` ⇒ **secret divergent** entre Vercel et Render |
+| `invalid_payload`   | 2xx mais corps inattendu (page d'erreur de proxy)                       | vérifier le TLS / le reverse proxy                  |
 
 Le `detail` contient l'**origine résolue** (`origin=`), le statut HTTP et
 la durée. C'est exactement ce qu'il faut lire pour diagnosing un
@@ -174,11 +174,11 @@ serveur avec le même secret et affiche un message : `/admin/rooms`
 
 ## Reconnexion — deux plans à ne pas confondre
 
-| | Reconnexion **état de jeu** (Colyseus) | Reconnexion **média** (LiveKit) |
-|---|---|---|
-| Qui la gère | `colyseus.js` (backoff exponentiel, 15 tentatives) + `server-games` | le SDK LiveKit |
-| Ce qui la rend possible | la room existe **encore** côté serveur | un nouveau token valide |
-| Fenêtre | `RECONNECTION_GRACE_SECONDS = 30` dans `server-games` | TTL du token = 10 min |
+|                         | Reconnexion **état de jeu** (Colyseus)                              | Reconnexion **média** (LiveKit) |
+| ----------------------- | ------------------------------------------------------------------- | ------------------------------- |
+| Qui la gère             | `colyseus.js` (backoff exponentiel, 15 tentatives) + `server-games` | le SDK LiveKit                  |
+| Ce qui la rend possible | la room existe **encore** côté serveur                              | un nouveau token valide         |
+| Fenêtre                 | `RECONNECTION_GRACE_SECONDS = 30` dans `server-games`               | TTL du token = 10 min           |
 
 `base-game-room.ts` appelle `allowReconnection(client, 30)` : une reconnexion
 n'est possible que **pendant la fenêtre de grâce**, et seulement si la
@@ -200,12 +200,14 @@ jeu tant que le token media est valide.
 ## Lancer en développement
 
 Terminal 1 (serveur Colyseus) :
+
 ```bash
 cd server-games
 npm start          # tsx watch src/index.ts → ws://localhost:2567
 ```
 
 Terminal 2 (Next.js) :
+
 ```bash
 cd game-platform
 npm run dev        # → https://localhost:3000
@@ -261,6 +263,6 @@ REALTIME_SERVER_URL=http://192.168.2.61:2567
 
 ---
 
-*Document maintenu avec le code : toute modification des grants, de la
+_Document maintenu avec le code : toute modification des grants, de la
 route de token ou de la vérification d'appartenance met à jour les
-sections concernées.*
+sections concernées._

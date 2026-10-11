@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 
-import { listGames, listCategories, type GameEntry } from "@/lib/games/registry";
-
+import {
+  listGames,
+  listCategories,
+  type GameEntry,
+} from "@/lib/games/registry";
 import { GamesBrowser } from "./games-browser";
+
+
 
 export const metadata: Metadata = {
   title: "Games | Game Arena",
