@@ -93,9 +93,11 @@ export function MatchScreen({
   const [joinRequestError, setJoinRequestError] = useState<string | null>(null);
   const joinRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinRetryAttempt = useRef(0);
+  const retryRequestAfterReconnect = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "degraded" | "reconnecting" | "synchronizing"
   >(room.connection?.isOpen ? "synchronizing" : "reconnecting");
+  const previousConnectionStatus = useRef(connectionStatus);
 
   useEffect(() => {
     const key = `game-arena:join-request:${room.roomId}:${viewerUserId}`;
@@ -126,15 +128,52 @@ export function MatchScreen({
     return room.onMessage(
       "joinRequestRegistrationFailed",
       (payload: { reason?: string }) => {
-        setJoinRequestStatus("failed");
+        retryRequestAfterReconnect.current = true;
+        setJoinRequestStatus("retrying");
         setJoinRequestError(
           payload?.reason === "persistence-unavailable"
-            ? "Le serveur ne peut pas encore confirmer la demande. Réessaie dans un instant."
-            : "La demande n'a pas pu être confirmée.",
+            ? "Le serveur vérifie encore ta demande. Nouvelle tentative automatique…"
+            : "La demande n'a pas pu être confirmée. Nouvelle tentative automatique…",
         );
       },
     );
   }, [room]);
+
+  useEffect(() => {
+    const registered = room.onMessage(
+      "joinRequestRegistered",
+      (payload: { requestId?: string }) => {
+        if (payload?.requestId !== joinRequestId.current) return;
+        retryRequestAfterReconnect.current = false;
+        setJoinRequestStatus("pending");
+        setJoinRequestError(null);
+      },
+    );
+    const rejected = room.onMessage(
+      "joinRequestRejected",
+      (payload: { userId?: string; requestId?: string; reason?: string }) => {
+        if (
+          payload?.userId !== viewerUserId &&
+          payload?.requestId !== joinRequestId.current
+        ) return;
+        retryRequestAfterReconnect.current = false;
+        setJoinRequestStatus(payload?.reason === "declined" ? "rejected" : "failed");
+        setJoinRequestError(
+          payload?.reason === "declined"
+            ? "Le créateur a refusé ta demande. Tu peux en envoyer une nouvelle."
+            : payload?.reason === "room-full"
+              ? "La partie est complète. Tu peux réessayer si une place se libère."
+              : payload?.reason === "guests-watch-only"
+                ? "Un compte invité peut regarder, mais ne peut pas demander une place."
+                : "Cette partie n’accepte plus de demandes. Choisis une autre partie.",
+        );
+      },
+    );
+    return () => {
+      registered();
+      rejected();
+    };
+  }, [room, viewerUserId]);
 
   // Voice/video rides on LiveKit: roles and the roster derive from
   // the server state, the media room joins on arrival (listen by
@@ -188,6 +227,9 @@ export function MatchScreen({
           break;
         case "joinRequestApproved":
           notice(`${playerName(data.userId ?? "")} a rejoint la partie.`);
+          break;
+        case "joinRequestDecisionFailed":
+          notice("La décision n’a pas été confirmée par le serveur. La demande reste en attente.");
           break;
         case "countdown": {
           // The host asked to start: hold everyone behind a full-screen
@@ -277,11 +319,20 @@ export function MatchScreen({
     const ownPending = lobby.pendingPlayerRequests.find(
       (item) => item.userId === viewerUserId,
     );
-    if (!joinRequestId.current && ownPending?.requestId) {
+    const ownLatestOutcome = lobby.joinRequestResults
+      ?.filter((item) => item.userId === viewerUserId)
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    if (ownPending?.requestId && ownPending.requestId !== joinRequestId.current) {
       joinRequestId.current = ownPending.requestId;
       window.sessionStorage.setItem(
         `game-arena:join-request:${room.roomId}:${viewerUserId}`,
         ownPending.requestId,
+      );
+    } else if (!joinRequestId.current && ownLatestOutcome?.requestId) {
+      joinRequestId.current = ownLatestOutcome.requestId;
+      window.sessionStorage.setItem(
+        `game-arena:join-request:${room.roomId}:${viewerUserId}`,
+        ownLatestOutcome.requestId,
       );
     }
     if (!joinRequestId.current) return;
@@ -292,6 +343,7 @@ export function MatchScreen({
       (item) => item.requestId === joinRequestId.current,
     );
     if (request) {
+      retryRequestAfterReconnect.current = false;
       setJoinRequestStatus("pending");
       setJoinRequestError(null);
     } else if (result) {
@@ -319,8 +371,10 @@ export function MatchScreen({
       lobby?.pendingPlayerRequests.some((item) => item.requestId === requestId) ||
       lobby?.joinRequestResults?.some((item) => item.requestId === requestId);
     if (reconciled) return;
+    if (connectionStatus !== "connected" || !lobby) return;
     const attempt = joinRetryAttempt.current;
     if (attempt >= 5) {
+      retryRequestAfterReconnect.current = true;
       setJoinRequestStatus("failed");
       setJoinRequestError(
         "La demande n'a pas encore été confirmée. Vérifie la connexion puis réessaie.",
@@ -342,19 +396,47 @@ export function MatchScreen({
     return () => clearTimeout(timer);
   }, [connectionStatus, joinRequestStatus, lobby, room]);
 
+  useEffect(() => {
+    const previous = previousConnectionStatus.current;
+    previousConnectionStatus.current = connectionStatus;
+    const wasUnavailable = previous !== "connected";
+    if (
+      connectionStatus !== "connected" ||
+      !wasUnavailable ||
+      joinRequestStatus !== "failed" ||
+      !retryRequestAfterReconnect.current
+    ) return;
+    const requestId = joinRequestId.current;
+    if (!requestId) return;
+    const reconciled =
+      lobby?.pendingPlayerRequests.some((item) => item.requestId === requestId) ||
+      lobby?.joinRequestResults?.some((item) => item.requestId === requestId);
+    if (reconciled) return;
+    joinRetryAttempt.current = 0;
+    setJoinRequestStatus("retrying");
+    setJoinRequestError("Reconnecté. Vérification de ta demande en cours…");
+  }, [connectionStatus, joinRequestStatus, lobby]);
+
   const submitJoinRequest = () => {
-    const requestId = joinRequestId.current ?? crypto.randomUUID();
+    const terminal = ["accepted", "rejected", "cancelled", "expired"].includes(
+      joinRequestStatus,
+    );
+    const requestId = terminal
+      ? crypto.randomUUID()
+      : joinRequestId.current ?? crypto.randomUUID();
     joinRequestId.current = requestId;
     window.sessionStorage.setItem(
       `game-arena:join-request:${room.roomId}:${viewerUserId}`,
       requestId,
     );
     joinRetryAttempt.current = 0;
+    retryRequestAfterReconnect.current = false;
     setJoinRequestStatus("submitting");
     setJoinRequestError(null);
     try {
       room.send("requestJoinAsPlayer", { requestId });
     } catch (error) {
+      retryRequestAfterReconnect.current = true;
       setJoinRequestStatus("failed");
       setJoinRequestError(
         error instanceof Error ? error.message : "La demande n'a pas pu être envoyée.",

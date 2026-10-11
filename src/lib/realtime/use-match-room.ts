@@ -95,6 +95,8 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
   const requestIdRef = useRef<string | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryAttemptRef = useRef(0);
+  const retryRequestAfterReconnect = useRef(false);
+  const previousRoomStatus = useRef(status);
   const [joinRequestStatus, setJoinRequestStatus] = useState<
     JoinRequestStatus | "idle" | "submitting" | "retrying" | "failed"
   >("idle");
@@ -115,12 +117,23 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
     const ownPending = snapshot.pendingPlayerRequests.find(
       (request) => request.userId === viewerUserId,
     );
-    if (!requestIdRef.current && ownPending?.requestId) {
+    const ownLatestOutcome = snapshot.joinRequestResults
+      ?.filter((item) => item.userId === viewerUserId)
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    if (ownPending?.requestId && ownPending.requestId !== requestIdRef.current) {
       requestIdRef.current = ownPending.requestId;
       if (typeof window !== "undefined" && joinedRoomId) {
         window.sessionStorage.setItem(
           `game-arena:join-request:${joinedRoomId}:${viewerUserId}`,
           ownPending.requestId,
+        );
+      }
+    } else if (!requestIdRef.current && ownLatestOutcome?.requestId) {
+      requestIdRef.current = ownLatestOutcome.requestId;
+      if (typeof window !== "undefined" && joinedRoomId) {
+        window.sessionStorage.setItem(
+          `game-arena:join-request:${joinedRoomId}:${viewerUserId}`,
+          ownLatestOutcome.requestId,
         );
       }
     }
@@ -133,9 +146,11 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
       (item) => item.requestId === requestId,
     );
     if (pending) {
+      retryRequestAfterReconnect.current = false;
       setJoinRequestStatus("pending");
       setJoinRequestError(null);
     } else if (result) {
+      retryRequestAfterReconnect.current = false;
       setJoinRequestStatus(result.status);
       setJoinRequestError(null);
     }
@@ -146,15 +161,53 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
     return room.onMessage(
       "joinRequestRegistrationFailed",
       (payload: { reason?: string }) => {
-        setJoinRequestStatus("failed");
+        retryRequestAfterReconnect.current = true;
+        setJoinRequestStatus("retrying");
         setJoinRequestError(
           payload?.reason === "persistence-unavailable"
-            ? "Le serveur ne peut pas encore confirmer la demande. Réessaie dans un instant."
-            : "La demande n'a pas pu être confirmée.",
+            ? "Le serveur vérifie encore ta demande. Nouvelle tentative automatique…"
+            : "La demande n'a pas pu être confirmée. Nouvelle tentative automatique…",
         );
       },
     );
   }, [room]);
+
+  useEffect(() => {
+    if (!room) return;
+    const registered = room.onMessage(
+      "joinRequestRegistered",
+      (payload: { requestId?: string }) => {
+        if (payload?.requestId !== requestIdRef.current) return;
+        retryRequestAfterReconnect.current = false;
+        setJoinRequestStatus("pending");
+        setJoinRequestError(null);
+      },
+    );
+    const rejected = room.onMessage(
+      "joinRequestRejected",
+      (payload: { userId?: string; requestId?: string; reason?: string }) => {
+        if (
+          payload?.userId !== viewerUserId &&
+          payload?.requestId !== requestIdRef.current
+        ) return;
+        retryRequestAfterReconnect.current = false;
+        setJoinRequestStatus(payload?.reason === "declined" ? "rejected" : "failed");
+        setJoinRequestError(
+          payload?.reason === "declined"
+            ? "Le créateur a refusé ta demande. Tu peux en envoyer une nouvelle."
+            : payload?.reason === "room-full"
+              ? "La partie est complète. Tu peux réessayer si une place se libère."
+              : payload?.reason === "guests-watch-only"
+                ? "Un compte invité peut regarder, mais ne peut pas demander une place."
+                : "Cette partie n’accepte plus de demandes. Choisis une autre partie.",
+        );
+      },
+    );
+    return () => {
+      registered();
+      rejected();
+    };
+  }, [room, viewerUserId]);
 
   useEffect(() => {
     if (
@@ -168,10 +221,11 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
     const alreadyReconciled =
       snapshot?.pendingPlayerRequests.some((item) => item.requestId === requestId) ||
       snapshot?.joinRequestResults?.some((item) => item.requestId === requestId);
-    if (alreadyReconciled) return;
+    if (alreadyReconciled || status !== "connected" || !snapshot) return;
 
     const attempt = retryAttemptRef.current;
     if (attempt >= 5) {
+      retryRequestAfterReconnect.current = true;
       setJoinRequestStatus("failed");
       setJoinRequestError("La demande n'a pas encore été confirmée. Réessaie lorsque la connexion sera stable.");
       return;
@@ -189,7 +243,27 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
     return () => {
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
-  }, [joinRequestStatus, room, snapshot]);
+  }, [joinRequestStatus, room, snapshot, status]);
+
+  useEffect(() => {
+    const previous = previousRoomStatus.current;
+    previousRoomStatus.current = status;
+    if (
+      status !== "connected" ||
+      previous === "connected" ||
+      joinRequestStatus !== "failed" ||
+      !retryRequestAfterReconnect.current
+    ) return;
+    const requestId = requestIdRef.current;
+    if (!requestId) return;
+    const reconciled =
+      snapshot?.pendingPlayerRequests.some((item) => item.requestId === requestId) ||
+      snapshot?.joinRequestResults?.some((item) => item.requestId === requestId);
+    if (reconciled) return;
+    retryAttemptRef.current = 0;
+    setJoinRequestStatus("retrying");
+    setJoinRequestError("Reconnecté. Vérification de ta demande en cours…");
+  }, [joinRequestStatus, snapshot, status]);
 
   const role: MatchRole = useMemo(() => {
     if (!snapshot) return "spectator";
@@ -219,7 +293,12 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
       setJoinRequestError("Connexion indisponible. Réessaie lorsque la room sera reconnectée.");
       return;
     }
-    const requestId = requestIdRef.current ?? crypto.randomUUID();
+    const terminal = ["accepted", "rejected", "cancelled", "expired"].includes(
+      joinRequestStatus,
+    );
+    const requestId = terminal
+      ? crypto.randomUUID()
+      : requestIdRef.current ?? crypto.randomUUID();
     requestIdRef.current = requestId;
     if (typeof window !== "undefined" && joinedRoomId) {
       window.sessionStorage.setItem(
@@ -228,17 +307,19 @@ export function useMatchRoom(options: UseMatchRoomOptions): MatchController {
       );
     }
     retryAttemptRef.current = 0;
+    retryRequestAfterReconnect.current = false;
     setJoinRequestError(null);
     setJoinRequestStatus("submitting");
     try {
       room.send("requestJoinAsPlayer", { requestId });
     } catch (sendError) {
+      retryRequestAfterReconnect.current = true;
       setJoinRequestStatus("failed");
       setJoinRequestError(
         sendError instanceof Error ? sendError.message : "La demande n'a pas pu être envoyée.",
       );
     }
-  }, [joinedRoomId, room, viewerUserId]);
+  }, [joinRequestStatus, joinedRoomId, room, viewerUserId]);
 
   const retryJoinRequest = useCallback(() => {
     if (!requestIdRef.current) return requestJoin();
