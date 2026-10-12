@@ -4,6 +4,7 @@ import type { Transporter } from "nodemailer";
 
 import { VerifyEmail } from "@/emails/verify-email";
 import { ResetPassword } from "@/emails/reset-password";
+import { MagicLinkEmail } from "@/emails/magic-link";
 
 const from =
   process.env.EMAIL_FROM ??
@@ -31,18 +32,19 @@ function getSmtpTransport(): Transporter {
     const pass = process.env.SMTP_PASS;
     const secure = process.env.SMTP_SECURE === "true";
 
-    if (!host || !port || !user || !pass) {
-      throw new Error("SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS must be defined for SMTP provider");
+    if (!host || !port) {
+      throw new Error("SMTP_HOST and SMTP_PORT must be defined for SMTP provider");
     }
+
+    // Auth is optional so a local catcher (Mailpit/MailHog) that accepts
+    // unauthenticated mail works in development without fake credentials.
+    const auth = user && pass ? { user, pass } : undefined;
 
     smtpTransport = nodemailer.createTransport({
       host,
       port: Number(port),
       secure,
-      auth: {
-        user,
-        pass,
-      },
+      auth,
     });
   }
   return smtpTransport;
@@ -135,5 +137,22 @@ export async function sendPasswordResetEmail({
       username,
       resetUrl: url,
     }),
+  });
+}
+
+export async function sendMagicLinkEmail({
+  to,
+  url,
+  username,
+}: {
+  to: string;
+  url: string;
+  /** Set only for a first registration; ignored for existing accounts. */
+  username?: string;
+}) {
+  return sendEmail({
+    to,
+    subject: "Votre lien de connexion à Game Arena",
+    react: MagicLinkEmail({ url, username }),
   });
 }

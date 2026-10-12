@@ -88,3 +88,37 @@ export type VerifyEmailInput = z.infer<
   typeof verifyEmailSchema
 >;
 
+/*
+ * Magic link — one shared mechanism for sign-in and sign-up.
+ *
+ * The email field is identical in both flows. The sign-up variant adds
+ * the same username rule as the password form, because Better Auth's
+ * magic-link plugin accepts a `name` used only when it registers a brand
+ * new account (an existing account keeps its name).
+ */
+const magicLinkEmail = z
+  .email("Veuillez saisir une adresse e-mail valide.")
+  .transform((value) => value.trim().toLowerCase());
+
+export const magicLinkSignInSchema = z.object({
+  email: magicLinkEmail,
+});
+
+export type MagicLinkSignInInput = z.infer<typeof magicLinkSignInSchema>;
+
+export const magicLinkSignUpSchema = z.object({
+  email: magicLinkEmail,
+
+  name: z
+    .string()
+    .trim()
+    .min(3, "Le pseudo doit contenir au moins 3 caractères.")
+    .max(24, "Le pseudo doit contenir au plus 24 caractères.")
+    .regex(
+      /^[a-zA-Z0-9_]+$/,
+      "Le pseudo ne peut contenir que des lettres, des chiffres et des underscores.",
+    ),
+});
+
+export type MagicLinkSignUpInput = z.infer<typeof magicLinkSignUpSchema>;
+

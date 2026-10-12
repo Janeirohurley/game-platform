@@ -1,10 +1,14 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { admin } from "better-auth/plugins";
+import { admin, magicLink } from "better-auth/plugins";
 import * as authSchema from "@/lib/db/schema/auth";
 
 import { db } from "@/lib/db";
-import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
+import {
+  sendMagicLinkEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "./email";
 
 /**
  * Origins allowed to call the auth API. The list is resolved from the
@@ -75,6 +79,37 @@ export const auth = betterAuth({
     admin({
       defaultRole: "user",
       adminRoles: ["admin"],
+    }),
+
+    /*
+     * Passwordless sign-in / sign-up — the SAME mechanism for both.
+     *
+     * A link establishes a session directly, so the visitor never needs
+     * a password. Existing accounts are signed in; unknown addresses get
+     * an account created on first verification (email already proven by
+     * the click). Better Auth consumes the token atomically (single use)
+     * and stores only its hash here, so a leaked database row cannot be
+     * replayed. The server-side origin check on `/magic-link/verify`
+     * rejects callback URLs outside `trustedOrigins`.
+     *
+     * The plugin's own rate limit (5 requests / IP / minute) is applied
+     * on top of Better Auth's global rate limiter, which is on by
+     * default in production.
+     */
+    magicLink({
+      expiresIn: 60 * 10, // 10 minutes
+      storeToken: "hashed",
+      disableSignUp: false,
+      rateLimit: { window: 60, max: 5 },
+
+      sendMagicLink: async ({ email, url, metadata }) => {
+        await sendMagicLinkEmail({
+          to: email,
+          url,
+          username:
+            typeof metadata?.name === "string" ? metadata.name : undefined,
+        });
+      },
     }),
   ],
 

@@ -15,15 +15,17 @@ interface GameArenaEmailLayoutProps {
   preview: string;
   children: ReactNode;
   footerText?: string;
+  lang?: string;
 }
 
 export function GameArenaEmailLayout({
   preview,
   children,
   footerText = "You are receiving this email because you have a Game Arena account.",
+  lang = "en",
 }: GameArenaEmailLayoutProps) {
   return (
-    <Html lang="en">
+    <Html lang={lang}>
       <Head>
         <Font
           fontFamily="Inter"
