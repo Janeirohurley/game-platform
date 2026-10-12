@@ -14,6 +14,9 @@ import type { LudoPlayerView } from "@/lib/realtime/types";
 
 import { finishedPositionFor } from "../data/boardPositions";
 import { DEFAULT_PLAYER_COUNT, isLudoColor, type LudoColor } from "../data/track";
+import { getTrack } from "../utils/positionUtils";
+import { themeFor } from "../data/boardTheme";
+import { progressForColor } from "../utils/progress";
 import LudoBoard from "../components/board/LudoBoard";
 import LudoScene, { LUDO_CANVAS_PROPS } from "../components/board/LudoScene";
 import { GameToasts, useGameToasts } from "./game-toasts";
@@ -320,6 +323,15 @@ export function OnlineLudoPlay({
     (player) => player.userId === snapshot.winnerUserId,
   );
 
+  // Classement par progression : même calcul que l'indicateur du plateau.
+  const palette = themeFor(getTrack(playerCount).shape).players;
+  const ranking = gameState.players
+    .map((player) => ({
+      player,
+      progress: progressForColor(gameState, player.color),
+    }))
+    .sort((a, b) => b.progress - a.progress);
+
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: "#333333" }}>
       {/* R3F scene — LudoBoard renders three.js elements and MUST live
@@ -367,6 +379,46 @@ export function OnlineLudoPlay({
 
       {/* What just happened — queued, animated, self-dismissing. */}
       <GameToasts toasts={toasts} />
+
+      {/* Progression de chaque joueur, du premier au dernier. */}
+      {snapshot.phase === "playing" || snapshot.phase === "finished" ? (
+        <div className="absolute left-4 top-4 z-10 w-56 rounded-lg bg-black/50 p-3 text-xs text-white backdrop-blur-sm">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-white/70">
+            Progression
+          </div>
+          <div className="grid gap-1">
+            {ranking.map(({ player, progress }, index) => (
+              <div key={player.id} className="flex items-center gap-2">
+                <span className="w-3 text-white/50">{index + 1}</span>
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: palette[player.color] }}
+                />
+                <span className="max-w-[72px] truncate">{player.name}</span>
+                <div
+                  role="progressbar"
+                  aria-valuenow={progress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`Progression de ${player.name}`}
+                  className="relative ml-auto h-1.5 w-14 overflow-hidden rounded-full bg-white/20"
+                >
+                  <div
+                    className="h-full rounded-full transition-[width] duration-300 ease-out"
+                    style={{
+                      width: `${progress}%`,
+                      backgroundColor: palette[player.color],
+                    }}
+                  />
+                </div>
+                <span className="w-8 text-right tabular-nums text-white/80">
+                  {progress}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* What to do now. Steady, so it never competes with the toasts.
           While waiting, the HUD already says whose turn it is not — the

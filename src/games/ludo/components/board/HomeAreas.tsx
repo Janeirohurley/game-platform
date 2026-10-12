@@ -2,7 +2,9 @@
 
 import { Text } from "@react-three/drei";
 import FlatMaterial from "./FlatMaterial";
+import BaseProgressIndicator, { ProgressLabel } from "./BaseProgressIndicator";
 import { getTrack } from "../../utils/positionUtils";
+import { progressForColor } from "../../utils/progress";
 import { BASE_FRAME, FALLBACK_NAME } from "../../data/boardTheme";
 import {
   CLASSIC_BASE_HALF_SIZE,
@@ -67,6 +69,12 @@ function HomeAreas({
         const color = arm.seat ? colors.players[arm.seat.color] : vacantArm;
         const frame = arm.seat ? BASE_FRAME[arm.seat.color] : vacantArm;
         const label = arm.seat ? getNameForColor(arm.seat.color) : "";
+        // Progression du siège : 0 pour un bras sans joueur (gris), qui
+        // n'affiche d'ailleurs aucun indicateur.
+        const ratio = arm.seat
+          ? progressForColor(gameState, arm.seat.color) / 100
+          : 0;
+        const shape = isHex ? "hex" : "classic";
 
         // Repasse un emplacement du monde dans le repère local du groupe.
         const toLocal = (p: BoardPoint): { x: number; z: number } => {
@@ -160,6 +168,17 @@ function HomeAreas({
                 ) : null}
               </>
             )}
+
+            {arm.seat ? (
+              <>
+                <BaseProgressIndicator
+                  ratio={ratio}
+                  color={colors.players[arm.seat.color]}
+                  shape={shape}
+                />
+                <ProgressLabel ratio={ratio} shape={shape} />
+              </>
+            ) : null}
           </group>
         );
       })}

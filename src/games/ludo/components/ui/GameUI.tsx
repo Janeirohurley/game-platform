@@ -3,6 +3,9 @@
 import type { GamePiece, GameState } from "../../types/game";
 import AutoPlayTimer from "./AutoPlayTimer";
 import { playSound } from "@/lib/sounds";
+import { getTrack } from "../../utils/positionUtils";
+import { themeFor } from "../../data/boardTheme";
+import { progressForColor } from "../../utils/progress";
 
 // Game UI Component
 function GameUI({
@@ -19,6 +22,15 @@ function GameUI({
   onToggleAutoPlay: () => void;
 }) {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  // Classement par progression : même calcul que l'indicateur posé sur le
+  // plateau, pour que les deux affichages ne puissent pas diverger.
+  const palette = themeFor(getTrack(gameState.playerCount).shape).players;
+  const ranking = gameState.players
+    .map((player) => ({
+      player,
+      progress: progressForColor(gameState, player.color),
+    }))
+    .sort((a, b) => b.progress - a.progress);
 
   return (
     <div className="absolute bottom-4 left-4 z-10 bg-black/40 backdrop-blur-sm rounded-lg p-4 text-white min-w-[300px]">
@@ -70,11 +82,48 @@ function GameUI({
         <div className="text-xs mb-2 p-2 bg-white/10 rounded">
           <div>Dice: {gameState.diceValue}</div>
           <div>
-            Moveable pieces:{" "}
-            {currentPlayer.pieces.filter((p) => p.canMove).length}
+            Moveable pieces: {currentPlayer.pieces.filter((p) => p.canMove).length}
           </div>
         </div>
       )}
+
+      {/* Classement par progression, du premier au dernier. */}
+      <div className="mb-3 grid gap-1 text-xs">
+        {ranking.map(({ player, progress }, index) => (
+          <div
+            key={player.id}
+            className={`flex items-center gap-2 rounded px-1 py-0.5 ${
+              player.id === currentPlayer?.id ? "bg-white/20" : ""
+            }`}
+          >
+            <span className="w-4 text-white/50">{index + 1}.</span>
+            <div
+              className="h-3 w-3 shrink-0 rounded-full"
+              style={{ backgroundColor: palette[player.color] }}
+            />
+            <span className="max-w-[80px] truncate">{player.name}</span>
+            <div
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Progression de ${player.name}`}
+              className="relative ml-auto h-2 w-16 shrink-0 overflow-hidden rounded-full bg-white/20"
+            >
+              <div
+                className="h-full rounded-full duration-300 ease-out"
+                style={{
+                  width: `${progress}%`,
+                  backgroundColor: palette[player.color],
+                }}
+              />
+            </div>
+            <span className="w-9 shrink-0 text-right tabular-nums">
+              {progress} %
+            </span>
+          </div>
+        ))}
+      </div>
 
       {/* Auto-play Timer */}
       {gameState.autoPlayEnabled && gameState.turnStartTime && (
@@ -84,36 +133,6 @@ function GameUI({
           gameState={gameState}
         />
       )}
-
-      {/* Player Status */}
-      <div className="space-y-1 text-xs">
-        {gameState.players.map((player, index) => (
-          <div
-            key={player.id}
-            className={`flex items-center gap-2 p-1 rounded ${
-              index === gameState.currentPlayerIndex ? "bg-white/20" : ""
-            }`}
-          >
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{
-                backgroundColor:
-                  player.color === "yellow"
-                    ? "#FFD700"
-                    : player.color === "green"
-                      ? "#228B22"
-                      : player.color === "blue"
-                        ? "#4169E1"
-                        : "#DC143C",
-              }}
-            />
-            <span>{player.name}</span>
-            <span className="ml-auto">
-              {player.pieces.filter((p) => p.position === 57).length}/4 finished
-            </span>
-          </div>
-        ))}
-      </div>
 
       {/* Auto-play Toggle */}
       <div className="mb-3">
