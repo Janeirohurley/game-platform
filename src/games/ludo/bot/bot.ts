@@ -11,12 +11,14 @@
 //               case sûre, avancer) moins une pénalité d'exposition.
 //   - Difficile : Normal + évaluation du risque (probabilité de se faire
 //               capturer au tour suivant, valeur du pion perdu), du
-//               sauvetage (quitter une case dangereuse) et de la pression
-//               (pouvoir capturer un adversaire au tour suivant).
+//               sauvetage (quitter une case dangereuse), de la pression
+//               (pouvoir capturer un adversaire au tour suivant) et de la
+//               COURSE : un joueur en retard ose davantage, un joueur en
+//               tête sécurise (voir `raceRiskFactor`).
 
 import { getTrack } from "../utils/positionUtils";
 import type { LudoColor } from "../data/track";
-import type { ResolvedMove, SeatedPlayer } from "../utils/rules";
+import type { ResolvedMove, RulePiece, SeatedPlayer } from "../utils/rules";
 import type { BotContext, BotDifficulty, ScoredMove, RandomFn } from "./types.js";
 
 /** Poids des critères. Regroupés ici pour pouvoir les régler d'un bloc. */
@@ -176,22 +178,46 @@ function baseScore(move: ResolvedMove, context: BotContext): { score: number; re
   return { score, reasons };
 }
 
-function scoreNormal(move: ResolvedMove, context: BotContext): ScoredMove {
-  const { score, reasons } = baseScore(move, context);
-  const threats = ringThreatCount(context.playerCount, context.color, context.opponents, move.toPosition);
-  if (threats > 0) reasons.push(`exposé à ${threats} pion(s)`);
-  return { move, score: score - threats * WEIGHTS.threaten, reasons };
+/** Progression totale (en cases) d'un lot de pions. */
+function totalSteps(pieces: readonly RulePiece[]): number {
+  return pieces.reduce((sum, piece) => sum + pieceSteps(piece.position), 0);
+}
+
+/**
+ * Tolérance au risque selon la COURSE. Un joueur en retard doit oser pour
+ * revenir ; un joueur en tête joue la sécurité. C'est le seul calcul qui
+ * regarde l'état GLOBAL de la table et pas seulement le pion déplacé — d'où
+ * le niveau Difficile uniquement.
+ *
+ *   - en retard  → 0.7 (on accepte plus d'exposition pour ne pas se laisser
+ *                       distancer) ;
+ *   - en tête    → 1.3 (on surestime le danger, on protège l'avance) ;
+ *   - à égalité  : 1.
+ */
+export function raceRiskFactor(context: BotContext): number {
+  const own = totalSteps(context.pieces);
+  const bestOpponent = context.opponents.reduce(
+    (best, opponent) => Math.max(best, totalSteps(opponent.pieces)),
+    0,
+  );
+  if (own < bestOpponent) return 0.7;
+  if (own > bestOpponent) return 1.3;
+  return 1;
 }
 
 function scoreHard(move: ResolvedMove, context: BotContext): ScoredMove {
-  const { score, reasons } = baseScore(move, context);
+  const base = baseScore(move, context);
+  const reasons = [...base.reasons];
+  const score = base.score;
 
   const destThreats = ringThreatCount(context.playerCount, context.color, context.opponents, move.toPosition);
-  // Probabilité approchée d'être capturé au prochain tour (au moins un
-  // des lanceurs adverses tombe juste) : 1 - (5/6)^menaces.
+  // Probabilité de se faire capturer au prochain tour (au moins un adversaire
+  // atteint la case) : 1 - (5/6)^menaces si chaque adversaire a une chance
+  // sur six de tomber pile dessus.
   const captureChance = 1 - Math.pow(5 / 6, destThreats);
   const lostValue = pieceSteps(move.toPosition);
-  const expectedLoss = captureChance * lostValue * WEIGHTS.expectedLoss;
+  const risk = raceRiskFactor(context);
+  const expectedLoss = captureChance * lostValue * WEIGHTS.expectedLoss * risk;
   if (expectedLoss > 0) reasons.push(`risque de perte ${expectedLoss.toFixed(0)}`);
 
   const originThreats = ringThreatCount(context.playerCount, context.color, context.opponents, move.fromPosition);
@@ -206,6 +232,13 @@ function scoreHard(move: ResolvedMove, context: BotContext): ScoredMove {
     score: score - expectedLoss + rescue + chases * WEIGHTS.chase,
     reasons,
   };
+}
+
+function scoreNormal(move: ResolvedMove, context: BotContext): ScoredMove {
+  const { score, reasons } = baseScore(move, context);
+  const threats = ringThreatCount(context.playerCount, context.color, context.opponents, move.toPosition);
+  if (threats > 0) reasons.push(`exposé à ${threats} pion(s)`);
+  return { move, score: score - threats * WEIGHTS.threaten, reasons };
 }
 
 function chooseEasy(

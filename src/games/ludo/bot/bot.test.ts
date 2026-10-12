@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { chooseMove } from "./bot";
+import { chooseMove, raceRiskFactor } from "./bot";
 import { getTrack } from "../utils/positionUtils";
 import { legalMoves } from "../utils/rules";
 import type { LudoColor } from "../data/track";
@@ -138,5 +138,40 @@ describe("niveau Difficile", () => {
     const hard = chooseMove("hard", legal, ctx);
     expect(hard!.move.pieceIndex).toBe(1);
     expect(hard!.move.toPosition).toBe(22);
+  });
+});
+
+describe("raceRiskFactor — tolérance au risque selon la course", () => {
+  const base = { playerCount: 4, color: "yellow" as LudoColor, dice: 1 };
+
+  it("est audacieuse quand on est en retard", () => {
+    const factor = raceRiskFactor({
+      ...base,
+      pieces: [{ index: 0, position: 3 }],
+      opponents: [{ color: "red", pieces: [{ index: 0, position: 40 }] }],
+    });
+    expect(factor).toBeLessThan(1);
+  });
+
+  it("est prudente quand on est en tête", () => {
+    const factor = raceRiskFactor({
+      playerCount: 4,
+      color: "yellow",
+      dice: 1,
+      pieces: [{ index: 0, position: 40 }],
+      opponents: [{ color: "red", pieces: [{ index: 0, position: 3 }] }],
+    });
+    expect(factor).toBeGreaterThan(1);
+  });
+
+  it("reste neutre à progression égale", () => {
+    const factor = raceRiskFactor({
+      playerCount: 4,
+      color: "yellow",
+      dice: 1,
+      pieces: [{ index: 0, position: 20 }],
+      opponents: [{ color: "red", pieces: [{ index: 0, position: 20 }] }],
+    });
+    expect(factor).toBe(1);
   });
 });
