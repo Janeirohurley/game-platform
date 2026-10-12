@@ -40,6 +40,13 @@ export default function LudoPlay() {
     playerCount: DEFAULT_PLAYER_COUNT,
   });
 
+  // Valeurs les plus récentes pour le gestionnaire clavier global, lié une
+  // seule fois : sans ça il lirait un état figé entre deux rendus.
+  const gameStateRef = useRef(gameState);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   const ludoBoardRef = useRef<{
     throwDice: () => void;
     throwDiceWithValue: (value?: number) => void;
@@ -135,6 +142,12 @@ export default function LudoPlay() {
     applyMoveIndex(pieceIndex);
   };
 
+  // Référence au dernier sélecteur de pion, pour le raccourci clavier.
+  const selectPieceRef = useRef(handlePieceIndexSelect);
+  useEffect(() => {
+    selectPieceRef.current = handlePieceIndexSelect;
+  });
+
   // Auto-play (humain inactif). Le tour d'un bot est piloté par
   // `useLudoBot` : l'auto-play ne s'en mêle pas, sinon deux pilotes
   // joueraient le même tour.
@@ -224,26 +237,40 @@ export default function LudoPlay() {
         }
       }
 
-      // Touches 1-6 : forcer une valeur précise (débogage / compat Mac). On
-      // passe par `beginRoll` UNIQUEMENT : le résultat arrivera par
-      // l'animation, comme pour un clic. Appeler `handleDiceResult` ici en
-      // plus doublerait le lancer (c'est ce qui faisait rejouer). Neutralisé
-      // pendant le tour d'un bot.
+      // Touches 1-6. Deux usages selon l'état :
+      //   - un dé attend d'être joué : la touche N choisit le N-ième pion
+      //     jouable, dans l'ordre du sélecteur à l'écran ;
+      //   - aucun dé posé : la touche force une valeur (débogage / compat).
+      // On passe par les mêmes fonctions que les boutons, jamais à côté.
       const key = event.key;
       const code = event.code;
       const keyCode = event.keyCode;
 
       if (gameState.gamePhase === "playing" && !isBotTurn) {
-        const forcedValue = [1, 2, 3, 4, 5, 6].find(
+        const digit = [1, 2, 3, 4, 5, 6].find(
           (value) =>
             key === String(value) ||
             code === `Digit${value}` ||
             code === `Numpad${value}` ||
             keyCode === 48 + value,
         );
-        if (forcedValue !== undefined) {
-          event.preventDefault();
-          beginRoll(forcedValue);
+
+        if (digit !== undefined) {
+          const state = gameStateRef.current;
+          if (state.diceValue !== null) {
+            // Choix d'un pion : ne JAMAIS relancer tant qu'un dé attend.
+            event.preventDefault();
+            const movable = state.players[state.currentPlayerIndex]?.pieces
+              .map((piece, index) => ({ piece, index }))
+              .filter((entry) => entry.piece.canMove);
+            const choice = movable?.[digit - 1];
+            if (choice) selectPieceRef.current(choice.index);
+          } else {
+            // Force la valeur : le résultat viendra de l'animation, comme
+            // un clic. Appeler `handleDiceResult` ici doublerait le lancer.
+            event.preventDefault();
+            beginRoll(digit);
+          }
         }
       }
     };
@@ -268,6 +295,21 @@ export default function LudoPlay() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [gameState.gamePhase, isBotTurn, handleRollDice, beginRoll]);
+
+  // « C'est à toi » : un souffle de vibration quand la main passe à un siège
+  // humain. Les sièges IA ne vibrent pas, et l'API est absente de bien des
+  // navigateurs (iOS) — on la sollicite sans jamais la supposer présente.
+  const prevTurnIndexRef = useRef(gameState.currentPlayerIndex);
+  useEffect(() => {
+    if (gameState.gamePhase !== "playing") return;
+    if (prevTurnIndexRef.current === gameState.currentPlayerIndex) return;
+    prevTurnIndexRef.current = gameState.currentPlayerIndex;
+    const player = gameState.players[gameState.currentPlayerIndex];
+    if (!player || player.isBot) return;
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([35, 40, 35]);
+    }
+  }, [gameState.currentPlayerIndex, gameState.gamePhase, gameState.players]);
 
   // Pilote les sièges IA de la partie locale. Ne fait rien s'il n'y a pas
   // de bot assis (voir `use-ludo-bot.ts`).

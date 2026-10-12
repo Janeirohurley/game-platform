@@ -69,10 +69,19 @@ function GameUI({
           boutons d'angle et évite tout chevauchement sur petit écran. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center px-24 pt-3">
         <div className="flex min-w-0 items-center gap-2 rounded-full bg-black/55 px-3.5 py-1.5 text-sm text-white shadow-lg ring-1 ring-white/10 backdrop-blur-md">
-          <span
-            className="h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-white/40"
-            style={{ backgroundColor: palette[currentPlayer.color] }}
-          />
+          <span className="relative flex h-3.5 w-3.5 shrink-0">
+            {/* Halo pulsé : au tour d'un humain, la pastille respire. */}
+            {!isBotTurn && (
+              <span
+                className="absolute inset-0 animate-ping rounded-full opacity-70"
+                style={{ backgroundColor: palette[currentPlayer.color] }}
+              />
+            )}
+            <span
+              className="relative h-3.5 w-3.5 rounded-full ring-2 ring-white/40"
+              style={{ backgroundColor: palette[currentPlayer.color] }}
+            />
+          </span>
           <span className="max-w-[38vw] truncate font-semibold sm:max-w-none">
             {currentPlayer.name}
           </span>
@@ -213,6 +222,12 @@ function GameUI({
               ))}
             </div>
           )}
+
+          {/* Raccourcis clavier, utiles seulement là où un clavier existe :
+              masqués au doigt, un pointeur fin n'y a pas accès. */}
+          <p className="hidden text-center text-[10px] text-white/45 sm:block">
+            Entrée : lancer le dé · 1‑6 : choisir un pion
+          </p>
         </div>
       </div>
     </>

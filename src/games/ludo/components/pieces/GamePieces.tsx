@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import type {
@@ -15,6 +15,7 @@ import {
   getTileKey,
   getTrack,
 } from "../../utils/positionUtils";
+import { destinationOf } from "../../utils/rules";
 import { playSound } from "@/lib/sounds";
 
 // Duration (in seconds) the piece spends hopping from one tile to the next
@@ -35,6 +36,7 @@ function AnimatedGamePiece({
   pieceColor,
   bounce,
   onPieceClick,
+  onHover,
 }: {
   piece: GamePiece;
   color: LudoColor;
@@ -46,6 +48,8 @@ function AnimatedGamePiece({
   /** Hop gently in place to say "this one is yours to pick". */
   bounce: boolean;
   onPieceClick: (piece: GamePiece) => void;
+  /** Signale au plateau le survol (souris) pour l'aperçu d'arrivée. */
+  onHover?: (hovered: boolean) => void;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   // Position du centre : 57 (2 à 4 joueurs) ou 83 (plateau hexagonal).
@@ -152,10 +156,14 @@ function AnimatedGamePiece({
     <group
       ref={groupRef}
       onClick={() => onPieceClick(piece)}
-      onPointerOver={() =>
-        (document.body.style.cursor = piece.canMove ? "pointer" : "default")
-      }
-      onPointerOut={() => (document.body.style.cursor = "default")}
+      onPointerOver={() => {
+        document.body.style.cursor = piece.canMove ? "pointer" : "default";
+        onHover?.(true);
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = "default";
+        onHover?.(false);
+      }}
     >
       {/* Highlight ring for moveable pieces */}
       {piece.canMove && (
@@ -243,6 +251,9 @@ function GamePieces({
   playerCount: number;
   onPieceClick: (piece: GamePiece) => void;
 }) {
+  // Pion survolé à la souris — sert à dessiner l'aperçu d'arrivée.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   if (gameState.gamePhase === "setup") {
     return null; // Don't show pieces during setup
   }
@@ -289,6 +300,45 @@ function GamePieces({
     return [radius * Math.cos(angle), radius * Math.sin(angle)];
   };
 
+  // Aperçu d'arrivée : au survol d'un pion jouable, on dessine un anneau
+  // sur la case où il se poserait. Purement indicatif — le moteur (et le
+  // serveur) reste seul juge du coup, on lit la même règle que lui.
+  const track = getTrack(playerCount);
+  const dice = gameState.diceValue;
+  let preview: {
+    coordinates: [number, number, number];
+    color: string;
+  } | null = null;
+
+  if (hoveredId !== null && dice !== null) {
+    for (const player of gameState.players) {
+      const pieceIndex = player.pieces.findIndex(
+        (piece) => piece.id === hoveredId,
+      );
+      if (pieceIndex < 0) continue;
+      const piece = player.pieces[pieceIndex];
+      if (piece.canMove) {
+        const destination = destinationOf(
+          { index: pieceIndex, position: piece.position },
+          dice,
+          track.finishedPosition,
+        );
+        if (destination !== null) {
+          preview = {
+            coordinates: getPositionCoordinates(
+              destination,
+              player.color,
+              pieceIndex,
+              playerCount,
+            ),
+            color: colors.players[player.color],
+          };
+        }
+      }
+      break;
+    }
+  }
+
   return (
     <>
       {gameState.players.map((player) =>
@@ -305,17 +355,30 @@ function GamePieces({
               playerCount={playerCount}
               offset={[dx, dz]}
               pieceColor={pieceColor}
-              // Every piece the roll can actually move hops, whatever
-              // the number. `canMove` already carries the rule: on a 6
-              // that includes the ones still in base, on anything less
-              // only those already on the track. It is also set for the
-              // viewer's own pieces only, so nobody sees the opponent's
-              // options.
               bounce={piece.canMove}
               onPieceClick={onPieceClick}
+              onHover={(hovered) =>
+                setHoveredId((current) =>
+                  hovered ? piece.id : current === piece.id ? null : current,
+                )
+              }
             />
           );
         }),
+      )}
+
+      {preview && (
+        <mesh
+          position={[
+            preview.coordinates[0],
+            preview.coordinates[1] + 0.04,
+            preview.coordinates[2],
+          ]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <ringGeometry args={[0.24, 0.36, 32]} />
+          <meshBasicMaterial color={preview.color} transparent opacity={0.9} />
+        </mesh>
       )}
     </>
   );

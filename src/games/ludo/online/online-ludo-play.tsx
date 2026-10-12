@@ -210,6 +210,20 @@ export function OnlineLudoPlay({
   const isMyTurn = snapshot.currentTurn === viewerUserId;
   const dice = snapshot.diceValue;
 
+  // « C'est à toi » : un souffle de vibration quand la main me revient.
+  // L'API manque à bien des navigateurs (iOS) — on la sollicite sans la
+  // supposer présente.
+  const wasMyTurn = useRef(false);
+  useEffect(() => {
+    const myTurn = snapshot.phase === "playing" && isMyTurn;
+    if (myTurn && !wasMyTurn.current) {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate([35, 40, 35]);
+      }
+    }
+    wasMyTurn.current = myTurn;
+  }, [isMyTurn, snapshot.phase]);
+
   /*
    * Table size, clamped to what the board can actually draw.
    *
@@ -412,12 +426,23 @@ export function OnlineLudoPlay({
           <div className="pointer-events-auto w-full max-w-md space-y-2.5 rounded-2xl bg-black/55 p-3 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
             {/* État du tour */}
             <div className="flex items-center gap-2">
-              <span
-                className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white/40"
-                style={{
-                  backgroundColor: palette[currentPlayer?.color ?? "yellow"],
-                }}
-              />
+              <span className="relative flex h-3 w-3 shrink-0">
+                {/* Halo pulsé : à ton tour, la pastille respire. */}
+                {isMyTurn && snapshot.phase === "playing" && (
+                  <span
+                    className="absolute inset-0 animate-ping rounded-full opacity-70"
+                    style={{
+                      backgroundColor: palette[currentPlayer?.color ?? "yellow"],
+                    }}
+                  />
+                )}
+                <span
+                  className="relative h-3 w-3 rounded-full ring-2 ring-white/40"
+                  style={{
+                    backgroundColor: palette[currentPlayer?.color ?? "yellow"],
+                  }}
+                />
+              </span>
               <span className="min-w-0 truncate text-sm font-semibold">
                 {snapshot.phase === "finished"
                   ? `${winner?.name ?? "Quelqu'un"} a gagné !`
