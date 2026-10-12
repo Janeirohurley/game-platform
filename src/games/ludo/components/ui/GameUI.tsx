@@ -1,23 +1,24 @@
 "use client";
 
-import type { GamePiece, GameState } from "../../types/game";
+import type { GameState } from "../../types/game";
 import AutoPlayTimer from "./AutoPlayTimer";
 import { playSound } from "@/lib/sounds";
 import { getTrack } from "../../utils/positionUtils";
 import { themeFor } from "../../data/boardTheme";
 import { progressForColor } from "../../utils/progress";
+import { BOT_DIFFICULTY_LABELS } from "../../bot/types";
 
 // Game UI Component
 function GameUI({
   gameState,
+  isBotTurn = false,
   onRollDice,
-  onPieceClick,
   onAutoPlay,
   onToggleAutoPlay,
 }: {
   gameState: GameState;
+  isBotTurn?: boolean;
   onRollDice: () => void;
-  onPieceClick: (piece: GamePiece) => void;
   onAutoPlay: () => void;
   onToggleAutoPlay: () => void;
 }) {
@@ -53,6 +54,11 @@ function GameUI({
           <span className="font-semibold">
             {currentPlayer.name}&apos;s Turn
           </span>
+          {currentPlayer.isBot && (
+            <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              IA · {BOT_DIFFICULTY_LABELS[currentPlayer.botDifficulty ?? "normal"]}
+            </span>
+          )}
         </div>
 
         {gameState.diceValue && (
@@ -63,18 +69,20 @@ function GameUI({
       {/* Roll Dice Button */}
       <button
         onClick={onRollDice}
-        disabled={gameState.diceValue !== null && !gameState.canRollAgain}
+        disabled={isBotTurn || (gameState.diceValue !== null && !gameState.canRollAgain)}
         className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors mb-3 ${
-          gameState.diceValue === null || gameState.canRollAgain
+          !isBotTurn && (gameState.diceValue === null || gameState.canRollAgain)
             ? "bg-blue-500 hover:bg-blue-600 text-white"
             : "bg-gray-500 text-gray-300 cursor-not-allowed"
         }`}
       >
-        {gameState.diceValue === null
-          ? "Roll Dice"
-          : gameState.canRollAgain
-            ? "Roll Again (6 or Finish)"
-            : "Dice Rolled - Select Piece"}
+        {isBotTurn
+          ? "IA réfléchit…"
+          : gameState.diceValue === null
+            ? "Roll Dice"
+            : gameState.canRollAgain
+              ? "Roll Again (6 or Finish)"
+              : "Dice Rolled - Select Piece"}
       </button>
 
       {/* Turn Status */}
@@ -102,6 +110,11 @@ function GameUI({
               style={{ backgroundColor: palette[player.color] }}
             />
             <span className="max-w-[80px] truncate">{player.name}</span>
+            {player.isBot && (
+              <span className="shrink-0 rounded bg-white/20 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+                IA
+              </span>
+            )}
             <div
               role="progressbar"
               aria-valuenow={progress}

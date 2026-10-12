@@ -1,5 +1,6 @@
 // Game types and interfaces
 import type { LudoColor } from "../data/track";
+import type { BotDifficulty } from "../bot/types";
 
 // Re-exported so components can import the color union from a single
 // place instead of each re-declaring a 4-color union (which is what made
@@ -12,6 +13,13 @@ export interface Player {
   color: LudoColor;
   pieces: GamePiece[];
   isActive: boolean;
+  /**
+   * Siège piloté par l'IA (mode local uniquement). Le serveur n'assied
+   * jamais de bot : ce champ n'existe que pour la partie locale.
+   */
+  isBot?: boolean;
+  /** Niveau de l'IA, présent quand `isBot`. */
+  botDifficulty?: BotDifficulty;
 }
 
 export interface GamePiece {

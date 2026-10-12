@@ -14,6 +14,7 @@ import CameraController from "./camera/CameraController";
 import BlockedMessageNotification from "./camera/BlockedMessageNotification";
 import GameUI from "./ui/GameUI";
 import PlayerSetup from "./ui/PlayerSetup";
+import { useLudoBot } from "../bot/use-ludo-bot";
 import { playSound } from "@/lib/sounds";
 
 // Main Play component
@@ -51,6 +52,11 @@ export default function LudoPlay() {
   // Le parcours dépend de la taille de la table : arrivée à 57 pour 2 à 4
      // joueurs, à 83 pour 5 et 6 joueurs (plateau hexagonal).
   const finishedPosition = finishedPositionFor(gameState.playerCount);
+
+  // Tour d'un bot ? Les commandes HUMAINES (lancer, clic de pion) sont
+  // alors neutralisées : seul le pilote du bot agit, pour éviter qu'un
+  // joueur ne joue « à la place » de l'IA ou ne double les coups.
+  const isBotTurn = gameState.players[gameState.currentPlayerIndex]?.isBot ?? false;
 
   // Game Logic Functions
   const initializeGame = (players: Player[]) => {
@@ -217,26 +223,53 @@ export default function LudoPlay() {
     });
   };
 
-  const handleRollDice = () => {
+  // Lancer brut du dé : c'est l'action réelle, sans garde d'humain. Le bot
+  // l'utilise directement ; l'humain passe par `handleRollDice`, bloqué
+  // pendant le tour d'un bot.
+  const rollDice = () => {
     if (ludoBoardRef.current && !ludoBoardRef.current.isDiceAnimating) {
       playSound("diceRoll");
       ludoBoardRef.current.throwDice();
     }
   };
 
-  const handlePieceClick = (piece: GamePiece) => {
-    if (!piece.canMove || !gameState.diceValue) return;
+  const handleRollDice = () => {
+    if (isBotTurn) return;
+    rollDice();
+  };
 
-    const newPosition = calculateNewPosition(piece, gameState.diceValue);
-
+  // Applique un coup déjà validé par les règles. Partagé par le clic humain
+  // et par le bot : un seul chemin, donc les mêmes contrôles.
+  const applyMove = (piece: GamePiece, dice: number) => {
+    const newPosition = calculateNewPosition(piece, dice);
     if (newPosition !== null) {
       movePiece(piece, newPosition);
+    }
+  };
+
+  const handlePieceClick = (piece: GamePiece) => {
+    if (isBotTurn) return;
+    if (!piece.canMove || !gameState.diceValue) return;
+    applyMove(piece, gameState.diceValue);
+  };
+
+  // Coup demandé par le bot (index de pion chez le joueur courant). Passe
+  // par le même `applyMove`, mais sans la garde réservée aux humains.
+  const handleBotMove = (pieceIndex: number) => {
+    const player = gameState.players[gameState.currentPlayerIndex];
+    const piece = player?.pieces[pieceIndex];
+    if (piece && gameState.diceValue !== null) {
+      applyMove(piece, gameState.diceValue);
     }
   };
 
   // Auto-play functionality
   const performAutoPlay = () => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+
+    // Le tour d'un bot est piloté par `useLudoBot` : l'auto-play humain ne
+    // s'en mêle pas, sinon deux pilotes joueraient le même tour.
+    if (currentPlayer?.isBot) return;
 
     if (!gameState.diceValue) {
       // Auto-roll dice
@@ -494,7 +527,16 @@ export default function LudoPlay() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [gameState.gamePhase, handleDiceResult]);
+  }, [gameState.gamePhase, handleDiceResult, handleRollDice]);
+
+  // Pilote les sièges IA de la partie locale. Ne fait rien s'il n'y a pas
+  // de bot assis (voir `use-ludo-bot.ts`).
+  useLudoBot(gameState, {
+    enabled: gameState.gamePhase === "playing",
+    onRoll: rollDice,
+    onMove: handleBotMove,
+  });
+
   // Handle camera view changes
   const handleCameraView = (view: string) => {
     playSound("buttonClick");
@@ -518,8 +560,8 @@ export default function LudoPlay() {
       {gameState.gamePhase === "playing" && (
         <GameUI
           gameState={gameState}
+          isBotTurn={isBotTurn}
           onRollDice={handleRollDice}
-          onPieceClick={handlePieceClick}
           onAutoPlay={performAutoPlay}
           onToggleAutoPlay={() =>
             setGameState((prev) => ({
