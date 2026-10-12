@@ -214,6 +214,19 @@ function AnimatedGamePiece({
         <cylinderGeometry args={[0.06, 0.09, 0.06]} />
         <meshStandardMaterial color={pieceColor} roughness={0.1} metalness={0.2} />
       </mesh>
+
+      {/* Zone tactile élargie, invisible : le pion reste petit à l'écran mais
+          devient facile à viser au doigt (le dé utilise déjà le même procédé,
+          voir `DiceComponent`). `opacity 0` et non `visible={false}` pour
+          rester une cible de raycast. On ne l'ajoute QU'AUX pions jouables :
+          un pion inerte ne doit pas intercepter le tap d'un pion jouable
+          situé derrière lui dans l'axe de la caméra. */}
+      {piece.canMove && (
+        <mesh position={[0, 0.4, 0]}>
+          <cylinderGeometry args={[0.45, 0.45, 1.1, 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
     </group>
   );
 }

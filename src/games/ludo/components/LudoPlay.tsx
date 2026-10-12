@@ -8,13 +8,14 @@ import { getTrack } from "../utils/positionUtils";
 import { destinationOf } from "../utils/rules";
 import { withMove, withRoll } from "../engine/turns";
 import { DEFAULT_PLAYER_COUNT } from "../data/track";
-import { BOARD_THEME } from "../data/boardTheme";
+import { themeFor } from "../data/boardTheme";
 import LudoBoard from "./board/LudoBoard";
 import LudoScene, { LUDO_CANVAS_PROPS } from "./board/LudoScene";
 import CameraController from "./camera/CameraController";
 import BlockedMessageNotification from "./camera/BlockedMessageNotification";
 import GameUI from "./ui/GameUI";
 import PlayerSetup from "./ui/PlayerSetup";
+import CameraPanel from "./ui/CameraPanel";
 import { useLudoBot } from "../bot/use-ludo-bot";
 import { playSound } from "@/lib/sounds";
 
@@ -115,6 +116,16 @@ export default function LudoPlay() {
     applyMoveIndex(pieceIndex);
   };
 
+  // Même coup, déclenché depuis le sélecteur de pion (bouton HTML). Mêmes
+  // gardes que le clic 3D : tour d'un bot exclu, pion jouable requis, dé posé.
+  const handlePieceIndexSelect = (pieceIndex: number) => {
+    if (isBotTurn) return;
+    const piece =
+      gameState.players[gameState.currentPlayerIndex]?.pieces[pieceIndex];
+    if (!piece?.canMove || gameState.diceValue === null) return;
+    applyMoveIndex(pieceIndex);
+  };
+
   // Coup demandé par le bot (index de pion chez le joueur courant). Passe
   // par le même `applyMoveIndex`, mais sans la garde réservée aux humains.
   const handleBotMove = (pieceIndex: number) => {
@@ -184,13 +195,6 @@ export default function LudoPlay() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Debug logging for Mac keyboard issues
-      console.log("Key pressed:", {
-        key: event.key,
-        code: event.code,
-        keyCode: event.keyCode,
-      });
-
       // Check if dice is currently animating - if so, show blocked message and ignore key presses
       if (ludoBoardRef.current?.isDiceAnimating) {
         setShowBlockedMessage(true);
@@ -273,13 +277,19 @@ export default function LudoPlay() {
     onMove: handleBotMove,
   });
 
-  // Handle camera view changes
+  // Handle camera view changes. Le son du bouton est joué par `CameraPanel`.
   const handleCameraView = (view: string) => {
-    playSound("buttonClick");
-    console.log(`Switching to ${view} view`);
     setCameraView(view);
     setResetCamera(false);
     setTimeout(() => setCameraView(null), 100); // Reset flag after brief moment
+  };
+
+  // Recentre la caméra et coupe la rotation automatique.
+  const handleResetCamera = () => {
+    setResetCamera(true);
+    setCameraView(null);
+    setIsSpacePressed(false);
+    setTimeout(() => setResetCamera(false), 100);
   };
 
   return (
@@ -299,6 +309,7 @@ export default function LudoPlay() {
           isBotTurn={isBotTurn}
           onRollDice={handleRollDice}
           onAutoPlay={performAutoPlay}
+          onSelectPiece={handlePieceIndexSelect}
           onToggleAutoPlay={() =>
             setGameState((prev) => ({
               ...prev,
@@ -310,18 +321,24 @@ export default function LudoPlay() {
 
       {/* Winner Announcement */}
       {gameState.gamePhase === "finished" && gameState.winner && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 text-center max-w-md">
-            <h2 className="text-3xl font-bold mb-4">🎉 Game Over! 🎉</h2>
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div
-                className="w-8 h-8 rounded-full"
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-black/70 p-6 text-center text-white shadow-2xl ring-1 ring-white/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/60">
+              Partie terminée
+            </p>
+            <h2 className="mt-2 text-2xl font-bold">Victoire !</h2>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <span
+                className="h-8 w-8 shrink-0 rounded-full ring-2 ring-white/40"
                 style={{
-                  backgroundColor: BOARD_THEME.players[gameState.winner.color],
+                  backgroundColor:
+                    themeFor(getTrack(gameState.playerCount).shape).players[
+                      gameState.winner.color
+                    ],
                 }}
               />
-              <span className="text-2xl font-semibold">
-                {gameState.winner.name} Wins!
+              <span className="text-xl font-semibold">
+                {gameState.winner.name} remporte la partie
               </span>
             </div>
             <button
@@ -329,9 +346,9 @@ export default function LudoPlay() {
                 playSound("buttonClick");
                 window.location.reload();
               }}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold"
+              className="mt-6 w-full rounded-xl bg-blue-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-600"
             >
-              Play Again
+              Rejouer
             </button>
           </div>
         </div>
@@ -373,75 +390,13 @@ export default function LudoPlay() {
         {showBlockedMessage && <BlockedMessageNotification />}
       </Canvas>
 
-      {/* Camera View Controls - Bottom Right */}
-      <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
-        <div className="bg-black/40 backdrop-blur-sm rounded-lg p-3 text-white">
-          <div className="text-xs font-semibold mb-2 text-center">
-            Camera Views
-          </div>
-          <div className="grid grid-cols-2 gap-1 text-xs">
-            <button
-              onClick={() => handleCameraView("top")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Top View"
-            >
-              Top
-            </button>
-            <button
-              onClick={() => handleCameraView("front")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Front View"
-            >
-              Front
-            </button>
-            <button
-              onClick={() => handleCameraView("left")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Left View"
-            >
-              Left
-            </button>
-            <button
-              onClick={() => handleCameraView("right")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Right View"
-            >
-              Right
-            </button>
-          </div>
-
-          {/* Auto-rotate Toggle */}
-          <button
-            onClick={() => {
-              playSound("buttonClick");
-              setIsSpacePressed(!isSpacePressed);
-            }}
-            className={`w-full mt-1 px-2 py-1 rounded transition-colors text-xs font-semibold ${
-              isSpacePressed
-                ? "bg-green-500/80 hover:bg-green-500 text-white"
-                : "bg-white/20 hover:bg-white/30 text-white"
-            }`}
-            title="Toggle Auto-rotate (Space key)"
-          >
-            {isSpacePressed ? "🔄 Auto-rotate ON" : "⏸️ Auto-rotate OFF"}
-          </button>
-        </div>
-
-        {/* Reset Camera Button */}
-        <button
-          onClick={() => {
-            playSound("buttonClick");
-            setResetCamera(true);
-            setCameraView(null);
-            setIsSpacePressed(false); // Also stop auto-rotate on reset
-            setTimeout(() => setResetCamera(false), 100);
-          }}
-          className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors backdrop-blur-sm"
-          title="Reset Camera (R key)"
-        >
-          Reset
-        </button>
-      </div>
+      {/* Commandes caméra — repliées, en haut à droite. */}
+      <CameraPanel
+        onView={handleCameraView}
+        autoRotate={isSpacePressed}
+        onToggleAutoRotate={() => setIsSpacePressed((value) => !value)}
+        onReset={handleResetCamera}
+      />
     </div>
   );
 }

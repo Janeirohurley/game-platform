@@ -30,6 +30,12 @@ export const LUDO_CANVAS_PROPS: Partial<CanvasProps> = {
   // couches fines du plateau (cases, étoiles, cadres), donc plus de
   // scintillement (z-fighting) à distance.
   camera: { position: [0, 16, 16], fov: 60, near: 0.5, far: 200 },
+  // Le plateau se manipule au doigt (OrbitControls) : on neutralise les
+  // gestes natifs du navigateur sur le canvas, sinon un glissement de caméra
+  // déclenche un scroll, un zoom de page ou le « tirer pour rafraîchir ».
+  onCreated: ({ gl }) => {
+    gl.domElement.style.touchAction = "none";
+  },
 };
 
 const TABLE_RADIUS = 22;

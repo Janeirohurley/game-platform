@@ -1,30 +1,45 @@
 "use client";
 
+import { useState } from "react";
 import type { GameState } from "../../types/game";
 import AutoPlayTimer from "./AutoPlayTimer";
+import MoveSelector from "./MoveSelector";
 import { playSound } from "@/lib/sounds";
+import { useSoundMute } from "@/lib/use-sound-mute";
 import { getTrack } from "../../utils/positionUtils";
 import { themeFor } from "../../data/boardTheme";
 import { progressForColor } from "../../utils/progress";
 import { BOT_DIFFICULTY_LABELS } from "../../bot/types";
 
-// Game UI Component
+// Interface de partie, pensée mobile d'abord.
+//
+// Deux zones seulement, pour ne jamais recouvrir le plateau ni se marcher
+// dessus :
+//   - une barre d'état en HAUT, centrée, entre « Retour » (gauche) et les
+//     commandes caméra (droite) : à qui le tour, et la valeur du dé ;
+//   - un dock d'action en BAS, centré et atteignable au pouce : sélection du
+//     pion, lancer du dé, auto-play et classement repliable.
 function GameUI({
   gameState,
   isBotTurn = false,
   onRollDice,
   onAutoPlay,
   onToggleAutoPlay,
+  onSelectPiece,
 }: {
   gameState: GameState;
   isBotTurn?: boolean;
   onRollDice: () => void;
   onAutoPlay: () => void;
   onToggleAutoPlay: () => void;
+  onSelectPiece: (pieceIndex: number) => void;
 }) {
+  const [rankingOpen, setRankingOpen] = useState(false);
+  const { muted, toggleMuted } = useSoundMute();
+
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  // Classement par progression : même calcul que l'indicateur posé sur le
-  // plateau, pour que les deux affichages ne puissent pas diverger.
+  // Même calcul de progression que l'indicateur posé sur le plateau, pour
+  // que les deux affichages ne puissent pas diverger.
   const palette = themeFor(getTrack(gameState.playerCount).shape).players;
   const ranking = gameState.players
     .map((player) => ({
@@ -33,152 +48,174 @@ function GameUI({
     }))
     .sort((a, b) => b.progress - a.progress);
 
+  const movableCount =
+    currentPlayer?.pieces.filter((piece) => piece.canMove).length ?? 0;
+  const canRoll =
+    !isBotTurn && (gameState.diceValue === null || gameState.canRollAgain);
+
+  const rollLabel = isBotTurn
+    ? "L'IA réfléchit…"
+    : gameState.diceValue === null
+      ? "Lancer le dé"
+      : movableCount > 0
+        ? "Choisissez un pion"
+        : gameState.canRollAgain
+          ? "Rejouer (6 ou arrivée)"
+          : "Tour suivant…";
+
   return (
-    <div className="absolute bottom-4 left-4 z-10 bg-black/40 backdrop-blur-sm rounded-lg p-4 text-white min-w-[300px]">
-      {/* Current Player */}
-      <div className="mb-3">
-        <div className="flex items-center gap-2 mb-2">
-          <div
-            className="w-4 h-4 rounded-full"
-            style={{
-              backgroundColor:
-                currentPlayer.color === "yellow"
-                  ? "#FFD700"
-                  : currentPlayer.color === "green"
-                    ? "#228B22"
-                    : currentPlayer.color === "blue"
-                      ? "#4169E1"
-                      : "#DC143C",
-            }}
+    <>
+      {/* Barre d'état — haut centre. `px-14` réserve la place des deux
+          boutons d'angle et évite tout chevauchement sur petit écran. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center px-24 pt-3">
+        <div className="flex min-w-0 items-center gap-2 rounded-full bg-black/55 px-3.5 py-1.5 text-sm text-white shadow-lg ring-1 ring-white/10 backdrop-blur-md">
+          <span
+            className="h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-white/40"
+            style={{ backgroundColor: palette[currentPlayer.color] }}
           />
-          <span className="font-semibold">
-            {currentPlayer.name}&apos;s Turn
+          <span className="max-w-[38vw] truncate font-semibold sm:max-w-none">
+            {currentPlayer.name}
           </span>
-          {currentPlayer.isBot && (
+          {isBotTurn && (
             <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
               IA · {BOT_DIFFICULTY_LABELS[currentPlayer.botDifficulty ?? "normal"]}
             </span>
           )}
+          {gameState.diceValue !== null && (
+            <span className="ml-0.5 rounded-md bg-white/15 px-2 py-0.5 font-mono text-xs tabular-nums">
+              {gameState.diceValue}
+            </span>
+          )}
         </div>
-
-        {gameState.diceValue && (
-          <div className="text-sm">Last Roll: {gameState.diceValue}</div>
-        )}
       </div>
 
-      {/* Roll Dice Button */}
-      <button
-        onClick={onRollDice}
-        disabled={isBotTurn || (gameState.diceValue !== null && !gameState.canRollAgain)}
-        className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors mb-3 ${
-          !isBotTurn && (gameState.diceValue === null || gameState.canRollAgain)
-            ? "bg-blue-500 hover:bg-blue-600 text-white"
-            : "bg-gray-500 text-gray-300 cursor-not-allowed"
-        }`}
+      {/* Dock d'action — bas, centré. Le padding bas respecte la zone sûre
+          des téléphones (encoche / barre gestuelle). */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center px-3"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
       >
-        {isBotTurn
-          ? "IA réfléchit…"
-          : gameState.diceValue === null
-            ? "Roll Dice"
-            : gameState.canRollAgain
-              ? "Roll Again (6 or Finish)"
-              : "Dice Rolled - Select Piece"}
-      </button>
+        <div className="pointer-events-auto w-full max-w-md space-y-2.5 rounded-2xl bg-black/60 p-3 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
+          {gameState.autoPlayEnabled && gameState.turnStartTime && (
+            <AutoPlayTimer
+              startTime={gameState.turnStartTime}
+              onAutoPlay={onAutoPlay}
+              gameState={gameState}
+            />
+          )}
 
-      {/* Turn Status */}
-      {gameState.diceValue && (
-        <div className="text-xs mb-2 p-2 bg-white/10 rounded">
-          <div>Dice: {gameState.diceValue}</div>
-          <div>
-            Moveable pieces: {currentPlayer.pieces.filter((p) => p.canMove).length}
-          </div>
-        </div>
-      )}
+          {/* Sélection précise du pion : le chemin fiable au doigt. */}
+          {!isBotTurn && movableCount > 0 && (
+            <MoveSelector gameState={gameState} onSelectPiece={onSelectPiece} />
+          )}
 
-      {/* Classement par progression, du premier au dernier. */}
-      <div className="mb-3 grid gap-1 text-xs">
-        {ranking.map(({ player, progress }, index) => (
-          <div
-            key={player.id}
-            className={`flex items-center gap-2 rounded px-1 py-0.5 ${
-              player.id === currentPlayer?.id ? "bg-white/20" : ""
+          <button
+            onClick={() => {
+              playSound("buttonClick");
+              onRollDice();
+            }}
+            disabled={!canRoll}
+            className={`w-full rounded-xl py-3 text-base font-bold transition-colors ${
+              canRoll
+                ? "bg-blue-500 hover:bg-blue-600 text-white"
+                : "bg-white/10 text-white/40 cursor-not-allowed"
             }`}
           >
-            <span className="w-4 text-white/50">{index + 1}.</span>
-            <div
-              className="h-3 w-3 shrink-0 rounded-full"
-              style={{ backgroundColor: palette[player.color] }}
-            />
-            <span className="max-w-[80px] truncate">{player.name}</span>
-            {player.isBot && (
-              <span className="shrink-0 rounded bg-white/20 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
-                IA
-              </span>
-            )}
-            <div
-              role="progressbar"
-              aria-valuenow={progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`Progression de ${player.name}`}
-              className="relative ml-auto h-2 w-16 shrink-0 overflow-hidden rounded-full bg-white/20"
+            {rollLabel}
+          </button>
+
+          {gameState.diceValue !== null && movableCount === 0 && (
+            <p className="text-center text-xs text-amber-300">
+              Aucun coup possible — la main passe.
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                playSound("buttonClick");
+                onToggleAutoPlay();
+              }}
+              className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-colors ${
+                gameState.autoPlayEnabled
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-white/10 hover:bg-white/20 text-white"
+              }`}
             >
-              <div
-                className="h-full rounded-full duration-300 ease-out"
-                style={{
-                  width: `${progress}%`,
-                  backgroundColor: palette[player.color],
-                }}
-              />
-            </div>
-            <span className="w-9 shrink-0 text-right tabular-nums">
-              {progress} %
-            </span>
+              Auto-play {gameState.autoPlayEnabled ? "ON" : "OFF"}
+            </button>
+            <button
+              onClick={() => {
+                playSound("buttonClick");
+                setRankingOpen((open) => !open);
+              }}
+              className="flex-1 rounded-lg bg-white/10 py-2 text-xs font-semibold transition-colors hover:bg-white/20"
+            >
+              Classement {rankingOpen ? "▲" : "▼"}
+            </button>
+            <button
+              onClick={toggleMuted}
+              aria-pressed={muted}
+              aria-label={muted ? "Activer le son" : "Couper le son"}
+              title={muted ? "Activer le son" : "Couper le son"}
+              className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                muted
+                  ? "bg-white/5 text-white/50 hover:bg-white/10"
+                  : "bg-white/10 text-white hover:bg-white/20"
+              }`}
+            >
+              Son {muted ? "OFF" : "ON"}
+            </button>
           </div>
-        ))}
-      </div>
 
-      {/* Auto-play Timer */}
-      {gameState.autoPlayEnabled && gameState.turnStartTime && (
-        <AutoPlayTimer
-          startTime={gameState.turnStartTime}
-          onAutoPlay={onAutoPlay}
-          gameState={gameState}
-        />
-      )}
-
-      {/* Auto-play Toggle */}
-      <div className="mb-3">
-        <button
-          onClick={() => {
-            playSound("buttonClick");
-            onToggleAutoPlay();
-          }}
-          className={`w-full py-1 px-2 rounded text-xs font-semibold transition-colors ${
-            gameState.autoPlayEnabled
-              ? "bg-green-600 hover:bg-green-700 text-white"
-              : "bg-gray-600 hover:bg-gray-700 text-white"
-          }`}
-        >
-          Auto-play: {gameState.autoPlayEnabled ? "ON" : "OFF"}
-        </button>
-      </div>
-
-      {/* Instructions */}
-      <div className="mt-3 text-xs text-gray-300">
-        {gameState.diceValue &&
-          !currentPlayer.pieces.some((p) => p.canMove) && (
-            <div className="text-yellow-400 font-semibold mt-2">
-              {currentPlayer.pieces.every((p) => p.position === -1) &&
-              gameState.diceValue !== 6 ? (
-                <>⚠️ Need 6 to start - next player...</>
-              ) : (
-                <>⚠️ No valid moves - switching turns...</>
-              )}
+          {/* Classement par progression, replié par défaut pour garder le dock
+              compact sur téléphone. */}
+          {rankingOpen && (
+            <div className="grid gap-1 pt-0.5 text-xs">
+              {ranking.map(({ player, progress }, index) => (
+                <div
+                  key={player.id}
+                  className={`flex items-center gap-2 rounded-lg px-2 py-1 ${
+                    player.id === currentPlayer?.id ? "bg-white/15" : ""
+                  }`}
+                >
+                  <span className="w-4 shrink-0 text-white/50">{index + 1}.</span>
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: palette[player.color] }}
+                  />
+                  <span className="max-w-[7rem] truncate">{player.name}</span>
+                  {player.isBot && (
+                    <span className="shrink-0 rounded bg-white/20 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+                      IA
+                    </span>
+                  )}
+                  <div
+                    role="progressbar"
+                    aria-valuenow={progress}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`Progression de ${player.name}`}
+                    className="relative ml-auto h-2 w-16 shrink-0 overflow-hidden rounded-full bg-white/20"
+                  >
+                    <div
+                      className="h-full rounded-full duration-300 ease-out"
+                      style={{
+                        width: `${progress}%`,
+                        backgroundColor: palette[player.color],
+                      }}
+                    />
+                  </div>
+                  <span className="w-9 shrink-0 text-right tabular-nums">
+                    {progress} %
+                  </span>
+                </div>
+              ))}
             </div>
           )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
