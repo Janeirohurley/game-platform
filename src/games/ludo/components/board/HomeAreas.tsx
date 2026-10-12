@@ -2,7 +2,7 @@
 
 import { Text } from "@react-three/drei";
 import FlatMaterial from "./FlatMaterial";
-import BaseProgressIndicator, { ProgressLabel } from "./BaseProgressIndicator";
+import BaseProgressIndicator from "./BaseProgressIndicator";
 import { getArmBaseCenter, getTrack } from "../../utils/positionUtils";
 import { progressForColor } from "../../utils/progress";
 import { BASE_FRAME, FALLBACK_NAME } from "../../data/boardTheme";
@@ -164,14 +164,11 @@ function HomeAreas({
             )}
 
             {arm.seat ? (
-              <>
-                <BaseProgressIndicator
-                  ratio={ratio}
-                  color={colors.players[arm.seat.color]}
-                  shape={shape}
-                />
-                <ProgressLabel ratio={ratio} shape={shape} />
-              </>
+              <BaseProgressIndicator
+                ratio={ratio}
+                color={colors.players[arm.seat.color]}
+                shape={shape}
+              />
             ) : null}
           </group>
         );

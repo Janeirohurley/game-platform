@@ -7,62 +7,75 @@ import * as THREE from "three";
 
 import FlatMaterial from "./FlatMaterial";
 
-// Indicateur de progression d'une base : une barre à plat, fond neutre et
-// remplissage à la couleur du joueur, posée dans une zone LIBRE de la base.
+// Progression d'une base, posée DANS la surface de la base.
 //
-// Il n'y a que deux formes de base et chacune a sa zone libre :
-//   - croix : la base est un grand carré ; le nom occupe le centre et les
-//     quatre anneaux sont sur les diagonales. Le seul espace franc est la
-//     bande du bord extérieur (/ +z), entre le nom et le bord de la plaque.
-//   - hexagone : la plaque est un disque coloré percé de quatre trous à mi-
-//     rayon ; le centre (rayon libre ~0,56) ne porte ni nom ni trou, on y
-//     pose la barre et le pourcentage juste au-dessus.
+// Ce n'est pas un contrôle de formulaire : pas de cadre, pas de pastille
+// rapportée, pas de libellé flottant. C'est une jauge encastrée, comme une
+// règle imprimée sur le plateau — un creux neutre, un trait à la couleur du
+// joueur, et le pourcentage en petit sous le trait. La longueur du trait
+// (et non la seule couleur) porte l'information, le nombre la confirme.
 //
-// Toutes les pièces sont des aplats (`FlatMaterial`), sans arête ni ligne
-// GL ; les mesures sont posées pour rester dans le motif libre de chaque
-// forme et ne recouvrir ni les anneaux, ni les emplacements, ni le nom.
+// Il n'y a que deux formes de base, et chacune a UNE zone franche :
+//   - croix : le centre du panneau porte le nom, les quatre anneaux sont sur
+//     les diagonales. La colonne centrale, entre le nom et le bord, est la
+//     seule bande continue : la jauge s'y glisse en sous-titre du nom.
+//   - hexagone : la plaque est un disque percé de quatre trous à mi-rayon ;
+//     le centre (rayon libre ~0,56) ne porte ni nom ni trou. La jauge s'y
+//     pose, centrée.
+// Dans les deux cas, les valeurs (z, largeur, rayon) restent en deçà des
+// anneaux/trous : aucun chevauchement avec les emplacements, le nom ou les
+// pions.
 
-/** Durée d'un balayage complet 0 → 100 % (les changements partiels sont plus courts). */
+/** Durée d'un balayage complet 0 → 100 % (les variations partielles sont plus courtes). */
 const SWEEP_SECONDS = 0.4;
+
+/** Retrait du trait par rapport au creux : le creux encadre le trait. */
+const INSET_X = 0.06;
+const INSET_Z = 0.018;
+
+/** Épaisseurs : creux 0,006 puis trait à +0,002 au-dessus, sous le nom à 0.19. */
+const SLAB = 0.006;
 
 type Shape = "classic" | "hex";
 
-interface IndicatorLayout {
-  /** Décalage local de la barre le long de +z. */
-  barZ: number;
-  /** Largeur totale de la barre. */
+interface Layout {
+  /** Décalage local de la jauge le long de +z. */
+  meterZ: number;
+  /** Largeur du creux. */
   width: number;
-  /** Profondeur (axe z) de la barre. */
+  /** Profondeur (axe z) du creux. */
   depth: number;
-  /** Hauteur de la barre au-dessus de la plaque. */
-  y: number;
+  /** Hauteur du dessus du creux. */
+  grooveY: number;
+  /** Hauteur du dessus du trait de remplissage. */
+  fillY: number;
   /** Décalage local du pourcentage. */
   textZ: number;
-  /** Taille de police du pourcentage. */
   textSize: number;
 }
 
-const LAYOUT: Record<Shape, IndicatorLayout> = {
-  // Bande extérieure de la plaque carrée : à 1,85 du centre, entre les
-  // anneaux (≤ 1,28) et le bord (2,52). Largeur 3, limitée par la plaque
-  // (3,9 de côté intérieur) : elle ne mord pas sur les anneaux.
+const LAYOUT: Record<Shape, Layout> = {
+  // Sous le nom (z = 0), avant la rangée d'anneaux (z ≈ 0,67 au plus près) :
+  // la jauge tient dans la bande centrale libre du panneau carré.
   classic: {
-    barZ: 1.85,
-    width: 3,
-    depth: 0.3,
-    y: 0.185,
-    textZ: 2.2,
-    textSize: 0.24,
+    meterZ: 0.3,
+    width: 2.3,
+    depth: 0.13,
+    grooveY: 0.176,
+    fillY: 0.184,
+    textZ: 0.56,
+    textSize: 0.23,
   },
-  // Centre libre du disque : la barre tient dans le rayon libre (~0,56),
-  // le pourcentage se pose juste au-dessus, encore dans ce rayon.
+  // Centre du disque : la jauge et le nombre tiennent dans le rayon libre
+  // (≈ 0,56) sans atteindre les trous (rayon ≈ 0,97).
   hex: {
-    barZ: -0.15,
-    width: 0.94,
-    depth: 0.18,
-    y: 0.181,
-    textZ: 0.16,
-    textSize: 0.19,
+    meterZ: -0.1,
+    width: 0.92,
+    depth: 0.12,
+    grooveY: 0.17,
+    fillY: 0.178,
+    textZ: 0.15,
+    textSize: 0.2,
   },
 };
 
@@ -79,6 +92,9 @@ function BaseProgressIndicator({
   const current = useRef(Math.min(Math.max(ratio, 0), 1));
   const reduceMotion = useRef<boolean | null>(null);
   const layout = LAYOUT[shape];
+
+  const fillWidth = layout.width - INSET_X * 2;
+  const fillDepth = layout.depth - INSET_Z * 2;
 
   useFrame((_, delta) => {
     const mesh = fillRef.current;
@@ -104,63 +120,47 @@ function BaseProgressIndicator({
       }
     }
 
+    // Le trait est ancré à gauche : seule son échelle en x bouge, jamais la
+    // géométrie — aucune allocation par image.
     const value = Math.max(current.current, 0.0001);
     mesh.scale.x = value;
-    mesh.position.x = -(layout.width / 2) * (1 - current.current);
+    mesh.position.x = (fillWidth / 2) * (value - 1);
   });
 
+  const percent = Math.round(Math.min(Math.max(ratio, 0), 1) * 100);
+
   return (
-    <group position={[0, layout.y, layout.barZ]}>
-      {/* Contour sombre (géométrie, pas d'arête) puis fond neutre : la barre
-          se détache aussi bien sur la plaque grise que sur le disque coloré. */}
-      <mesh position={[0, -0.003, 0]}>
-        <boxGeometry args={[layout.width + 0.06, 0.006, layout.depth + 0.06]} />
-        <FlatMaterial color="#4a4a4f" />
+    <group>
+      {/* Creux neutre : le seul fond, il sert de rail aussi bien sur le
+          panneau gris que sur le disque coloré. Pas de contour ajouté. */}
+      <mesh position={[0, layout.grooveY - SLAB / 2, layout.meterZ]}>
+        <boxGeometry args={[layout.width, SLAB, layout.depth]} />
+        <FlatMaterial color="#5b5b62" />
       </mesh>
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[layout.width, 0.006, layout.depth]} />
-        <FlatMaterial color="#e7e7ea" />
-      </mesh>
-      {/* Remplissage couleur joueur, ancré à gauche : on ne change que son
-          échelle et son décalage en x, jamais la géométrie. */}
-      <mesh ref={fillRef} position={[0, 0.003, 0]}>
-        <boxGeometry args={[layout.width, 0.006, layout.depth]} />
+
+      {/* Trait de progression, à la couleur du joueur, encastré dans le creux. */}
+      <mesh ref={fillRef} position={[0, layout.fillY - SLAB / 2, layout.meterZ]}>
+        <boxGeometry args={[fillWidth, SLAB, fillDepth]} />
         <FlatMaterial color={color} />
       </mesh>
+
+      {/* Pourcentage : petit, sous la jauge. Texte sombre à liseré clair pour
+          rester lisible sur le panneau gris comme sur les plaques colorées
+          (jaune comme bleu), sans dépendre de la seule couleur. */}
+      <Text
+        position={[0, layout.fillY + 0.006, layout.textZ]}
+        fontSize={layout.textSize}
+        color="#1b1b20"
+        outlineWidth={0.08}
+        outlineColor="#ffffff"
+        anchorX="center"
+        anchorY="middle"
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        {`${percent} %`}
+      </Text>
     </group>
   );
 }
 
-/**
- * Le pourcentage lui-même, séparé de la barre animée : il se pose sur le
- * fond (neutre, non animé) et n'a donc que faire de l'échelle du
- * remplissage. Il lit la valeur cible, pas la valeur animée, pour rester
- * exact même quand la barre est encore en train de glisser.
- */
-function ProgressLabel({
-  ratio,
-  shape,
-}: {
-  ratio: number;
-  shape: Shape;
-}) {
-  const layout = LAYOUT[shape];
-  const percent = Math.round(Math.min(Math.max(ratio, 0), 1) * 100);
-  return (
-    <Text
-      position={[0, layout.y + 0.006, layout.textZ]}
-      fontSize={layout.textSize}
-      color="#ffffff"
-      outlineWidth={0.006}
-      outlineColor="#111111"
-      anchorX="center"
-      anchorY="middle"
-      rotation={[-Math.PI / 2, 0, 0]}
-    >
-      {`${percent} %`}
-    </Text>
-  );
-}
-
-export { ProgressLabel };
 export default BaseProgressIndicator;
