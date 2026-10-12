@@ -1,12 +1,18 @@
 "use client";
 
-import { forwardRef, useRef, useState, useImperativeHandle } from "react";
+import {
+  forwardRef,
+  useRef,
+  useState,
+  useImperativeHandle,
+  useMemo,
+} from "react";
 import FlatMaterial from "./FlatMaterial";
 import * as THREE from "three";
 import type { ColorTheme, GamePiece, GameState } from "../../types/game";
 import { themeFor } from "../../data/boardTheme";
-import { getTrack } from "../../utils/positionUtils";
-import { HEX_BOARD_RADIUS } from "../../data/track";
+import { getBaseCenter, getTrack } from "../../utils/positionUtils";
+import { CLASSIC_BASE_HALF_SIZE, HEX_BOARD_RADIUS } from "../../data/track";
 import BoardComponents from "./BoardComponents";
 import DiceComponent from "../dice/DiceComponent";
 
@@ -26,18 +32,48 @@ const LudoBoard = forwardRef<
 >(function LudoBoard({ gameState, onPieceClick, onDiceResult, onDiceClick }, ref) {
   const meshRef = useRef<THREE.Mesh>(null);
   const [isDiceAnimating, setIsDiceAnimating] = useState(false);
-  const [dicePosition] = useState<[number, number, number]>([
-    0, 1.2, 0,
-  ]); // Center position - dice stays here at all times
   const [diceRotation, setDiceRotation] = useState<[number, number, number]>([
     0, 0, 0,
   ]);
   // Removed unused velocity/target state kept internally in DiceComponent
   const [isDiceActive, setIsDiceActive] = useState(false); // True while a roll is in progress
 
-  const currentColors: ColorTheme = themeFor(
-    getTrack(gameState.playerCount).shape,
-  );
+  const boardShape = getTrack(gameState.playerCount).shape;
+  const currentColors: ColorTheme = themeFor(boardShape);
+
+  // Le dé se pose dans un espace LIBRE de la base du joueur dont c'est le
+  // tour ; hors partie il reste au centre.
+  //
+  // Hors `playing`, `currentPlayerIndex` peut valoir 0 sans que personne ne
+  // joue (salle d'attente en ligne, écran de configuration en local) : on
+  // ne se fie donc PAS à l'index seul, on exige la phase de jeu. Une reprise
+  // (dé 6, capture) garde le même joueur, donc la même cible : le dé ne
+  // bouge pas.
+  const diceTarget = useMemo<[number, number, number]>(() => {
+    const activeColor =
+      gameState.gamePhase === "playing"
+        ? gameState.players[gameState.currentPlayerIndex]?.color
+        : undefined;
+    if (!activeColor) return [0, 1.2, 0];
+
+    const center = getBaseCenter(gameState.playerCount, activeColor);
+    const surfaceY = boardShape === "hex" ? 0.175 : 0.18;
+    // Croix : le centre de la plaque imprime le nom, on décale le dé vers le
+    // bord extérieur (bande libre entre les anneaux et le bord). Hexagone :
+    // le centre du disque est libre (ni nom, ni trou), le dé s'y pose.
+    const z =
+      boardShape === "hex"
+        ? center.z
+        : center.z + CLASSIC_BASE_HALF_SIZE * 0.72;
+
+    return [center.x, surfaceY, z];
+  }, [
+    gameState.gamePhase,
+    gameState.currentPlayerIndex,
+    gameState.players,
+    gameState.playerCount,
+    boardShape,
+  ]);
 
   // Get the exact rotation to show a specific dice value
   const getDiceRotationForValue = (value: number): [number, number, number] => {
@@ -143,9 +179,10 @@ const LudoBoard = forwardRef<
         onPieceClick={onPieceClick}
       />
 
-      {/* 3D Dice - always visible on the board, spins in place when rolling */}
+      {/* 3D Dice - always visible, spins in place when rolling and glides
+          to the active player's base between turns. */}
       <DiceComponent
-        position={dicePosition}
+        position={diceTarget}
         rotation={diceRotation}
         isAnimating={isDiceAnimating}
         onClick={onDiceClick}

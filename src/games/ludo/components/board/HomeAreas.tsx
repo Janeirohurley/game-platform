@@ -3,7 +3,7 @@
 import { Text } from "@react-three/drei";
 import FlatMaterial from "./FlatMaterial";
 import BaseProgressIndicator, { ProgressLabel } from "./BaseProgressIndicator";
-import { getTrack } from "../../utils/positionUtils";
+import { getArmBaseCenter, getTrack } from "../../utils/positionUtils";
 import { progressForColor } from "../../utils/progress";
 import { BASE_FRAME, FALLBACK_NAME } from "../../data/boardTheme";
 import {
@@ -59,13 +59,7 @@ function HomeAreas({
       {/* `track.arms` et non `track.seats` : à deux ou trois joueurs, les
           bras inoccupés gardent leur zone d'attente sur la croix. */}
       {track.arms.map((arm) => {
-        const centroid = arm.base.reduce(
-          (acc, p) => ({
-            x: acc.x + p.x / arm.base.length,
-            z: acc.z + p.z / arm.base.length,
-          }),
-          { x: 0, z: 0 },
-        );
+        const centroid = getArmBaseCenter(arm);
         const color = arm.seat ? colors.players[arm.seat.color] : vacantArm;
         const frame = arm.seat ? BASE_FRAME[arm.seat.color] : vacantArm;
         const label = arm.seat ? getNameForColor(arm.seat.color) : "";
