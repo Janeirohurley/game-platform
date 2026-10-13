@@ -3,7 +3,10 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { admin, magicLink } from "better-auth/plugins";
 import * as authSchema from "@/lib/db/schema/auth";
 
+import { eq } from "drizzle-orm";
+
 import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema/auth";
 import {
   sendMagicLinkEmail,
   sendPasswordResetEmail,
@@ -119,6 +122,28 @@ export const auth = betterAuth({
         async before(user) {
           // Backfill the default role for users created without one.
           return { data: { ...user, role: user.role ?? "user" } };
+        },
+      },
+    },
+
+    /*
+     * Bots must never hold a session. Bots have no `account` and their
+     * `.invalid` e-mail is undeliverable, so no sign-in path should ever
+     * reach here — this is defense in depth, the sanctioned hook for the
+     * non-provider sign-in methods that bypass the user-info validators
+     * (`databaseHooks.session.create.before`). Returning false refuses
+     * the session; the user-admin ban controls are the other lever, but
+     * a bot is not "banned", it is simply not a sign-in candidate.
+     */
+    session: {
+      create: {
+        async before(session) {
+          const rows = await db
+            .select({ isBot: user.isBot })
+            .from(user)
+            .where(eq(user.id, session.userId))
+            .limit(1);
+          if (rows[0]?.isBot) return false;
         },
       },
     },

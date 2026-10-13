@@ -8,6 +8,7 @@
  */
 export * from "./auth";
 export * from "./profiles";
+export * from "./bots";
 export * from "./audit";
 export * from "./wallet";
 

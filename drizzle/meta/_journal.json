@@ -71,6 +71,20 @@
       "when": 1791036600000,
       "tag": "0009_backfill_provider_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791849148383,
+      "tag": "0010_first_malcolm_colcord",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791873530072,
+      "tag": "0011_fast_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

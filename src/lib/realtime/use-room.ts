@@ -23,6 +23,8 @@ interface UseRoomOptions {
   gameId: string;
   roomId?: string;
   targetPlayers?: number;
+  /** Number of platform bots the creator asks the server to seat (0 = none). */
+  bots?: number;
   /** "play" requests a seat, "watch" lands as a spectator. Default "play". */
   joinMode?: JoinMode;
   reconnectionToken?: string;
@@ -65,6 +67,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
     gameId,
     roomId,
     targetPlayers,
+    bots,
     joinMode,
     reconnectionToken,
     onPlaying,
@@ -196,7 +199,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
         } else if (roomId) {
           joined = await joinRoomRequest(gameId, roomId, joinMode);
         } else {
-          joined = await createRoomRequest(gameId, targetPlayers ?? 4);
+          joined = await createRoomRequest(gameId, targetPlayers ?? 4, bots ?? 0);
         }
         if (disposed) {
           void joined.leave();
@@ -229,7 +232,7 @@ export function useRoom(options: UseRoomEnabledOptions): RoomController {
         void activeRoom.leave(true);
       }
     };
-  }, [gameId, roomId, targetPlayers, joinMode, reconnectionToken, enabled]);
+  }, [gameId, roomId, targetPlayers, bots, joinMode, reconnectionToken, enabled]);
 
   const startGame = useCallback(() => {
     room?.send("startGame", {});
