@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  AiBrainIcon,
   Clock01Icon,
   CrownIcon,
   Doctor02Icon,
@@ -12,7 +13,11 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useTurnCountdown } from "@/lib/realtime/use-turn-countdown";
-import type { LobbySnapshot, RoomPhase } from "@/lib/realtime/types";
+import {
+  BOT_DIFFICULTY_LABELS,
+  type LobbySnapshot,
+  type RoomPhase,
+} from "@/lib/realtime/types";
 import {
   Tooltip,
   TooltipContent,
@@ -110,6 +115,10 @@ function PlayerAvatar({
   ringResetKey: string;
   ringDurationMs: number;
 }) {
+  const botLabel = player.isBot
+    ? BOT_DIFFICULTY_LABELS[player.botDifficulty ?? ""] ?? ""
+    : "";
+
   return (
     <div className="flex shrink-0 items-center">
       <Tooltip>
@@ -139,6 +148,20 @@ function PlayerAvatar({
                 player.connected ? "bg-emerald-400" : "bg-white/30"
               }`}
             />
+
+            {player.isBot && (
+              <span
+                title={botLabel ? `IA — ${botLabel}` : "IA"}
+                className="absolute -bottom-1 -left-1 z-10 flex size-4 items-center justify-center rounded-full bg-violet-500 ring-2 ring-black/80"
+              >
+                <HugeiconsIcon
+                  icon={AiBrainIcon}
+                  size={10}
+                  strokeWidth={2}
+                  className="text-white"
+                />
+              </span>
+            )}
           </span>
         </TooltipTrigger>
 
@@ -149,6 +172,12 @@ function PlayerAvatar({
           className="border-white/10 bg-black/85 px-2.5 py-1 text-[10px] text-white backdrop-blur-md"
         >
           {player.name}
+          {player.isBot && (
+            <span className="text-violet-300">
+              {" "}
+              · IA{botLabel ? ` (${botLabel})` : ""}
+            </span>
+          )}
         </TooltipContent>
       </Tooltip>
     </div>
