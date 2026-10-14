@@ -15,6 +15,7 @@ import { requireAdminSession } from "@/lib/admin/session";
 import { writeAuditLog } from "@/lib/admin/audit";
 import type { AdminActionResult } from "@/lib/admin/actions";
 import {
+  BOT_ORIGIN_ADMIN,
   isBotDifficulty,
   type BotConfig,
   type BotDifficulty,
@@ -26,6 +27,7 @@ import {
   bindExistingBot,
   createManagedBot,
   deleteManagedBot,
+  provisionBots,
   updateManagedBot,
 } from "@/lib/bots/provisioning";
 import {
@@ -238,4 +240,52 @@ export async function searchAccountsAction(
   const query = search.trim();
   if (query.length < 2) return [];
   return listAttachableAccounts(query);
+}
+
+/**
+ * Bulk-fill the idle pool for a game with fresh inert bots. The quickest
+ * way to make "create a table with AI" land instantly instead of waiting
+ * on a cold pool. Same guards and audit trail as the other mutations.
+ */
+export async function provisionBotsAction(input: {
+  gameId: string;
+  count: number;
+}): Promise<AdminActionResult> {
+  const session = await requireAdminSession();
+  const actor = { id: session.user.id, email: session.user.email };
+
+  if (!isGameId(input.gameId)) {
+    return { ok: false, message: "Jeu inconnu." };
+  }
+  const count = Math.trunc(input.count);
+  if (!Number.isInteger(count) || count < 1 || count > 32) {
+    return { ok: false, message: "Indiquez un nombre entre 1 et 32." };
+  }
+
+  try {
+    const created = await provisionBots({
+      count,
+      gameId: input.gameId,
+      origin: BOT_ORIGIN_ADMIN,
+    });
+    await writeAuditLog({
+      action: "bot.provision",
+      status: "ok",
+      actor,
+      details: { gameId: input.gameId, count, created: created.length },
+    });
+    revalidatePath("/admin/bots");
+    const noun = created.length > 1 ? "bots ajoutés" : "bot ajouté";
+    return { ok: true, message: `${created.length} ${noun} à la réserve.` };
+  } catch (error) {
+    const message = toMessage(error);
+    await writeAuditLog({
+      action: "bot.provision",
+      status: "error",
+      actor,
+      details: { gameId: input.gameId, count },
+      errorMessage: message,
+    });
+    return { ok: false, message };
+  }
 }

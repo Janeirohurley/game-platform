@@ -9,6 +9,7 @@ import {
   Link2Icon,
   PencilIcon,
   PlusIcon,
+  RefreshCwIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -66,6 +68,7 @@ import {
   bindBotAction,
   createBotAction,
   deleteBotAction,
+  provisionBotsAction,
   searchAccountsAction,
   updateBotAction,
 } from "@/lib/admin/bot-actions";
@@ -104,6 +107,7 @@ export function BotsAdmin({
   games: GameOption[];
 }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const [refillOpen, setRefillOpen] = useState(false);
   const [dialog, setDialog] = useState<
     { kind: "edit" | "bind" | "delete"; bot: AdminBotListRow } | null
   >(null);
@@ -114,10 +118,20 @@ export function BotsAdmin({
         <p className="text-sm text-muted-foreground">
           {rows.length} bot{rows.length > 1 ? "s" : ""} sur cette page.
         </p>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <PlusIcon />
-          Nouveau bot
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setRefillOpen(true)}
+          >
+            <RefreshCwIcon />
+            Réapprovisionner
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <PlusIcon />
+            Nouveau bot
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-xl border bg-card">
@@ -199,6 +213,12 @@ export function BotsAdmin({
         games={games}
       />
 
+      <RefillPoolDialog
+        open={refillOpen}
+        onOpenChange={setRefillOpen}
+        games={games}
+      />
+
       {dialog?.kind === "edit" && (
         <EditBotDialog
           bot={dialog.bot}
@@ -260,22 +280,24 @@ function RowActions({
         <EllipsisVerticalIcon />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="truncate">
-          {bot.label ?? bot.gamerTag ?? bot.id}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onOpen({ kind: "edit", bot })}>
-          <PencilIcon />
-          Modifier
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onOpen({ kind: "bind", bot })}>
-          <Link2Icon />
-          Rattacher à un compte
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onOpen({ kind: "delete", bot })}>
-          <Trash2Icon />
-          Supprimer
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="truncate">
+            {bot.label ?? bot.gamerTag ?? bot.id}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => onOpen({ kind: "edit", bot })}>
+            <PencilIcon />
+            Modifier
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onOpen({ kind: "bind", bot })}>
+            <Link2Icon />
+            Rattacher à un compte
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onOpen({ kind: "delete", bot })}>
+            <Trash2Icon />
+            Supprimer
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -406,6 +428,93 @@ function ChosenAccount({
         Changer
       </Button>
     </div>
+  );
+}
+
+function RefillPoolDialog({
+  open,
+  onOpenChange,
+  games,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  games: GameOption[];
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [gameId, setGameId] = useState(games[0]?.id ?? "ludo");
+  const [count, setCount] = useState("5");
+
+  const submit = () => {
+    const parsed = Number.parseInt(count, 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 32) {
+      toast.error("Indiquez un nombre entre 1 et 32.");
+      return;
+    }
+    startTransition(async () => {
+      const result = await provisionBotsAction({ gameId, count: parsed });
+      if (result.ok) {
+        toast.success(result.message);
+        router.refresh();
+        onOpenChange(false);
+      } else {
+        toast.error(result.message);
+      }
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Réapprovisionner la réserve</DialogTitle>
+          <DialogDescription>
+            Crée des bots inertes en réserve pour un jeu. Ils sont prêts à être
+            réclamés par une nouvelle table — aucun compte réel n&apos;est touché.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Jeu</Label>
+            <Select value={gameId} onValueChange={(v) => setGameId(String(v))}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {games.map((game) => (
+                  <SelectItem key={game.id} value={game.id}>
+                    {game.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="refill-count">Nombre</Label>
+            <Input
+              id="refill-count"
+              type="number"
+              min={1}
+              max={32}
+              value={count}
+              onChange={(event) => setCount(event.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+          >
+            Annuler
+          </Button>
+          <Button disabled={pending} onClick={submit}>
+            {pending ? "Ajout…" : "Ajouter"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

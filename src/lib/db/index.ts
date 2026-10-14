@@ -44,7 +44,7 @@ function getClient(): postgres.Sql {
        */
       idle_timeout: 20,
       max_lifetime: 60 * 10,
-      connect_timeout: 10,
+      connect_timeout: 30,
     });
   }
 

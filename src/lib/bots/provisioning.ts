@@ -214,23 +214,25 @@ export async function claimBots(options: {
     const target = assertCount(options.count, MAX_CLAIM_PER_CALL, "count");
     if (target === 0) return [];
 
-    // Opportunistic self-heal: a game server killed mid-match never calls
-    // `releaseBots`, so its leases would sit in `in_match` until a
-    // scheduled sweep. Reclaiming stale leases here means the pool is
-    // honest every time a room actually needs bots — no scheduler needed.
-    // Best-effort: a sweep failure must never block the claim.
-    try {
-        const reclaimed = await releaseStaleBotLeases();
-        if (reclaimed > 0) {
-            console.info(`[bots] sweep reclaimed ${reclaimed} stale lease(s)`);
+    let available = await countAvailableBots(gameId);
+    if (available < target) {
+        // The pool is short: reclaim leases a crashed game server left in
+        // `in_match` (best-effort — a sweep failure must never block the
+        // claim), then top up so this claim can satisfy the request.
+        try {
+            const reclaimed = await releaseStaleBotLeases();
+            if (reclaimed > 0) {
+                console.info(`[bots] sweep reclaimed ${reclaimed} stale lease(s)`);
+            }
+        } catch (error) {
+            console.error("[bots] stale-lease sweep failed:", error);
         }
-    } catch (error) {
-        console.error("[bots] stale-lease sweep failed:", error);
-    }
-
-    const available = await countAvailableBots(gameId);
-    if (available < target && options.topUp !== false) {
-        await provisionBots({ count: target - available, gameId });
+        if (options.topUp !== false) {
+            available = await countAvailableBots(gameId);
+            if (available < target) {
+                await provisionBots({ count: target - available, gameId });
+            }
+        }
     }
 
     const now = new Date();
