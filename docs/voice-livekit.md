@@ -221,9 +221,9 @@ deux variables distinctes :
 
 ```ts
 // .env — navigateur
-NEXT_PUBLIC_REALTIME_URL=http://192.168.2.61:2567
+NEXT_PUBLIC_REALTIME_URL=http://10.83.223.127:2567
 // .env — plateforme (serveur-à-serveur)
-REALTIME_SERVER_URL=http://192.168.2.61:2567
+REALTIME_SERVER_URL=http://10.83.223.127:2567
 ```
 
 ## Tester deux joueurs localement

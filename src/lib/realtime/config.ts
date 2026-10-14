@@ -10,7 +10,7 @@
 export const REALTIME_PORT = 2567;
 
 /** Fallback used during server rendering, where there is no page URL. */
-const SSR_FALLBACK = `http://192.168.2.61:${REALTIME_PORT}`;
+const SSR_FALLBACK = `http://10.83.223.127:${REALTIME_PORT}`;
 
 /**
  * Base URL of the Colyseus server.
@@ -22,9 +22,9 @@ const SSR_FALLBACK = `http://192.168.2.61:${REALTIME_PORT}`;
  * - `NEXT_PUBLIC_REALTIME_URL` wins whenever it is set. That is what a
  *   real deployment uses, and it is baked into the bundle at build time.
  * - With nothing set, the URL is derived from the page's own address.
- *   Hardcoding `192.168.2.61` breaks the moment the app is opened from
+ *   Hardcoding `10.83.223.127` breaks the moment the app is opened from
  *   anywhere but the machine running the server: a phone or a second
- *   computer on the LAN would aim at *its own* 192.168.2.61, where nothing
+ *   computer on the LAN would aim at *its own* 10.83.223.127, where nothing
  *   is listening, and every join fails before it reaches the network.
  *
  * The scheme follows the page too. A page served over HTTPS cannot talk

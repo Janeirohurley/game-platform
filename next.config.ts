@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   allowedDevOrigins: [
-    "192.168.2.61",
+    "10.83.223.127",
   ],
 };
 
