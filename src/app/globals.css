@@ -159,3 +159,31 @@
     @apply font-sans;
   }
 }
+
+/* Page 404 — console arcade. Keyframes only, so they work whichever
+   Tailwind version is installed. */
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.93; }
+  94% { opacity: 1; }
+  97% { opacity: 0.96; }
+}
+
+@keyframes glitch-a {
+  0%, 100% { transform: translate(0); clip-path: inset(0 0 100% 0); }
+  90% { transform: translate(-6px, 2px); clip-path: inset(20% 0 55% 0); }
+  94% { transform: translate(5px, -2px); clip-path: inset(60% 0 10% 0); }
+  97% { transform: translate(0); clip-path: inset(0 0 100% 0); }
+}
+
+@keyframes glitch-b {
+  0%, 100% { transform: translate(0); clip-path: inset(0 0 100% 0); }
+  91% { transform: translate(6px, -2px); clip-path: inset(45% 0 30% 0); }
+  95% { transform: translate(-5px, 3px); clip-path: inset(5% 0 75% 0); }
+  98% { transform: translate(0); clip-path: inset(0 0 100% 0); }
+}
