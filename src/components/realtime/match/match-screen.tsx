@@ -56,7 +56,7 @@ export interface MatchScreenProps {
  * Games whose lobby exposes host-editable settings. Ludo offers the table
  * size + per-turn budget; others (checkers, rally) don't govern one yet.
  */
-const SETTINGS_SUPPORTED_GAME_IDS = new Set(["ludo"]);
+const SETTINGS_SUPPORTED_GAME_IDS = new Set(["ludo", "tetris"]);
 
 /**
  * The generic integrated match screen (spec sections 1 and 14).

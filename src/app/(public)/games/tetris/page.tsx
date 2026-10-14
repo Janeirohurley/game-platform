@@ -14,13 +14,13 @@ import GameUniverseBackground from "@/components/game-universe-background";
 export const metadata: Metadata = {
   title: "Tetris | Game Arena",
   description:
-    "Le Tetris classique — empile les pièces, complète des lignes et grimpe de niveau. Partie locale, sans inscription.",
+    "Le Tetris classique — empile les pièces, complète des lignes et grimpe de niveau. Partie locale sans inscription, ou en ligne jusqu'à 10 joueurs.",
 };
 
 /**
- * Fiche d'entrée du Tetris. Le jeu n'existe qu'en local pour l'instant
- * (`playableOnline: false` dans le registre) : pas de session à lire, pas de
- * lobby — un seul bouton vers la partie locale.
+ * Fiche d'entrée du Tetris : partie locale (solo, sans compte) et partie en
+ * ligne (2 à 10 joueurs, le dernier en vie gagne). Le bouton « en ligne »
+ * n'apparaît que si le registre déclare le jeu jouable en ligne.
  */
 export default function TetrisPage() {
   const game = getGameBySlug("tetris");
@@ -55,7 +55,7 @@ export default function TetrisPage() {
               <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500 dark:text-white/40">
                 <span className="flex items-center gap-1.5">
                   <HugeiconsIcon icon={UserGroupIcon} size={15} strokeWidth={1.6} />
-                  Solo
+                  Solo{game.playableOnline ? " · 2 à 10 en ligne" : ""}
                 </span>
 
                 <span className="flex items-center gap-1.5">
@@ -64,13 +64,22 @@ export default function TetrisPage() {
                 </span>
               </div>
 
-              <div className="mt-8">
+              <div className="mt-8 flex flex-wrap gap-3">
                 <Link
                   href="/games/tetris/local"
                   className="inline-flex min-h-12 items-center border border-purple-500 px-6 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 dark:text-purple-300"
                 >
                   Jouer en local
                 </Link>
+
+                {game.playableOnline && (
+                  <Link
+                    href="/games/tetris/play"
+                    className="inline-flex min-h-12 items-center bg-purple-600 px-6 text-sm font-medium text-white transition-colors hover:bg-purple-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                  >
+                    Jouer en ligne
+                  </Link>
+                )}
               </div>
             </div>
 

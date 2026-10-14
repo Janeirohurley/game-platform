@@ -57,7 +57,7 @@ export interface GameEntry {
  * foreign-ish validation) so a gameId can only ever be one the registry
  * knows. Add a game above and this follows automatically.
  */
-export const GAME_IDS = ["ludo", "checkers", "rally"] as const;
+export const GAME_IDS = ["ludo", "checkers", "rally", "tetris"] as const;
 
 export type GameId = (typeof GAME_IDS)[number];
 
@@ -109,10 +109,11 @@ export const GAMES: readonly GameEntry[] = [
     "title" : "Tetris",
     "description" : "Le jeu de tetris classique — empilez les pièces et nettoyez les lignes.",
     "category" : "Arcade",
-    "minPlayers" : 1,
-    "maxPlayers" : 1,
+    "minPlayers" : 2,
+    "maxPlayers" : 10,
+    "allowedPlayerCounts" : [2, 3, 4, 5, 6, 7, 8, 9, 10],
     "status" : "live",
-    "playableOnline" : false,
+    "playableOnline" : true,
     "icon" : "TE",
     "image" : "/tetris.png",
     "accent" : "from-purple-300 via-pink-500 to-rose-700",
