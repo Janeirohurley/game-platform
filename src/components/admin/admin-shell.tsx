@@ -207,7 +207,7 @@ export function AdminShell({
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onSelect={() => {
+                      onClick={() => {
                         void signOut().then(() => router.push("/"));
                       }}
                     >

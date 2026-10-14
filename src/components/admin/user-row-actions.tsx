@@ -136,18 +136,18 @@ export function UserRowActions({ user }: { user: UserRowActionsUser }) {
             <DropdownMenuLabel className="truncate">{user.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {user.banned ? (
-              <DropdownMenuItem onSelect={() => setDialog({ kind: "unban" })}>
+              <DropdownMenuItem onClick={() => setDialog({ kind: "unban" })}>
                 <ShieldCheckIcon />
                 Débannir
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem onSelect={() => setDialog({ kind: "ban" })}>
+              <DropdownMenuItem onClick={() => setDialog({ kind: "ban" })}>
                 <BanIcon />
                 Bannir…
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              onSelect={() => {
+              onClick={() => {
                 setTargetRole(user.role === "admin" ? "user" : "admin");
                 setDialog({ kind: "role" });
               }}
@@ -157,7 +157,7 @@ export function UserRowActions({ user }: { user: UserRowActionsUser }) {
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setDialog({ kind: "revoke" })}>
+          <DropdownMenuItem onClick={() => setDialog({ kind: "revoke" })}>
             <KeyRoundIcon />
             Révoquer les sessions
           </DropdownMenuItem>

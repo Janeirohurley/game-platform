@@ -43,13 +43,14 @@ export default async function AdminDashboardPage() {
   const trend90 = await getMetricTrend("matches", 90);
   const recent = await getRecentMatches(10);
 
-  // The chart's second series (new accounts per day) — three small
-  // queries sharing the same span boundaries as the matches series.
-  const [accounts7, accounts30, accounts90] = await Promise.all([
-    getMetricTrend("accounts", 7),
-    getMetricTrend("accounts", 30),
-    getMetricTrend("accounts", 90),
-  ]);
+  // The chart's second series (new accounts per day) — same rule as the
+  // matches block above: one trend at a time. Every getMetricTrend()
+  // already fires three queries, so a Promise.all of three trends puts
+  // NINE borrowers on the pooler at once and deadlocks it exactly like
+  // the 7-query case.
+  const accounts7 = await getMetricTrend("accounts", 7);
+  const accounts30 = await getMetricTrend("accounts", 30);
+  const accounts90 = await getMetricTrend("accounts", 90);
 
   const trend: PlatformTrendData = {
     periods: {
