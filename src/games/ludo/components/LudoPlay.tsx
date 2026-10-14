@@ -2,18 +2,21 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import type { GamePiece, GameState, Player } from "../types/game";
-import { finishedPositionFor } from "../data/boardPositions";
 import { getTrack } from "../utils/positionUtils";
+import { destinationOf } from "../utils/rules";
+import { withMove, withRoll } from "../engine/turns";
 import { DEFAULT_PLAYER_COUNT } from "../data/track";
-import { BOARD_THEME } from "../data/boardTheme";
+import { themeFor } from "../data/boardTheme";
 import LudoBoard from "./board/LudoBoard";
 import LudoScene, { LUDO_CANVAS_PROPS } from "./board/LudoScene";
 import CameraController from "./camera/CameraController";
 import BlockedMessageNotification from "./camera/BlockedMessageNotification";
 import GameUI from "./ui/GameUI";
 import PlayerSetup from "./ui/PlayerSetup";
+import CameraPanel from "./ui/CameraPanel";
+import { useLudoBot } from "../bot/use-ludo-bot";
 import { playSound } from "@/lib/sounds";
 
 // Main Play component
@@ -37,20 +40,28 @@ export default function LudoPlay() {
     playerCount: DEFAULT_PLAYER_COUNT,
   });
 
+  // Valeurs les plus récentes pour le gestionnaire clavier global, lié une
+  // seule fois : sans ça il lirait un état figé entre deux rendus.
+  const gameStateRef = useRef(gameState);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   const ludoBoardRef = useRef<{
     throwDice: () => void;
     throwDiceWithValue: (value?: number) => void;
     isDiceAnimating: boolean;
   }>(null);
 
-  const lastProcessedDiceRoll = useRef<{
-    value: number;
-    timestamp: number;
-  } | null>(null);
-//ajout
-  // Le parcours dépend de la taille de la table : arrivée à 57 pour 2 à 4
-     // joueurs, à 83 pour 5 et 6 joueurs (plateau hexagonal).
-  const finishedPosition = finishedPositionFor(gameState.playerCount);
+  // Un lancer est « en vol » entre le clic et le résultat de l'animation.
+  // Tant qu'il l'est, tout nouveau lancer est refusé : c'est ce qui ferme la
+  // fenêtre pendant laquelle on pouvait relancer et fausser le tour.
+  const rollPendingRef = useRef(false);
+
+  // Tour d'un bot ? Les commandes HUMAINES (lancer, clic de pion) sont
+  // alors neutralisées : seul le pilote du bot agit, pour éviter qu'un
+  // joueur ne joue « à la place » de l'IA ou ne double les coups.
+  const isBotTurn = gameState.players[gameState.currentPlayerIndex]?.isBot ?? false;
 
   // Game Logic Functions
   const initializeGame = (players: Player[]) => {
@@ -71,301 +82,132 @@ export default function LudoPlay() {
     });
   };
 
-  const canPieceMove = (piece: GamePiece, diceValue: number): boolean => {
-    // Can't move without dice value
-    if (!diceValue) return false;
-
-    // If piece is at home, need 6 to start
-    if (piece.position === -1 && diceValue !== 6) return false;
-
-    // If piece is finished, can't move
-    if (piece.position === finishedPosition) return false;
-
-    return calculateNewPosition(piece, diceValue) !== null;
-  };
-
-  // Aucun paramètre de joueur ici : la position d'arrivée ne dépend que
-  // du lancer. Le départ est toujours l'index 0 du chemin, et la
-  // longueur du chemin est la même pour tout le monde (57 cases).
-  const calculateNewPosition = (
-    piece: GamePiece,
-    diceValue: number,
-  ): number | null => {
-    if (piece.position === -1) {
-      // Sortie de la zone d'attente : uniquement un 6, et toujours sur
-      // la case d'entrée du joueur, qui est l'index 0 de son chemin.
-      return diceValue === 6 ? 0 : null;
-    }
-
-    if (piece.position === finishedPosition) {
-      // Déjà terminé
-      return null;
-    }
-
-    const newPos = piece.position + diceValue;
-
-    // Le chemin fait 57 cases (0-56) ; la case 57 est le centre, hors
-    // chemin. On l'atteint donc par un lancer EXACT depuis la 56e case,
-    // sinon le pion reste bloqué sur sa dernière case de colonne maison.
-    if (newPos > finishedPosition) return null;
-    return newPos;
-  };
-
-  const movePiece = (piece: GamePiece, newPosition: number) => {
+  // Applique un coup par INDEX de pion chez le joueur courant. Le moteur
+  // (`engine/turns.ts`) décide du reste : capture, victoire, tour suivant ou
+  // tour supplémentaire. Un seul chemin pour l'humain et pour le bot, donc
+  // les mêmes règles et les mêmes contrôles.
+  const applyMoveIndex = (pieceIndex: number) => {
     playSound("pieceMove");
-
-    setGameState((prevState) => {
-  //remplacer
-      // const newState = { ...prevState };
-  //fin remplacer
-      const newState = {
-        ...prevState,
-        players: prevState.players.map((p) => ({
-          ...p,
-          pieces: p.pieces.map((pc) => ({ ...pc }))
-        })),
-      };
-      const playerIndex = newState.players.findIndex(
-        (p) => p.id === piece.playerId,
-      );
-      const mover = newState.players[playerIndex];
-      const pieceIndex = mover.pieces.findIndex((p) => p.id === piece.id);
-      const track = getTrack(newState.playerCount);
-
-      // Les captures ne concernent que l'anneau partagé, et seulement
-      // sur une case non sûre.
-      //
-      // On compare des INDICES D'ANNEAU, pas des positions de chemin :
-      // deux joueurs à six sur la table ont chacun un index de chemin
-      // différent pour la même case, et une position de chemin n'est
-      // comparable à une autre que chez un même joueur. L'ancien code
-      // comparait `position` directement, ce qui revenait à dire qu'un
-      // joueur ne pouvait être capturé que par son voisin d'anneau.
-
-      //ajout
-      let captured = false;
-      //fin ajout
-      if (newPosition >= 0 && newPosition < track.homeColumnStart) {
-        const targetRing = track.ringIndexOf(mover.color, newPosition);
-        if (!track.isSafeCell(targetRing)) {
-          newState.players.forEach((player, pIndex) => {
-            if (pIndex === playerIndex) return;
-            player.pieces.forEach((opponentPiece, opIndex) => {
-              if (opponentPiece.position < 0) return;
-              if (opponentPiece.position >= track.homeColumnStart) return;
-              const opponentRing = track.ringIndexOf(
-                player.color,
-                opponentPiece.position,
-              );
-              if (opponentRing !== targetRing) return;
-              // Capture ! Le pion adverse repart en zone d'attente.
-              newState.players[pIndex].pieces[opIndex].position = -1;
-              //ajout
-              captured = true;
-              //fin ajout
-              playSound("capture");
-              console.log(
-                `${mover.name} captured ${player.name}'s piece!`,
-              );
-            });
-          });
-        }
-      }
-
-      // Move the piece
-      newState.players[playerIndex].pieces[pieceIndex].position = newPosition;
-
-      // Check for win condition
-      const finishedPieces = newState.players[playerIndex].pieces.filter(
-        (p) => p.position === track.finishedPosition,
-      ).length;
-      if (finishedPieces === 4) {
-        newState.winner = newState.players[playerIndex];
-        newState.gamePhase = "finished";
-        playSound("win");
-        return newState;
-      }
-
-      // Determine if player gets another turn
-      const rolledSix = newState.diceValue === 6;
-      const justFinishedPiece = newPosition === track.finishedPosition;
-
-      //if (rolledSix || justFinishedPiece) { à supprimer; remplacer par la ligne en bas
-      if (rolledSix || justFinishedPiece || captured){
-        // Player gets another turn
-        newState.canRollAgain = true;
-        newState.diceValue = null;
-        newState.turnStartTime = Date.now();
-      } else {
-        // Next player's turn
-        newState.currentPlayerIndex =
-          (newState.currentPlayerIndex + 1) % newState.players.length;
-        newState.diceValue = null;
-        newState.canRollAgain = false;
-        newState.turnStartTime = Date.now();
-      }
-
-      // Clear piece selection
-      newState.players.forEach((player) => {
-        player.pieces.forEach((piece) => {
-          piece.isSelected = false;
-          piece.canMove = false;
-        });
-      });
-
-      return newState;
-    });
+    setGameState((prev) =>
+      withMove(prev, prev.currentPlayerIndex, pieceIndex, Date.now()),
+    );
   };
 
-  const handleRollDice = () => {
-    if (ludoBoardRef.current && !ludoBoardRef.current.isDiceAnimating) {
-      playSound("diceRoll");
-      ludoBoardRef.current.throwDice();
-    }
-  };
+  // Lancer brut du dé : l'action réelle, sans garde d'humain. Le bot l'appelle
+  // directement ; l'humain passe par `handleRollDice`, bloqué pendant le tour
+  // d'un bot. Un lancer déjà en vol est refusé, donc on ne peut pas relancer
+  // pendant l'animation et fausser le tour.
+  const beginRoll = useCallback((specificValue?: number) => {
+    const board = ludoBoardRef.current;
+    if (!board || board.isDiceAnimating) return;
+    if (rollPendingRef.current) return;
+    rollPendingRef.current = true;
+    playSound("diceRoll");
+    board.throwDiceWithValue(specificValue);
+  }, []);
+
+  const rollDice = useCallback(() => beginRoll(), [beginRoll]);
+
+  const handleRollDice = useCallback(() => {
+    if (isBotTurn) return;
+    beginRoll();
+  }, [isBotTurn, beginRoll]);
 
   const handlePieceClick = (piece: GamePiece) => {
-    if (!piece.canMove || !gameState.diceValue) return;
-
-    const newPosition = calculateNewPosition(piece, gameState.diceValue);
-
-    if (newPosition !== null) {
-      movePiece(piece, newPosition);
-    }
+    if (isBotTurn) return;
+    if (!piece.canMove || gameState.diceValue === null) return;
+    const pieceIndex = gameState.players[
+      gameState.currentPlayerIndex
+    ]?.pieces.findIndex((candidate) => candidate.id === piece.id);
+    if (pieceIndex === undefined || pieceIndex < 0) return;
+    applyMoveIndex(pieceIndex);
   };
 
-  // Auto-play functionality
+  // Même coup, déclenché depuis le sélecteur de pion (bouton HTML). Mêmes
+  // gardes que le clic 3D : tour d'un bot exclu, pion jouable requis, dé posé.
+  const handlePieceIndexSelect = (pieceIndex: number) => {
+    if (isBotTurn) return;
+    const piece =
+      gameState.players[gameState.currentPlayerIndex]?.pieces[pieceIndex];
+    if (!piece?.canMove || gameState.diceValue === null) return;
+    applyMoveIndex(pieceIndex);
+  };
+
+  // Coup demandé par le bot (index de pion chez le joueur courant). Passe
+  // par le même `applyMoveIndex`, mais sans la garde réservée aux humains.
+  const handleBotMove = (pieceIndex: number) => {
+    const player = gameState.players[gameState.currentPlayerIndex];
+    const piece = player?.pieces[pieceIndex];
+    if (!piece?.canMove || gameState.diceValue === null) return;
+    applyMoveIndex(pieceIndex);
+  };
+
+  // Référence au dernier sélecteur de pion, pour le raccourci clavier.
+  const selectPieceRef = useRef(handlePieceIndexSelect);
+  useEffect(() => {
+    selectPieceRef.current = handlePieceIndexSelect;
+  });
+
+  // Auto-play (humain inactif). Le tour d'un bot est piloté par
+  // `useLudoBot` : l'auto-play ne s'en mêle pas, sinon deux pilotes
+  // joueraient le même tour.
   const performAutoPlay = () => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer?.isBot) return;
 
-    if (!gameState.diceValue) {
-      // Auto-roll dice
-      console.log(`Auto-playing for ${currentPlayer.name}: rolling dice`);
+    if (gameState.diceValue === null) {
       handleRollDice();
-    } else {
-      // Check if player has any moves available
-      const moveablePieces = currentPlayer.pieces.filter((p) => p.canMove);
-      if (moveablePieces.length > 0) {
-        // Auto-move a piece
-        // Prioritize: 1) Moving from home, 2) Finishing pieces, 3) First available piece
-        const priorityPiece =
-          moveablePieces.find((p) => p.position === -1) || // From home
-          moveablePieces.find((p) => {
-            const newPos = calculateNewPosition(p, gameState.diceValue!);
-            return newPos === finishedPosition; // Finishing
-          }) ||
-          moveablePieces[0]; // First available
-
-        console.log(
-          `Auto-playing for ${currentPlayer.name}: moving piece ${priorityPiece.id}`,
-        );
-        handlePieceClick(priorityPiece);
-      } else {
-        // No moves available - this should have been handled by handleDiceResult
-        // but adding this as a safety net
-        console.log(
-          `Auto-playing for ${currentPlayer.name}: no moves available, skipping turn`,
-        );
-        setGameState((prevState) => ({
-          ...prevState,
-          currentPlayerIndex:
-            (prevState.currentPlayerIndex + 1) % prevState.players.length,
-          diceValue: null,
-          canRollAgain: false,
-          turnStartTime: Date.now(),
-        }));
-      }
-    }
-  };
-
-  // Handle dice results from the 3D dice component
-  const handleDiceResult = (value: number) => {
-    // Prevent duplicate calls for the same dice roll
-    const now = Date.now();
-    if (
-      lastProcessedDiceRoll.current &&
-      lastProcessedDiceRoll.current.value === value &&
-      now - lastProcessedDiceRoll.current.timestamp < 1000
-    ) {
-      console.log("Skipping duplicate handleDiceResult call");
       return;
     }
 
-    lastProcessedDiceRoll.current = { value, timestamp: now };
+    const moveable = currentPlayer.pieces
+      .map((piece, index) => ({ piece, index }))
+      .filter((entry) => entry.piece.canMove);
 
-    // Debug logging
-    console.log(
-      `Player ${gameState.players[gameState.currentPlayerIndex]?.name} rolled ${value}`,
-    );
+    if (moveable.length === 0) {
+      // Le moteur a déjà passé la main quand aucun pion ne bouge : ceci n'est
+      // qu'un filet de sécurité pour ne jamais bloquer la table.
+      setGameState((prev) => ({
+        ...prev,
+        currentPlayerIndex:
+          (prev.currentPlayerIndex + 1) % prev.players.length,
+        diceValue: null,
+        canRollAgain: false,
+        turnStartTime: Date.now(),
+      }));
+      return;
+    }
 
-    // Update possible moves after dice settles
-    setTimeout(() => {
-      setGameState((prevState) => {
-        const newState = {
-          ...prevState,
-        };
-        const currentPlayer = newState.players[newState.currentPlayerIndex];
+    const track = getTrack(gameState.playerCount);
+    // Priorité : sortir de base, puis finir, puis le premier jouable.
+    const priority =
+      moveable.find((entry) => entry.piece.position === -1) ||
+      moveable.find(
+        (entry) =>
+          destinationOf(
+            { index: 0, position: entry.piece.position },
+            gameState.diceValue!,
+            track.finishedPosition,
+          ) === track.finishedPosition,
+      ) ||
+      moveable[0];
 
-        // Mark which pieces can move
-        currentPlayer.pieces.forEach((piece) => {
-          piece.canMove = canPieceMove(piece, value);
-        });
+    applyMoveIndex(priority.index);
+  };
 
-        // Check if any pieces can move
-        const canMovePieces = currentPlayer.pieces.some(
-          (piece) => piece.canMove,
-        );
-
-        if (!canMovePieces) {
-          // Check if all pieces are at home (very first scenario)
-          const allPiecesAtHome = currentPlayer.pieces.every(
-            (piece) => piece.position === -1,
-          );
-          const isFirstTurnScenario = allPiecesAtHome && value !== 6;
-
-          // Log appropriate message
-          if (isFirstTurnScenario) {
-            console.log(
-              `${currentPlayer.name} didn't roll 6 to start, switching to next player immediately`,
-            );
-          } else {
-            console.log(
-              `${currentPlayer.name} has no valid moves, switching to next player`,
-            );
-          }
-
-          newState.currentPlayerIndex =
-            (prevState.currentPlayerIndex + 1) % prevState.players.length;
-          newState.diceValue = null; // Reset dice value when switching turns
-          newState.canRollAgain = false;
-          newState.turnStartTime = Date.now();
-          newState.players = prevState.players.map((player) => ({
-            ...player,
-            pieces: player.pieces.map((piece) => ({
-              ...piece,
-              canMove: false,
-              isSelected: false,
-            })),
-          }));
-          return newState;
-        }
-        newState.diceValue = value;
-        newState.lastRoll = value;
-        newState.turnStartTime = Date.now();
-        return newState;
-      });
-    }, 500);
+  // Résultat du dé, émis par l'animation du plateau. C'est le SEUL canal
+  // d'entrée d'un lancer : un résultat n'est accepté que si un lancer est en
+  // vol, donc un même lancer ne peut pas être appliqué deux fois. On applique
+  // immédiatement (plus de `setTimeout`) : plus de fenêtre pendant laquelle
+  // un résultat retardé s'appliquait au mauvais joueur.
+  const handleDiceResult = (value: number) => {
+    if (!rollPendingRef.current) return;
+    rollPendingRef.current = false;
+    setGameState((prev) => withRoll(prev, value, Date.now()));
   };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Debug logging for Mac keyboard issues
-      console.log("Key pressed:", {
-        key: event.key,
-        code: event.code,
-        keyCode: event.keyCode,
-      });
-
       // Check if dice is currently animating - if so, show blocked message and ignore key presses
       if (ludoBoardRef.current?.isDiceAnimating) {
         setShowBlockedMessage(true);
@@ -395,82 +237,40 @@ export default function LudoPlay() {
         }
       }
 
-      // Handle 1-6 keys for specific dice values (Mac compatible)
-      // Use multiple detection methods for better compatibility
+      // Touches 1-6. Deux usages selon l'état :
+      //   - un dé attend d'être joué : la touche N choisit le N-ième pion
+      //     jouable, dans l'ordre du sélecteur à l'écran ;
+      //   - aucun dé posé : la touche force une valeur (débogage / compat).
+      // On passe par les mêmes fonctions que les boutons, jamais à côté.
       const key = event.key;
       const code = event.code;
       const keyCode = event.keyCode;
 
-      // Method 1: event.key (most reliable for Mac)
-      // Method 2: event.code (backup)
-      // Method 3: event.keyCode (legacy support)
-      if (gameState.gamePhase === "playing") {
-        if (
-          key === "1" ||
-          code === "Digit1" ||
-          code === "Numpad1" ||
-          keyCode === 49
-        ) {
-          event.preventDefault();
-          console.log("Throwing dice with value 1");
-          playSound("diceRoll");
-          ludoBoardRef.current?.throwDiceWithValue(1);
-          handleDiceResult(1);
-        } else if (
-          key === "2" ||
-          code === "Digit2" ||
-          code === "Numpad2" ||
-          keyCode === 50
-        ) {
-          event.preventDefault();
-          console.log("Throwing dice with value 2");
-          playSound("diceRoll");
-          ludoBoardRef.current?.throwDiceWithValue(2);
-          handleDiceResult(2);
-        } else if (
-          key === "3" ||
-          code === "Digit3" ||
-          code === "Numpad3" ||
-          keyCode === 51
-        ) {
-          event.preventDefault();
-          console.log("Throwing dice with value 3");
-          playSound("diceRoll");
-          ludoBoardRef.current?.throwDiceWithValue(3);
-          handleDiceResult(3);
-        } else if (
-          key === "4" ||
-          code === "Digit4" ||
-          code === "Numpad4" ||
-          keyCode === 52
-        ) {
-          event.preventDefault();
-          console.log("Throwing dice with value 4");
-          playSound("diceRoll");
-          ludoBoardRef.current?.throwDiceWithValue(4);
-          handleDiceResult(4);
-        } else if (
-          key === "5" ||
-          code === "Digit5" ||
-          code === "Numpad5" ||
-          keyCode === 53
-        ) {
-          event.preventDefault();
-          console.log("Throwing dice with value 5");
-          playSound("diceRoll");
-          ludoBoardRef.current?.throwDiceWithValue(5);
-          handleDiceResult(5);
-        } else if (
-          key === "6" ||
-          code === "Digit6" ||
-          code === "Numpad6" ||
-          keyCode === 54
-        ) {
-          event.preventDefault();
-          console.log("Throwing dice with value 6");
-          playSound("diceRoll");
-          ludoBoardRef.current?.throwDiceWithValue(6);
-          handleDiceResult(6);
+      if (gameState.gamePhase === "playing" && !isBotTurn) {
+        const digit = [1, 2, 3, 4, 5, 6].find(
+          (value) =>
+            key === String(value) ||
+            code === `Digit${value}` ||
+            code === `Numpad${value}` ||
+            keyCode === 48 + value,
+        );
+
+        if (digit !== undefined) {
+          const state = gameStateRef.current;
+          if (state.diceValue !== null) {
+            // Choix d'un pion : ne JAMAIS relancer tant qu'un dé attend.
+            event.preventDefault();
+            const movable = state.players[state.currentPlayerIndex]?.pieces
+              .map((piece, index) => ({ piece, index }))
+              .filter((entry) => entry.piece.canMove);
+            const choice = movable?.[digit - 1];
+            if (choice) selectPieceRef.current(choice.index);
+          } else {
+            // Force la valeur : le résultat viendra de l'animation, comme
+            // un clic. Appeler `handleDiceResult` ici doublerait le lancer.
+            event.preventDefault();
+            beginRoll(digit);
+          }
         }
       }
     };
@@ -494,14 +294,44 @@ export default function LudoPlay() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [gameState.gamePhase, handleDiceResult]);
-  // Handle camera view changes
+  }, [gameState.gamePhase, isBotTurn, handleRollDice, beginRoll]);
+
+  // « C'est à toi » : un souffle de vibration quand la main passe à un siège
+  // humain. Les sièges IA ne vibrent pas, et l'API est absente de bien des
+  // navigateurs (iOS) — on la sollicite sans jamais la supposer présente.
+  const prevTurnIndexRef = useRef(gameState.currentPlayerIndex);
+  useEffect(() => {
+    if (gameState.gamePhase !== "playing") return;
+    if (prevTurnIndexRef.current === gameState.currentPlayerIndex) return;
+    prevTurnIndexRef.current = gameState.currentPlayerIndex;
+    const player = gameState.players[gameState.currentPlayerIndex];
+    if (!player || player.isBot) return;
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([35, 40, 35]);
+    }
+  }, [gameState.currentPlayerIndex, gameState.gamePhase, gameState.players]);
+
+  // Pilote les sièges IA de la partie locale. Ne fait rien s'il n'y a pas
+  // de bot assis (voir `use-ludo-bot.ts`).
+  useLudoBot(gameState, {
+    enabled: gameState.gamePhase === "playing",
+    onRoll: rollDice,
+    onMove: handleBotMove,
+  });
+
+  // Handle camera view changes. Le son du bouton est joué par `CameraPanel`.
   const handleCameraView = (view: string) => {
-    playSound("buttonClick");
-    console.log(`Switching to ${view} view`);
     setCameraView(view);
     setResetCamera(false);
     setTimeout(() => setCameraView(null), 100); // Reset flag after brief moment
+  };
+
+  // Recentre la caméra et coupe la rotation automatique.
+  const handleResetCamera = () => {
+    setResetCamera(true);
+    setCameraView(null);
+    setIsSpacePressed(false);
+    setTimeout(() => setResetCamera(false), 100);
   };
 
   return (
@@ -518,9 +348,10 @@ export default function LudoPlay() {
       {gameState.gamePhase === "playing" && (
         <GameUI
           gameState={gameState}
+          isBotTurn={isBotTurn}
           onRollDice={handleRollDice}
-          onPieceClick={handlePieceClick}
           onAutoPlay={performAutoPlay}
+          onSelectPiece={handlePieceIndexSelect}
           onToggleAutoPlay={() =>
             setGameState((prev) => ({
               ...prev,
@@ -532,18 +363,24 @@ export default function LudoPlay() {
 
       {/* Winner Announcement */}
       {gameState.gamePhase === "finished" && gameState.winner && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 text-center max-w-md">
-            <h2 className="text-3xl font-bold mb-4">🎉 Game Over! 🎉</h2>
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div
-                className="w-8 h-8 rounded-full"
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-black/70 p-6 text-center text-white shadow-2xl ring-1 ring-white/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/60">
+              Partie terminée
+            </p>
+            <h2 className="mt-2 text-2xl font-bold">Victoire !</h2>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <span
+                className="h-8 w-8 shrink-0 rounded-full ring-2 ring-white/40"
                 style={{
-                  backgroundColor: BOARD_THEME.players[gameState.winner.color],
+                  backgroundColor:
+                    themeFor(getTrack(gameState.playerCount).shape).players[
+                      gameState.winner.color
+                    ],
                 }}
               />
-              <span className="text-2xl font-semibold">
-                {gameState.winner.name} Wins!
+              <span className="text-xl font-semibold">
+                {gameState.winner.name} remporte la partie
               </span>
             </div>
             <button
@@ -551,9 +388,9 @@ export default function LudoPlay() {
                 playSound("buttonClick");
                 window.location.reload();
               }}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold"
+              className="mt-6 w-full rounded-xl bg-blue-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-600"
             >
-              Play Again
+              Rejouer
             </button>
           </div>
         </div>
@@ -595,75 +432,13 @@ export default function LudoPlay() {
         {showBlockedMessage && <BlockedMessageNotification />}
       </Canvas>
 
-      {/* Camera View Controls - Bottom Right */}
-      <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-2">
-        <div className="bg-black/40 backdrop-blur-sm rounded-lg p-3 text-white">
-          <div className="text-xs font-semibold mb-2 text-center">
-            Camera Views
-          </div>
-          <div className="grid grid-cols-2 gap-1 text-xs">
-            <button
-              onClick={() => handleCameraView("top")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Top View"
-            >
-              Top
-            </button>
-            <button
-              onClick={() => handleCameraView("front")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Front View"
-            >
-              Front
-            </button>
-            <button
-              onClick={() => handleCameraView("left")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Left View"
-            >
-              Left
-            </button>
-            <button
-              onClick={() => handleCameraView("right")}
-              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors"
-              title="Right View"
-            >
-              Right
-            </button>
-          </div>
-
-          {/* Auto-rotate Toggle */}
-          <button
-            onClick={() => {
-              playSound("buttonClick");
-              setIsSpacePressed(!isSpacePressed);
-            }}
-            className={`w-full mt-1 px-2 py-1 rounded transition-colors text-xs font-semibold ${
-              isSpacePressed
-                ? "bg-green-500/80 hover:bg-green-500 text-white"
-                : "bg-white/20 hover:bg-white/30 text-white"
-            }`}
-            title="Toggle Auto-rotate (Space key)"
-          >
-            {isSpacePressed ? "🔄 Auto-rotate ON" : "⏸️ Auto-rotate OFF"}
-          </button>
-        </div>
-
-        {/* Reset Camera Button */}
-        <button
-          onClick={() => {
-            playSound("buttonClick");
-            setResetCamera(true);
-            setCameraView(null);
-            setIsSpacePressed(false); // Also stop auto-rotate on reset
-            setTimeout(() => setResetCamera(false), 100);
-          }}
-          className="bg-red-500/80 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors backdrop-blur-sm"
-          title="Reset Camera (R key)"
-        >
-          Reset
-        </button>
-      </div>
+      {/* Commandes caméra — repliées, en haut à droite. */}
+      <CameraPanel
+        onView={handleCameraView}
+        autoRotate={isSpacePressed}
+        onToggleAutoRotate={() => setIsSpacePressed((value) => !value)}
+        onReset={handleResetCamera}
+      />
     </div>
   );
 }

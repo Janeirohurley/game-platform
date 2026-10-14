@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeftRightIcon,
   BarChart3Icon,
+  BotIcon,
   Gamepad2Icon,
   LayoutDashboardIcon,
   LogOutIcon,
@@ -72,6 +73,7 @@ const adminNav = [
       { title: "Gamers", href: "/admin/gamers", icon: UserIcon, phase: 4 },
       { title: "Jeux", href: "/admin/games", icon: Gamepad2Icon, phase: 5 },
       { title: "Matchs", href: "/admin/matches", icon: SwordsIcon, phase: 6 },
+      { title: "Bots", href: "/admin/bots", icon: BotIcon, phase: 13 },
     ],
   },
   {

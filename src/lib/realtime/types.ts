@@ -8,6 +8,21 @@
 
 export type RoomPhase = "waiting" | "ready" | "playing" | "finished" | "closed";
 
+/**
+ * Skill levels a platform bot is provisioned with — mirrored from
+ * server-games' bot brain so the UI can label a seated bot. String keys
+ * arrive over the wire, so consumers must treat an unknown value as
+ * "no label" rather than index blindly.
+ */
+export type BotDifficulty = "easy" | "normal" | "hard";
+
+/** French labels per level — keeps the UI and the server brain in step. */
+export const BOT_DIFFICULTY_LABELS: Record<string, string> = {
+  easy: "Facile",
+  normal: "Normal",
+  hard: "Difficile",
+};
+
 /** Generic game identity, as declared in the realtime server registry. */
 export interface GameDefinition {
   id: string;
@@ -27,6 +42,13 @@ export interface LobbyPlayerView {
   sessionId: string;
   seat: number;
   connected: boolean;
+  /**
+   * Seat piloted by a platform bot. Bots are real platform accounts but
+   * have no connection — the server seats and plays them in-process.
+   */
+  isBot?: boolean;
+  /** Bot skill level key ("" for humans); see `BOT_DIFFICULTY_LABELS`. */
+  botDifficulty?: string;
   /** Logical mic state, mirrored from the server (`voice:mute`). */
   voiceMuted?: boolean;
   /** Admin-imposed mute — the player cannot lift it themselves. */

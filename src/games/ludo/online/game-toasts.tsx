@@ -65,7 +65,7 @@ export function GameToasts({ toasts }: { toasts: GameToast[] }) {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col items-center gap-2"
+      className="pointer-events-none absolute left-1/2 top-16 z-20 flex -translate-x-1/2 flex-col items-center gap-2"
     >
       {/* Scoped keyframes: no animation library, no global stylesheet. */}
       <style>{`

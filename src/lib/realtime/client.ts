@@ -70,14 +70,21 @@ export async function fetchGuestRealtimeToken(): Promise<string> {
   return payload.token;
 }
 
-/** Create a room for `gameId` with the requested table size. */
+/**
+ * Create a room for `gameId` with the requested table size.
+ *
+ * `bots` asks the server to seat that many platform bots from the pool
+ * (0 = none). The server clamps it to leave at least one human seat; the
+ * human creator always stays, so bots never fill the whole table.
+ */
 export async function createRoom(
   gameId: string,
   targetPlayers: number,
+  bots = 0,
 ): Promise<Room<LobbySnapshot>> {
   const client = getRealtimeClient();
   const token = await fetchRealtimeToken();
-  return client.create(gameId, { targetPlayers, token });
+  return client.create(gameId, { targetPlayers, bots, token });
 }
 
 /**

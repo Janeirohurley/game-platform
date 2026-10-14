@@ -23,6 +23,16 @@ export const user = pgTable("user", {
   banned: boolean("banned").default(false).notNull(),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
+
+  /*
+   * Bot marker. A bot is a REAL user row (so it can own a profile, be
+   * seated by user id and appear in match history) but a non-human one:
+   * it has no credentials, cannot sign in, and never counts in rankings
+   * or rewards. The `bot` table (schema/bots.ts) carries its runtime
+   * state; this flag is the cheap, indexable partition the auth guard,
+   * matchmaking and ingestion have to consult.
+   */
+  isBot: boolean("is_bot").default(false).notNull(),
 });
 
 export const session = pgTable(

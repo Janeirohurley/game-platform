@@ -146,12 +146,17 @@ export function PlayOnlineLudo({
   }, []);
 
   const startCreation = useCallback(
-    (count: number) => {
+    (count: number, botCount: number) => {
       setError(null);
       setTargetPlayers(count);
       void (async () => {
         try {
-          const joined = await createRoom(gameId, count);
+          // At least one human seat always stays: the creator's own.
+          const seatedBots = Math.min(
+            Math.max(0, botCount),
+            Math.max(0, count - 1),
+          );
+          const joined = await createRoom(gameId, count, seatedBots);
           persistRoomSession(joined, "play");
           setRoom(joined);
         } catch (createError) {
@@ -243,8 +248,8 @@ export function PlayOnlineLudo({
             </h3>
             <p className="mt-1.5 max-w-md text-xs leading-5 text-slate-500 dark:text-white/40">
               Tu entres directement dans le match et acceptes les demandes
-              depuis le board. Les spectateurs ne comptent pas dans la
-              capacité.
+              depuis le board. Ajoute des adversaires IA pour lancer tout de
+              suite ; les spectateurs ne comptent pas dans la capacité.
             </p>
           </div>
 
@@ -317,7 +322,10 @@ function ConnectedMatch({
 /**
  * The capacity selector, inline: compact chips reading their values from
  * the games registry (`allowedPlayerCounts`) — nothing hardcoded. The
- * sizes a game does not support simply never appear.
+ * sizes a game does not support simply never appear. A second chip row
+ * sets how many of those seats the server fills with platform bots; at
+ * least one seat is always kept for a human (the creator), so the bot
+ * count is clamped to `count - 1` at pick time.
  */
 function TableSizePicker({
   allowedPlayerCounts,
@@ -326,7 +334,7 @@ function TableSizePicker({
   onNeedSignIn,
 }: {
   allowedPlayerCounts: readonly number[];
-  onPick: (count: number) => void;
+  onPick: (count: number, bots: number) => void;
   /** Anonymous visitors get the sign-in popup before anything else. */
   viewerSignedIn: boolean;
   onNeedSignIn: () => void;
@@ -335,17 +343,56 @@ function TableSizePicker({
     () => [...allowedPlayerCounts].sort((a, b) => a - b),
     [allowedPlayerCounts],
   );
+  const [bots, setBots] = useState(0);
+
+  // Bots can never occupy every seat: keep one for the human creator.
+  const maxBots = Math.max(1, Math.max(...counts) - 1);
+  const botOptions = useMemo(
+    () => Array.from({ length: maxBots + 1 }, (_, index) => index),
+    [maxBots],
+  );
 
   const handlePick = (count: number) => {
     if (!viewerSignedIn) {
       onNeedSignIn();
       return;
     }
-    onPick(count);
+    onPick(count, Math.min(bots, Math.max(0, count - 1)));
   };
 
   return (
-    <div className="flex flex-col items-stretch gap-2.5 sm:items-end">
+    <div className="flex flex-col items-stretch gap-3 sm:items-end">
+      <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
+        <span className="text-[11px] font-medium text-slate-500 dark:text-white/45">
+          Adversaires IA
+        </span>
+        <div
+          className="flex gap-1.5"
+          role="radiogroup"
+          aria-label="Nombre d’adversaires IA"
+        >
+          {botOptions.map((value) => {
+            const active = value === bots;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setBots(value)}
+                className={`flex size-8 items-center justify-center rounded-lg text-xs font-semibold tabular-nums transition ${
+                  active
+                    ? "bg-violet-600 text-white"
+                    : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-white/70 dark:hover:bg-white/[0.07]"
+                }`}
+              >
+                {value}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div
         className="flex gap-2"
         role="radiogroup"
@@ -355,8 +402,6 @@ function TableSizePicker({
           <button
             key={count}
             type="button"
-            role="radio"
-            aria-checked={false}
             onClick={() => handlePick(count)}
             className="group flex h-14 w-14 flex-col items-center justify-center rounded-xl border border-slate-300 bg-white text-center transition hover:border-cyan-500/50 hover:bg-cyan-50 dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-cyan-300/40 dark:hover:bg-cyan-300/[0.07]"
           >
@@ -366,7 +411,7 @@ function TableSizePicker({
               strokeWidth={1.8}
               className="text-slate-400 transition group-hover:text-cyan-600 dark:text-white/35 dark:group-hover:text-cyan-200"
             />
-            <span className="mt-1 text-sm font-semibold tabular-nums text-slate-700 group-hover:text-slate-950 dark:text-white/80 dark:group-hover:text-white">
+            <span className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700 group-hover:text-slate-950 dark:text-white/80 dark:group-hover:text-white">
               {count}
             </span>
           </button>

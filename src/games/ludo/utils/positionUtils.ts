@@ -107,6 +107,45 @@ function toPoint3D(point: BoardPoint): [number, number, number] {
 }
 
 /**
+ * Centre au sol de la zone d'attente d'un bras, quel qu'il soit.
+ *
+ * C'est le barycentre des quatre emplacements (`arm.base`) : le même point
+ * que celui autour duquel `HomeAreas` pose la plaque et les anneaux. Il
+ * sert de repère aux deux formes — le dessin de la base et la cible du dé.
+ */
+export function getArmBaseCenter(
+  arm: ReturnType<typeof createTrack>["arms"][number],
+): BoardPoint {
+  const count = arm.base.length;
+  if (count === 0) return { x: 0, z: 0 };
+  return arm.base.reduce(
+    (acc, point) => ({
+      x: acc.x + point.x / count,
+      z: acc.z + point.z / count,
+    }),
+    { x: 0, z: 0 },
+  );
+}
+
+/**
+ * Centre au sol de la zone d'attente d'une couleur assise.
+ *
+ * Renvoie l'origine (au sol) si la couleur n'a pas de siège sur cette
+ * table : l'appelant borne alors lui-même la valeur (par exemple en ne
+ * déplaçant pas le dé). Le calcul vient de `getArmBaseCenter`, donc la
+ * plaque dessinée et la cible du dé ne peuvent pas diverger.
+ */
+export function getBaseCenter(
+  playerCount: number,
+  color: LudoColor,
+): BoardPoint {
+  const arm = getTrack(playerCount).arms.find(
+    (candidate) => candidate.seat?.color === color,
+  );
+  return arm ? getArmBaseCenter(arm) : { x: 0, z: 0 };
+}
+
+/**
  * Traduit une position logique de pion en coordonnées 3D.
  *
  * `pieceIndex` sert à répartir les 4 pièces d'un joueur aux deux endroits

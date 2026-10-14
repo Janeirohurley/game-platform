@@ -14,8 +14,8 @@ export const metadata: Metadata = {
  */
 export default function LudoLocalPage() {
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black">
-      <div className="fixed inset-0 w-screen h-screen">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
+      <div className="fixed inset-0">
         <LudoPlay />
       </div>
 
