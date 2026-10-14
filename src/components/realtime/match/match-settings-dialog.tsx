@@ -70,7 +70,7 @@ export function MatchSettingsDialog({
             <p className="text-[11px] font-semibold tracking-wide text-white/50 uppercase">
               Nombre de joueurs
             </p>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {playerCounts.map((count) => {
                 const active = snapshot.targetPlayers === count;
                 return (
@@ -98,37 +98,39 @@ export function MatchSettingsDialog({
             </div>
           </div>
 
-          <div>
-            <label
-              htmlFor="settings-turn-duration"
-              className="block text-[11px] font-semibold tracking-wide text-white/50 uppercase"
-            >
-              Temps par coup
-            </label>
-            <select
-              id="settings-turn-duration"
-              disabled={!isAdmin}
-              value={snapshot.turnDurationMs}
-              onChange={(event) =>
-                onUpdate({
-                  targetPlayers: snapshot.targetPlayers,
-                  turnDurationMs: Number(event.target.value),
-                })
-              }
-              className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-neutral-800 px-3 text-sm text-white transition focus:border-sky-400/60 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {LUDO_TURN_DURATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1.5 text-xs text-white/45">
-              {snapshot.turnDurationMs === 0
-                ? "Aucune limite : un joueur peut prendre tout son temps."
-                : "Le tour est automatiquement passé quand le temps s'écoule."}
-            </p>
-          </div>
+          {snapshot.gameId === "ludo" && (
+            <div>
+              <label
+                htmlFor="settings-turn-duration"
+                className="block text-[11px] font-semibold tracking-wide text-white/50 uppercase"
+              >
+                Temps par coup
+              </label>
+              <select
+                id="settings-turn-duration"
+                disabled={!isAdmin}
+                value={snapshot.turnDurationMs}
+                onChange={(event) =>
+                  onUpdate({
+                    targetPlayers: snapshot.targetPlayers,
+                    turnDurationMs: Number(event.target.value),
+                  })
+                }
+                className="mt-2 h-10 w-full rounded-lg border border-white/10 bg-neutral-800 px-3 text-sm text-white transition focus:border-sky-400/60 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {LUDO_TURN_DURATION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-white/45">
+                {snapshot.turnDurationMs === 0
+                  ? "Aucune limite : un joueur peut prendre tout son temps."
+                  : "Le tour est automatiquement passé quand le temps s'écoule."}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex justify-end gap-2">

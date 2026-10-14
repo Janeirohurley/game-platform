@@ -28,14 +28,17 @@ export function MatchStartButton({
   const phase = snapshot.phase;
   if (phase !== "waiting" && phase !== "ready") return null;
 
-  const freeSeats = Math.max(0, snapshot.targetPlayers - snapshot.players.length);
+    // Tetris : on peut lancer dès `minPlayers` joueurs assis, table pleine ou non.
+  const required =
+    snapshot.gameId === "tetris" ? snapshot.minPlayers : snapshot.targetPlayers;
+  const freeSeats = Math.max(0, required - snapshot.players.length);
 
   return (
     <div className="pointer-events-auto absolute top-3 right-3 z-40 sm:top-4 sm:right-4">
       <button
         type="button"
         onClick={onStart}
-        disabled={starting}
+        disabled={starting || (snapshot.gameId === "tetris" && freeSeats > 0)}
         title={
           freeSeats > 0
             ? `Lance la partie — il manque ${freeSeats} joueur${
