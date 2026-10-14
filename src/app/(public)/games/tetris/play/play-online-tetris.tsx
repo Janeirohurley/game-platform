@@ -9,6 +9,7 @@ import {
   createRoom,
   joinRoom,
   reconnectRoom,
+  waitForRoomReady,
   watchRoom,
 } from "@/lib/realtime";
 import {
@@ -89,6 +90,9 @@ export function PlayOnlineTetris({
     void (async () => {
       try {
         const created = await createRoom(gameId, count);
+        // Hold the loader until the server has acknowledged the new lobby
+        // before dropping onto the board.
+        await waitForRoomReady(created);
         persistRoomSession(created, "play");
         setRoom(created);
       } catch (createError) {

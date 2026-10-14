@@ -9,6 +9,18 @@
 export type RoomPhase = "waiting" | "ready" | "playing" | "finished" | "closed";
 
 /**
+ * Bot-seating progress pushed by the server while a table is being
+ * prepared (`seatState`). `pending` counts the bots still being seated
+ * and reaches 0 once seating is over — successfully or not — which is
+ * the client's cue to stop showing "préparation".
+ */
+export interface SeatStatePayload {
+  requested: number;
+  pending: number;
+  seated: number;
+}
+
+/**
  * Skill levels a platform bot is provisioned with — mirrored from
  * server-games' bot brain so the UI can label a seated bot. String keys
  * arrive over the wire, so consumers must treat an unknown value as

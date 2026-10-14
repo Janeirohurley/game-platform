@@ -23,6 +23,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
 
 import {
+  ActionOverlay,
   CallBar,
   CloseRoomConfirmDialog,
   CountdownOverlay,
@@ -111,6 +112,31 @@ export function MatchScreen({
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectInFlight = useRef(false);
   const intentionalLeave = useRef(false);
+  /**
+   * A terminal action awaiting the server's confirmation (leave / close).
+   * While set, a full-screen overlay blocks the stage: the client never
+   * pretends the action happened before the server acknowledges it.
+   */
+  const [pendingAction, setPendingAction] = useState<
+    { kind: "leaving" | "closing"; error: string | null } | null
+  >(null);
+  const actionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (actionTimer.current) clearTimeout(actionTimer.current);
+    };
+  }, []);
+
+  // A confirmed close flips the phase to "closed" and takes over the
+  // screen; drop the pending overlay (and its timer) so a late timeout
+  // cannot flash an error over the closed-room notice.
+  useEffect(() => {
+    if (lobby?.phase === "closed") {
+      if (actionTimer.current) clearTimeout(actionTimer.current);
+      setPendingAction(null);
+    }
+  }, [lobby?.phase]);
 
   // A refresh can happen after the request was sent but before the server
   // acknowledgement arrived. Restore the same id so reconciliation can find
@@ -540,6 +566,70 @@ export function MatchScreen({
     }
   };
 
+  /**
+   * Final leave, after the two-step confirmation. The seat is only freed
+   * once the server acknowledges the disconnect (`room.leave` resolves
+   * then); a lost acknowledgement surfaces as an error with a retry,
+   * never a silent optimistic exit.
+   */
+  const performLeave = useCallback(() => {
+    setPendingAction({ kind: "leaving", error: null });
+    if (actionTimer.current) clearTimeout(actionTimer.current);
+    actionTimer.current = setTimeout(() => {
+      setPendingAction((current) =>
+        current?.kind === "leaving" && !current.error
+          ? {
+              kind: "leaving",
+              error: "Le serveur n'a pas confirmé la déconnexion.",
+            }
+          : current,
+      );
+    }, 8_000);
+    room
+      .leave(true)
+      .then(() => {
+        if (actionTimer.current) clearTimeout(actionTimer.current);
+        onLeft?.();
+      })
+      .catch(() => {
+        if (actionTimer.current) clearTimeout(actionTimer.current);
+        setPendingAction({
+          kind: "leaving",
+          error: "La déconnexion a échoué. Réessaie.",
+        });
+      });
+  }, [onLeft, room]);
+
+  /**
+   * Admin closes the room for everyone, after its own double
+   * confirmation. The server broadcasts `roomClosed`, which flips the
+   * phase to "closed" and replaces this overlay with the notice — so the
+   * UI only moves on once the deletion is real. A lost ack is surfaced.
+   */
+  const performClose = useCallback(() => {
+    setPendingAction({ kind: "closing", error: null });
+    if (actionTimer.current) clearTimeout(actionTimer.current);
+    try {
+      room.send("closeRoom", {});
+    } catch (error) {
+      setPendingAction({
+        kind: "closing",
+        error: error instanceof Error ? error.message : "Envoi impossible.",
+      });
+      return;
+    }
+    actionTimer.current = setTimeout(() => {
+      setPendingAction((current) =>
+        current?.kind === "closing" && !current.error
+          ? {
+              kind: "closing",
+              error: "La fermeture n'a pas été confirmée. Réessaie.",
+            }
+          : current,
+      );
+    }, 8_000);
+  }, [room]);
+
   if (!lobby) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-neutral-950 p-6">
@@ -771,8 +861,7 @@ export function MatchScreen({
             setConfirmLeave(false);
             intentionalLeave.current = true;
             clearRoomSession(room.roomId);
-            room.leave(true);
-            onLeft?.();
+            performLeave();
           }}
           onCancel={() => setConfirmLeave(false)}
         />
@@ -784,7 +873,7 @@ export function MatchScreen({
         <CloseRoomConfirmDialog
           onConfirm={() => {
             setConfirmCloseRoom(false);
-            room.send("closeRoom", {});
+            performClose();
           }}
           onCancel={() => setConfirmCloseRoom(false)}
         />
@@ -805,6 +894,44 @@ export function MatchScreen({
           countdown runs — covers the whole stage, nobody plays early. */}
       {countdownSeconds !== null && (
         <CountdownOverlay seconds={countdownSeconds} />
+      )}
+
+      {/* A pending leave or room close only ends once the SERVER confirms
+          it: the overlay blocks the stage until then, or offers a retry
+          when the acknowledgement never comes. */}
+      {pendingAction && (
+        <ActionOverlay
+          tone={pendingAction.error ? "error" : "busy"}
+          title={
+            pendingAction.kind === "leaving"
+              ? "Déconnexion…"
+              : "Fermeture de la partie…"
+          }
+          detail={
+            pendingAction.error ??
+            (pendingAction.kind === "leaving"
+              ? "On libère ta place et on prévient les autres joueurs."
+              : "On termine la partie pour tous les participants.")
+          }
+          action={
+            pendingAction.error
+              ? {
+                  label: "Réessayer",
+                  onClick:
+                    pendingAction.kind === "leaving"
+                      ? performLeave
+                      : performClose,
+                }
+              : undefined
+          }
+          secondaryAction={
+            pendingAction.error
+              ? pendingAction.kind === "leaving"
+                ? { label: "Quitter quand même", onClick: () => onLeft?.() }
+                : { label: "Annuler", onClick: () => setPendingAction(null) }
+              : undefined
+          }
+        />
       )}
       </div>
     </RoomContext.Provider>

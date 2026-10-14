@@ -12,6 +12,7 @@ import {
   joinRoom,
   reconnectRoom,
   useMatchList,
+  waitForRoomReady,
   watchRoom,
 } from "@/lib/realtime";
 import {
@@ -62,6 +63,11 @@ export function PlayOnlineLudo({
   const [pendingJoin, setPendingJoin] = useState<PendingJoin | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [restoring, setRestoring] = useState(false);
+  /** Bot-seating progress while a freshly-created table is prepared. */
+  const [seating, setSeating] = useState<{
+    requested: number;
+    seated: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** "create" | "join" | null — drives the sign-in popup when set. */
   const [authIntent, setAuthIntent] = useState<"create" | "join" | null>(
@@ -158,8 +164,25 @@ export function PlayOnlineLudo({
           );
           const joined = await createRoom(gameId, count, seatedBots);
           persistRoomSession(joined, "play");
+          // Don't drop the creator onto an empty board: hold the
+          // "préparation" screen until the server has seated the bots,
+          // with a bounded wait so a slow pool never blocks entry.
+          if (seatedBots > 0) {
+            setSeating({ requested: seatedBots, seated: 0 });
+            try {
+              await waitForRoomReady(joined, (payload) =>
+                setSeating({
+                  requested: payload?.requested ?? seatedBots,
+                  seated: payload?.seated ?? 0,
+                }),
+              );
+            } finally {
+              setSeating(null);
+            }
+          }
           setRoom(joined);
         } catch (createError) {
+          setSeating(null);
           setTargetPlayers(null);
           if (isAuthRequiredError(createError)) {
             // Anonymous visitor creating a table: popup, not banner.
@@ -207,8 +230,17 @@ export function PlayOnlineLudo({
           className="animate-spin text-slate-500 dark:text-white/60"
         />
         <p className="text-sm text-slate-500 dark:text-white/60">
-          {pendingJoin ? "Connexion à la partie…" : "Ouverture de ta table…"}
+          {pendingJoin
+            ? "Connexion à la partie…"
+            : seating
+              ? "Préparation de la partie…"
+              : "Ouverture de ta table…"}
         </p>
+        {seating && (
+          <p className="text-xs text-slate-400 dark:text-white/35">
+            Installation des adversaires IA ({seating.seated}/{seating.requested})…
+          </p>
+        )}
       </div>
     );
   }

@@ -43,4 +43,8 @@ export {
 } from "./auth-required-dialog";
 export { CallBar } from "./call-bar";
 export { LiveKitStage } from "./livekit-stage";
+export {
+  ActionOverlay,
+  type ActionOverlayProps,
+} from "./action-overlay";
 export { MatchScreen, type MatchScreenProps } from "./match-screen";

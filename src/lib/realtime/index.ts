@@ -1,5 +1,6 @@
 export * from "./config";
 export * from "./types";
+export * from "./seat-prepare";
 export {
   createRoom,
   fetchGuestRealtimeToken,

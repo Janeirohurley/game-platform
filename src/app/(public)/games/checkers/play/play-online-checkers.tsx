@@ -7,6 +7,7 @@ import type { Room } from "@colyseus/sdk";
 
 import { createRoom, joinRoom, reconnectRoom } from "@/lib/realtime/client";
 import { clearRoomSession, persistRoomSession, readRoomIdFromUrl, readRoomSession } from "@/lib/realtime/session-url";
+import { waitForRoomReady } from "@/lib/realtime/seat-prepare";
 import { MatchScreen } from "@/components/realtime/match";
 import { CheckersRoomView } from "@/games/checkers/online/checkers-room-view";
 
@@ -49,6 +50,10 @@ export function PlayOnlineCheckers({
             ? await reconnectRoom(session.reconnectionToken).catch(() => joinRoom(gameId, roomId, session.mode))
             : await joinRoom(gameId, roomId, "play")
           : await createRoom(gameId, 2);
+        if (cancelled) { void restored.leave(); return; }
+        // Fresh table (created or first join): hold the loader until the
+        // server has acknowledged the lobby before dropping onto the board.
+        if (!session) await waitForRoomReady(restored);
         if (cancelled) { void restored.leave(); return; }
         persistRoomSession(restored, session?.mode ?? "play");
         setRoom(restored);
