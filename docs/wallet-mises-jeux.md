@@ -356,7 +356,17 @@ légale par jeu, reporting régulateur. **À traiter comme un projet séparé.**
   types `stake`/`payout` + migration `0013` appliquée.
 - **Phase 1** — modèle `match_stakes`/holds + routes hold/cancel/void +
   `settleStakes` branché sur `match-results`. Tests d'intégration (dédup,
-  gagnant/perdant/draw/forfait/void).
+  gagnant/perdant/draw/forfait/void). **✅ Fait** : schéma
+  `match_stakes`/`match_stake_holds` + migration `0014` appliquée ; service
+  `src/lib/wallet/match-stakes.ts` (`createMatchStake`, `holdStake`,
+  `cancelHold`, `voidStakes`, `settleStakes`, `getStakeStateForUser`) ;
+  routes `/api/internal/match-stakes` + `/:roomId/void` (HMAC via
+  `src/lib/realtime/request-signature.ts`, partagé avec `match-results`/bots),
+  `/api/wallet/games/hold`, `/api/wallet/games/:roomId` (GET), `/:roomId/cancel`
+  (session) ; `settleStakes` branché dans `/api/profile/match-results` ;
+  tests d'intégration `src/lib/wallet/__tests__/match-stakes.test.ts` (6).
+  *Reste* : verrou `FOR UPDATE` sur `match_stakes` pour un règlement
+  strictement mono-transaction (Phase 2, avec l'intégration room).
 - **Phase 2** — intégration room sur **un** jeu pilote, choisi selon ses règles
   (partie, issue, forfait/égalité) : mise en salon, garde de financement,
   remboursement au départ. On figera sa `SettlementPolicy` (§3.1) en même temps.
