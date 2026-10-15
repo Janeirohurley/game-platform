@@ -87,7 +87,7 @@ export interface ApplyOutcomeResult {
   status?: TransactionRow["status"];
 }
 
-type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -520,6 +520,28 @@ export interface InternalMovementInput {
 export async function postInternalMovement(
   input: InternalMovementInput,
 ): Promise<OperationOutcome> {
+  return db.transaction((tx) => runInternalMovement(tx, input));
+}
+
+/**
+ * Same movement, but inside a CALLER-OWNED transaction.
+ *
+ * Used by the match-stakes settlement so several movements AND the
+ * settlement state change (`match_stakes.status`, hold statuses) commit
+ * atomically. Does NOT open its own transaction — the caller owns the
+ * enclosing one (and therefore the commit/rollback semantics).
+ */
+export async function postInternalMovementInTx(
+  tx: DbTx,
+  input: InternalMovementInput,
+): Promise<OperationOutcome> {
+  return runInternalMovement(tx, input);
+}
+
+async function runInternalMovement(
+  tx: DbTx,
+  input: InternalMovementInput,
+): Promise<OperationOutcome> {
   // The double-entry invariant holds BEFORE we touch the database.
   assertBalanced(input.posting);
 
@@ -548,114 +570,117 @@ export async function postInternalMovement(
   // Stable lock + evaluation order → two movements can never deadlock.
   const walletIds = [...walletDeltas.keys()].sort();
 
-  const result = await db.transaction(async (tx) => {
-    const locked = await tx
-      .select()
-      .from(wallets)
-      .where(inArray(wallets.id, walletIds))
-      .orderBy(wallets.id)
-      .for("update");
-    const byId = new Map(locked.map((wallet) => [wallet.id, wallet]));
-    if (byId.size !== walletIds.length) {
-      throw new WalletError("not_found", "A wallet in this movement is missing.");
+  const locked = await tx
+    .select()
+    .from(wallets)
+    .where(inArray(wallets.id, walletIds))
+    .orderBy(wallets.id)
+    .for("update");
+  const byId = new Map(locked.map((wallet) => [wallet.id, wallet]));
+  if (byId.size !== walletIds.length) {
+    throw new WalletError("not_found", "A wallet in this movement is missing.");
+  }
+  for (const id of walletIds) {
+    const wallet = byId.get(id)!;
+    if (wallet.currency !== input.currency) {
+      throw new WalletError("currency_mismatch", "This movement mixes currencies.");
     }
-    for (const id of walletIds) {
-      const wallet = byId.get(id)!;
-      if (wallet.currency !== input.currency) {
-        throw new WalletError("currency_mismatch", "This movement mixes currencies.");
-      }
-      assertWalletOperable(wallet);
-    }
+    assertWalletOperable(wallet);
+  }
 
-    // No overdraft — wallets first, then system (escrow) accounts.
-    for (const [walletId, delta] of walletDeltas) {
-      if (delta >= 0) continue;
-      const balance = await balanceInTx(tx, walletId);
-      if (balance + delta < 0) {
-        throw new WalletError(
-          "insufficient_funds",
-          "Insufficient wallet balance for this movement.",
-          { walletId, balance, required: -delta },
-        );
-      }
+  // No overdraft — wallets first, then system (escrow) accounts.
+  for (const [walletId, delta] of walletDeltas) {
+    if (delta >= 0) continue;
+    const balance = await balanceInTx(tx, walletId);
+    if (balance + delta < 0) {
+      throw new WalletError(
+        "insufficient_funds",
+        "Insufficient wallet balance for this movement.",
+        { walletId, balance, required: -delta },
+      );
     }
-    for (const [account, delta] of accountDeltas) {
-      if (delta >= 0) continue;
-      const rows = await tx
-        .select({ total: sql<string>`coalesce(sum(${ledgerEntries.amountMinor}), 0)::bigint` })
-        .from(ledgerEntries)
-        .where(eq(ledgerEntries.account, account));
-      const balance = toAmount(rows[0]?.total ?? 0);
-      if (balance + delta < 0) {
-        throw new WalletError(
-          "insufficient_funds",
-          `Account ${account} cannot cover this movement.`,
-          { account, balance, required: -delta },
-        );
-      }
+  }
+  for (const [account, delta] of accountDeltas) {
+    if (delta >= 0) continue;
+    const rows = await tx
+      .select({ total: sql<string>`coalesce(sum(${ledgerEntries.amountMinor}), 0)::bigint` })
+      .from(ledgerEntries)
+      .where(eq(ledgerEntries.account, account));
+    const balance = toAmount(rows[0]?.total ?? 0);
+    if (balance + delta < 0) {
+      throw new WalletError(
+        "insufficient_funds",
+        `Account ${account} cannot cover this movement.`,
+        { account, balance, required: -delta },
+      );
     }
+  }
 
-    const inserted = await tx
-      .insert(walletTransactions)
-      .values({
-        id: randomUUID(),
-        walletId: input.walletId,
-        type: input.type,
-        status: "succeeded",
-        currency: input.currency,
-        grossAmount,
-        providerFee: 0,
-        platformFee: 0,
-        netAmount: grossAmount,
-        provider: null,
-        idempotencyKey: input.idempotencyKey,
-        metadata: input.metadata ?? null,
-        completedAt: new Date(),
-      })
-      .onConflictDoNothing({ target: walletTransactions.idempotencyKey })
-      .returning();
+  const inserted = await tx
+    .insert(walletTransactions)
+    .values({
+      id: randomUUID(),
+      walletId: input.walletId,
+      type: input.type,
+      status: "succeeded",
+      currency: input.currency,
+      grossAmount,
+      providerFee: 0,
+      platformFee: 0,
+      netAmount: grossAmount,
+      provider: null,
+      idempotencyKey: input.idempotencyKey,
+      metadata: input.metadata ?? null,
+      completedAt: new Date(),
+    })
+    .onConflictDoNothing({ target: walletTransactions.idempotencyKey })
+    .returning();
 
-    if (inserted[0]) {
-      await postLedger(tx, {
-        transactionId: inserted[0].id,
-        currency: input.currency,
-        posting: input.posting,
-      });
-      return { row: inserted[0], duplicate: false };
-    }
+  let row: TransactionRow;
+  let duplicate: boolean;
 
+  if (inserted[0]) {
+    await postLedger(tx, {
+      transactionId: inserted[0].id,
+      currency: input.currency,
+      posting: input.posting,
+    });
+    row = inserted[0];
+    duplicate = false;
+  } else {
     // Idempotent replay — the key must map to the SAME movement.
     const existing = await tx
       .select()
       .from(walletTransactions)
       .where(eq(walletTransactions.idempotencyKey, input.idempotencyKey))
       .limit(1);
-    const row = existing[0];
+    const found = existing[0];
     if (
-      !row ||
-      row.walletId !== input.walletId ||
-      row.type !== input.type ||
-      row.currency !== input.currency ||
-      row.grossAmount !== grossAmount
+      !found ||
+      found.walletId !== input.walletId ||
+      found.type !== input.type ||
+      found.currency !== input.currency ||
+      found.grossAmount !== grossAmount
     ) {
       throw new WalletError(
         "idempotency_conflict",
         "This idempotency key was already used for a different movement.",
       );
     }
-    return { row, duplicate: true };
-  });
+    row = found;
+    duplicate = true;
+  }
 
-  walletLog("info", result.duplicate ? "internal.duplicate" : "internal.posted", {
+  walletLog("info", duplicate ? "internal.duplicate" : "internal.posted", {
     eventType: input.type,
-    transactionId: result.row.id,
-    walletId: result.row.walletId,
-    currency: result.row.currency,
-    amountMinor: result.row.grossAmount,
-    status: result.row.status,
+    transactionId: row.id,
+    walletId: row.walletId,
+    currency: row.currency,
+    amountMinor: row.grossAmount,
+    status: row.status,
   });
 
-  return { transaction: result.row, duplicate: result.duplicate };
+  return { transaction: row, duplicate };
 }
 
 // ---------------------------------------------------------------------------
