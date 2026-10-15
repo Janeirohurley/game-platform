@@ -9,6 +9,7 @@ import type {
 } from "../components/console/console-keys";
 import { ConsoleFit } from "../components/console/console-fit";
 import { TetrisConsole } from "../components/console/tetris-console";
+import { TetrisStart } from "../components/console/tetris-start";
 import type { TetrisInput } from "../engine";
 import { useTetrisLoop } from "./use-tetris-loop";
 import { useTetrisSound } from "./use-tetris-sound";
@@ -31,7 +32,8 @@ const KEYBOARD_TO_CONSOLE: Record<string, ConsoleKey> = {
 const REPEAT: Partial<Record<ConsoleKey, readonly [number, number]>> = {
   left: [200, 100],
   right: [200, 100],
-  down: [200, 50],
+  // Descente douce très réactive, comme l'original (down.js : 40 ms / 40 ms).
+  down: [40, 40],
 };
 
 const DROP_RECOIL_MS = 100;
@@ -44,7 +46,8 @@ const DROP_RECOIL_MS = 100;
  * Ludo local.
  */
 export function TetrisSession() {
-  const { game, paused, best, send, restart, togglePause } = useTetrisLoop();
+  const { game, paused, best, started, config, setConfig, start, send, restart, togglePause } =
+    useTetrisLoop();
   const [soundOn, setSoundOn] = useState(true);
   const [pressed, setPressed] = useState<ConsolePressed>({});
   const [dropped, setDropped] = useState(false);
@@ -131,7 +134,9 @@ export function TetrisSession() {
       if (!key || event.metaKey || event.ctrlKey || event.altKey) return;
       // Évite que les flèches et l'espace fassent défiler la page.
       event.preventDefault();
-      if (event.repeat) return;
+      // Sur l'écran de démarrage, le clavier ne pilote pas la partie : les
+      // réglages se choisissent à la souris ou au doigt, via les boutons.
+      if (!started || event.repeat) return;
       handleKey(key, "down");
     }
 
@@ -156,7 +161,7 @@ export function TetrisSession() {
       releaseAll();
       window.clearTimeout(recoilTimer.current);
     };
-  }, [handleKey, stopRepeat]);
+  }, [handleKey, stopRepeat, started]);
 
   // Sons déclenchés par le RÉSULTAT d'un coup : on compare à l'état précédent.
   const previous = useRef({ lines: game.lines, status: game.status });
@@ -177,6 +182,17 @@ export function TetrisSession() {
           pressed={{ ...pressed, music: soundOn, pause: paused }}
           dropped={dropped}
           onKey={handleKey}
+          overlay={
+            !started && (
+              <TetrisStart
+                startLines={config.startLines}
+                startLevel={config.startLevel}
+                best={best}
+                onChange={setConfig}
+                onStart={start}
+              />
+            )
+          }
         />
       </ConsoleFit>
     </section>

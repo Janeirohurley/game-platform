@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { TetrisState } from "../../engine";
 import { ConsoleDecor } from "./console-decor";
 import { ConsoleKeyboard } from "./console-keyboard";
@@ -17,6 +19,8 @@ interface TetrisConsoleProps {
   /** Vrai un court instant après une chute : la console « recule » d'un cran. */
   dropped: boolean;
   onKey: (key: ConsoleKey, phase: ConsolePhase) => void;
+  /** Contenu posé par-dessus l'écran (ex. l'écran de démarrage). */
+  overlay?: ReactNode;
 }
 
 /**
@@ -33,6 +37,7 @@ export function TetrisConsole({
   pressed,
   dropped,
   onKey,
+  overlay,
 }: TetrisConsoleProps) {
   // Comme l'original : le libellé passe à « Max » quand on bat le record.
   const isRecord = game.score > 0 && game.score >= best;
@@ -72,6 +77,8 @@ export function TetrisConsole({
               </div>
             </div>
           </div>
+
+          {overlay}
         </div>
       </div>
 

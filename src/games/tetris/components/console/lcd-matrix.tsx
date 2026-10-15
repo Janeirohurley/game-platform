@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import {
   BOARD_HEIGHT,
   BOARD_WIDTH,
+  dropDistance,
   getCells,
   getShape,
   type PieceType,
@@ -10,11 +11,32 @@ import {
 } from "../../engine";
 import styles from "./tetris-console.module.css";
 
-/** Plateau + pièce courante, aplatis en cases allumées / éteintes. */
-function buildMatrix(game: TetrisState): boolean[][] {
-  const matrix = game.board.map((row) => row.map((cell) => cell !== 0));
-  for (const [x, y] of getCells(game.current)) {
-    if (y >= 0 && y < BOARD_HEIGHT && x >= 0 && x < BOARD_WIDTH) matrix[y][x] = true;
+/** 0 = case éteinte, 1 = case allumée, 2 = « fantôme » (ombre de la pièce). */
+type LcdCell = 0 | 1 | 2;
+
+/** Plateau + pièce courante + fantôme, aplatis en cases éteintes / allumées / fantôme. */
+function buildMatrix(game: TetrisState): LcdCell[][] {
+  const matrix: LcdCell[][] = game.board.map((row) =>
+    row.map((cell) => (cell !== 0 ? 1 : 0)),
+  );
+
+  const pieceCells = getCells(game.current);
+  // Le fantôme n'apparaît que si la pièce touche déjà le plateau : au tout
+  // début (ou pour un spectateur avant le départ) elle est encore hors-champ.
+  if (pieceCells.some(([, y]) => y >= 0)) {
+    const distance = dropDistance(game.board, game.current);
+    if (distance > 0) {
+      const shadow = getCells({ ...game.current, y: game.current.y + distance });
+      for (const [x, y] of shadow) {
+        if (y >= 0 && y < BOARD_HEIGHT && x >= 0 && x < BOARD_WIDTH && matrix[y][x] === 0) {
+          matrix[y][x] = 2;
+        }
+      }
+    }
+  }
+
+  for (const [x, y] of pieceCells) {
+    if (y >= 0 && y < BOARD_HEIGHT && x >= 0 && x < BOARD_WIDTH) matrix[y][x] = 1;
   }
   return matrix;
 }
@@ -38,8 +60,13 @@ export function LcdMatrix({ game }: { game: TetrisState }) {
             // Le remplissage de fin de partie part du bas et remonte.
             style={{ "--delay": `${(BOARD_HEIGHT - 1 - y) * 40}ms` } as CSSProperties}
           >
-            {row.map((on, x) => (
-              <b key={x} className={`${styles.cell} ${on ? styles.on : ""}`} />
+            {row.map((cell, x) => (
+              <b
+                key={x}
+                className={`${styles.cell} ${
+                  cell === 1 ? styles.on : cell === 2 ? styles.ghost : ""
+                }`}
+              />
             ))}
           </div>
         ))}

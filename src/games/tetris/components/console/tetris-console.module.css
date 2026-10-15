@@ -153,6 +153,18 @@
   background: #000;
 }
 
+/*
+ * Fantôme : la case n'est pas encore posée. On garde le contour allumé mais
+ * l'intérieur éteint — la position d'atterrissage se lit sans remplir l'écran.
+ */
+.cell.ghost {
+  border-color: #4a5138;
+}
+
+.cell.ghost::after {
+  background: #b7c2a2;
+}
+
 /* ---------- Matrice de jeu ---------- */
 
 .matrixWrap {
@@ -227,6 +239,91 @@
   to {
     opacity: 1;
   }
+}
+
+/* ---------- Écran de démarrage ---------- */
+
+.startOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(158, 173, 134, 0.94);
+}
+
+.startPanel {
+  width: 100%;
+  text-align: center;
+}
+
+.startTitle {
+  margin-bottom: 20px;
+  font-size: 30px;
+  font-weight: normal;
+  letter-spacing: 8px;
+}
+
+.startRow {
+  margin-bottom: 14px;
+}
+
+.startLabel {
+  margin-bottom: 8px;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+.startChoices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.startChoice {
+  width: 26px;
+  height: 26px;
+  border: 2px solid #494536;
+  background: #b7c2a2;
+  color: #000;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.startChoiceOn {
+  border-color: #000;
+  background: #000;
+  color: #9ead86;
+}
+
+.startChoice:focus-visible,
+.startButton:focus-visible {
+  outline: 3px solid #000;
+  outline-offset: 2px;
+}
+
+.startButton {
+  margin-top: 8px;
+  padding: 8px 18px;
+  border: 1px solid #000;
+  border-radius: 6px;
+  background: linear-gradient(to bottom, #6e77ef, #4652f3);
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.startBest {
+  margin-top: 12px;
+  font-size: 14px;
+  letter-spacing: 1px;
 }
 
 /* ---------- Panneau d'état ---------- */
