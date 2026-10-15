@@ -38,11 +38,13 @@ import {
 import { computeFees } from "./fees";
 import { WalletError } from "./errors";
 import {
+  assertBalanced,
   expectedRailAmount,
   invert,
   postLedger,
   postingForTransaction,
   toAmount,
+  type Posting,
 } from "./ledger";
 import { walletLog } from "./logger";
 import {
@@ -472,6 +474,188 @@ export async function createOperation(
       transactionId: row.id,
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Internal movements — game stakes (no provider, no external rail)
+//
+// A stake lifecycle (docs/wallet-mises-jeux.md) only ever moves money BETWEEN
+// wallets and the per-match escrow account: there is no rail, so no provider,
+// no webhook, no expiry — a movement is final the instant it is posted. It is
+// still idempotent and serialized under FOR UPDATE like every other money move.
+// ---------------------------------------------------------------------------
+
+export interface InternalMovementInput {
+  /** stake | payout | refund — the game-movement vocabulary. */
+  type: "stake" | "payout" | "refund";
+  /**
+   * Anchor wallet the transaction header is filed under.
+   * `wallet_transactions.walletId` is NOT NULL and there is ONE row per
+   * movement, so the caller names the wallet that identifies it (for a
+   * single-winner payout this is the winner; on a draw, each refund is its
+   * own movement). It MUST be one of the posting's wallet legs.
+   */
+  walletId: string;
+  currency: string;
+  /** Already-balanced posting (see the builders in ledger.ts). */
+  posting: Posting;
+  /** REQUIRED — the idempotency key of this movement. */
+  idempotencyKey: string;
+  /** Sanitized extras (room id, pot, rake, reason…). Never secrets. */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Post an INTERNAL movement: money moves only between wallets and the
+ * per-match escrow, never through a provider. Enforced inside ONE database
+ * transaction:
+ *   - IDEMPOTENT: the key maps to exactly one row; a replay returns it and
+ *     posts NOTHING a second time.
+ *   - SERIALIZED: every involved wallet is locked `FOR UPDATE` in a stable
+ *     (sorted) order, so concurrent movements can never deadlock or race.
+ *   - NO OVERDRAFT: no wallet — and no escrow account — may be driven below
+ *     zero by the posting, checked under the lock.
+ *   - BALANCED: the posting must sum to zero (asserted before any DB write).
+ */
+export async function postInternalMovement(
+  input: InternalMovementInput,
+): Promise<OperationOutcome> {
+  // The double-entry invariant holds BEFORE we touch the database.
+  assertBalanced(input.posting);
+
+  // Net movement per wallet (the wallet side of each leg) + system accounts
+  // (escrow) that a negative leg would draw down.
+  const walletDeltas = new Map<string, number>();
+  const accountDeltas = new Map<string, number>();
+  for (const leg of input.posting.legs) {
+    if (leg.walletId === null) {
+      accountDeltas.set(leg.account, (accountDeltas.get(leg.account) ?? 0) + leg.amountMinor);
+    } else {
+      walletDeltas.set(leg.walletId, (walletDeltas.get(leg.walletId) ?? 0) + leg.amountMinor);
+    }
+  }
+  if (!walletDeltas.has(input.walletId)) {
+    throw new WalletError("internal", "The anchor wallet is not part of the posting.");
+  }
+  const anchorDelta = walletDeltas.get(input.walletId) ?? 0;
+  if (anchorDelta === 0) {
+    throw new WalletError("internal", "The anchor wallet does not move money.");
+  }
+  // One posting = one currency. grossAmount/netAmount are the anchor wallet's
+  // movement magnitude (internal movements carry no wallet-side fees).
+  const grossAmount = Math.abs(anchorDelta);
+
+  // Stable lock + evaluation order → two movements can never deadlock.
+  const walletIds = [...walletDeltas.keys()].sort();
+
+  const result = await db.transaction(async (tx) => {
+    const locked = await tx
+      .select()
+      .from(wallets)
+      .where(inArray(wallets.id, walletIds))
+      .orderBy(wallets.id)
+      .for("update");
+    const byId = new Map(locked.map((wallet) => [wallet.id, wallet]));
+    if (byId.size !== walletIds.length) {
+      throw new WalletError("not_found", "A wallet in this movement is missing.");
+    }
+    for (const id of walletIds) {
+      const wallet = byId.get(id)!;
+      if (wallet.currency !== input.currency) {
+        throw new WalletError("currency_mismatch", "This movement mixes currencies.");
+      }
+      assertWalletOperable(wallet);
+    }
+
+    // No overdraft — wallets first, then system (escrow) accounts.
+    for (const [walletId, delta] of walletDeltas) {
+      if (delta >= 0) continue;
+      const balance = await balanceInTx(tx, walletId);
+      if (balance + delta < 0) {
+        throw new WalletError(
+          "insufficient_funds",
+          "Insufficient wallet balance for this movement.",
+          { walletId, balance, required: -delta },
+        );
+      }
+    }
+    for (const [account, delta] of accountDeltas) {
+      if (delta >= 0) continue;
+      const rows = await tx
+        .select({ total: sql<string>`coalesce(sum(${ledgerEntries.amountMinor}), 0)::bigint` })
+        .from(ledgerEntries)
+        .where(eq(ledgerEntries.account, account));
+      const balance = toAmount(rows[0]?.total ?? 0);
+      if (balance + delta < 0) {
+        throw new WalletError(
+          "insufficient_funds",
+          `Account ${account} cannot cover this movement.`,
+          { account, balance, required: -delta },
+        );
+      }
+    }
+
+    const inserted = await tx
+      .insert(walletTransactions)
+      .values({
+        id: randomUUID(),
+        walletId: input.walletId,
+        type: input.type,
+        status: "succeeded",
+        currency: input.currency,
+        grossAmount,
+        providerFee: 0,
+        platformFee: 0,
+        netAmount: grossAmount,
+        provider: null,
+        idempotencyKey: input.idempotencyKey,
+        metadata: input.metadata ?? null,
+        completedAt: new Date(),
+      })
+      .onConflictDoNothing({ target: walletTransactions.idempotencyKey })
+      .returning();
+
+    if (inserted[0]) {
+      await postLedger(tx, {
+        transactionId: inserted[0].id,
+        currency: input.currency,
+        posting: input.posting,
+      });
+      return { row: inserted[0], duplicate: false };
+    }
+
+    // Idempotent replay — the key must map to the SAME movement.
+    const existing = await tx
+      .select()
+      .from(walletTransactions)
+      .where(eq(walletTransactions.idempotencyKey, input.idempotencyKey))
+      .limit(1);
+    const row = existing[0];
+    if (
+      !row ||
+      row.walletId !== input.walletId ||
+      row.type !== input.type ||
+      row.currency !== input.currency ||
+      row.grossAmount !== grossAmount
+    ) {
+      throw new WalletError(
+        "idempotency_conflict",
+        "This idempotency key was already used for a different movement.",
+      );
+    }
+    return { row, duplicate: true };
+  });
+
+  walletLog("info", result.duplicate ? "internal.duplicate" : "internal.posted", {
+    eventType: input.type,
+    transactionId: result.row.id,
+    walletId: result.row.walletId,
+    currency: result.row.currency,
+    amountMinor: result.row.grossAmount,
+    status: result.row.status,
+  });
+
+  return { transaction: result.row, duplicate: result.duplicate };
 }
 
 // ---------------------------------------------------------------------------

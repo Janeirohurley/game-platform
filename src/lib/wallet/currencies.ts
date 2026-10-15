@@ -26,6 +26,15 @@ export const CURRENCIES = {
   TZS: { code: "TZS", exponent: 2, name: "Tanzanian shilling" },
   NGN: { code: "NGN", exponent: 2, name: "Nigerian naira" },
   ZAR: { code: "ZAR", exponent: 2, name: "South African rand" },
+  /**
+   * JET — internal play-money token backing game stakes (mises). It is NOT
+   * an ISO-4217 currency and has NO payment provider: there is therefore no
+   * rail to deposit or withdraw it, which is exactly the point — stakes in
+   * JET carry no real-money exposure. It is always passed EXPLICITLY by the
+   * caller (never chosen by default). A real-money stake would be a separate
+   * asset with its own deposit/withdrawal surface (see docs/wallet-mises-jeux.md).
+   */
+  JET: { code: "JET", exponent: 0, name: "Game token" },
 } as const satisfies Record<string, CurrencyInfo>;
 
 export type CurrencyCode = keyof typeof CURRENCIES;

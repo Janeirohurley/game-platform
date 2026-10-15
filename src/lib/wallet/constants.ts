@@ -15,6 +15,14 @@ export const WALLET_TRANSACTION_TYPES = [
   "payment",
   "refund",
   "reversal",
+  /**
+   * Internal game-stake movements (mises). No payment provider and no
+   * external rail — they only move money between a wallet and the
+   * per-match escrow, through `postInternalMovement`. See
+   * docs/wallet-mises-jeux.md.
+   */
+  "stake",
+  "payout",
 ] as const;
 
 export type WalletTransactionType = (typeof WALLET_TRANSACTION_TYPES)[number];

@@ -14,6 +14,7 @@
  * Accounts:
  *   wallet          the wallet side (walletId set)
  *   external:<id>   clearing account of a provider
+ *   escrow:<roomId> per-match escrow holding players' stakes (walletId null)
  *   fees:platform   platform fee revenue
  *   fees:provider   provider fee
  */
@@ -144,6 +145,81 @@ export function invert(posting: Posting): Posting {
   return {
     legs: posting.legs.map((leg) => ({ ...leg, amountMinor: -leg.amountMinor })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Game stakes (mises) — INTERNAL movements: no provider, no external rail.
+// The escrow account namespaces the frozen pot per match. See
+// docs/wallet-mises-jeux.md for the full lifecycle.
+// ---------------------------------------------------------------------------
+
+/**
+ * STAKE hold — a player's stake leaves their wallet into the per-match
+ * escrow. The stake is taken BEFORE the match (no credit play):
+ *   wallet:<player> −S, escrow:<roomId> +S
+ */
+export function stakePosting(input: {
+  walletId: string;
+  roomId: string;
+  amountMinor: number;
+}): Posting {
+  const posting: Posting = {
+    legs: [
+      { account: "wallet", walletId: input.walletId, amountMinor: -input.amountMinor },
+      { account: `escrow:${input.roomId}`, walletId: null, amountMinor: input.amountMinor },
+    ],
+  };
+  assertBalanced(posting);
+  return posting;
+}
+
+/**
+ * PAYOUT — the pot leaves escrow to the winner(s), minus the platform rake:
+ *   escrow:<roomId> −pot, wallet:<winner_i> +payout_i, fees:platform +rake
+ *
+ * The winners' shares and the rake MUST close the pot exactly
+ * (Σ payouts + rake = pot) — the builder refuses any missing or extra unit,
+ * so a race in the split arithmetic can never silently mint or burn money.
+ * `payouts` may hold several winners (shared pot); one leg per winner.
+ */
+export function payoutPosting(input: {
+  roomId: string;
+  potMinor: number;
+  rakeMinor: number;
+  payouts: readonly { walletId: string; amountMinor: number }[];
+}): Posting {
+  const paid = input.payouts.reduce((sum, p) => sum + p.amountMinor, 0);
+  if (paid + input.rakeMinor !== input.potMinor) {
+    throw new WalletError(
+      "internal",
+      `Payout does not close the pot (payouts=${paid} + rake=${input.rakeMinor} ≠ pot=${input.potMinor})`,
+    );
+  }
+  const legs: PostingLeg[] = [
+    { account: `escrow:${input.roomId}`, walletId: null, amountMinor: -input.potMinor },
+  ];
+  for (const p of input.payouts) {
+    legs.push({ account: "wallet", walletId: p.walletId, amountMinor: p.amountMinor });
+  }
+  if (input.rakeMinor > 0) {
+    legs.push({ account: "fees:platform", walletId: null, amountMinor: input.rakeMinor });
+  }
+  const posting: Posting = { legs };
+  assertBalanced(posting);
+  return posting;
+}
+
+/**
+ * STAKE refund — the exact inverse of a hold: used for a draw, or a match
+ * that never started (cancelled in lobby). Escrow drains back to the player:
+ *   escrow:<roomId> −S, wallet:<player> +S
+ */
+export function stakeRefundPosting(input: {
+  walletId: string;
+  roomId: string;
+  amountMinor: number;
+}): Posting {
+  return invert(stakePosting(input));
 }
 
 /** Derive the posting for an existing transaction row + direction. */
