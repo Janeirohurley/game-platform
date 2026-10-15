@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 type ParticleLayer = {
@@ -12,6 +12,10 @@ type ParticleLayer = {
 
 export default function GameUniverseBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Invisible jusqu'à la première image WebGL : on évite ainsi d'afficher une
+  // frame figée (particules immobiles) le temps que le rendu démarre ; le
+  // fond fond alors en douceur, déjà en mouvement.
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -482,6 +486,10 @@ export default function GameUniverseBackground() {
 
     animate();
 
+    // `animate()` dessine la première image tout de suite : on révèle le
+    // canvas à la frame suivante (rAF, donc hors du corps de l'effet).
+    const revealFrame = requestAnimationFrame(() => setReady(true));
+
     // ---------------------------------------------------------------------------
     // Cleanup
     // ---------------------------------------------------------------------------
@@ -490,6 +498,8 @@ export default function GameUniverseBackground() {
       cancelAnimationFrame(
         animationFrame,
       );
+
+      cancelAnimationFrame(revealFrame);
 
       window.removeEventListener(
         "pointermove",
@@ -514,7 +524,9 @@ export default function GameUniverseBackground() {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 h-full w-full"
+      className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-700 ease-out motion-reduce:transition-none ${
+        ready ? "opacity-100" : "opacity-0"
+      }`}
     />
   );
 }

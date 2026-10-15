@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
 
 import Dice from "@/components/dice";
+import { useResilientSession } from "@/components/auth/use-resilient-session";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { signOut, useSession } from "@/lib/auth-client";
+import { signOut } from "@/lib/auth-client";
+import { cn } from "cn";
 
 const navigation = [
   {
@@ -23,8 +25,57 @@ const navigation = [
   },
 ];
 
+/**
+ * Indicateur affiché dans le header pendant le chargement de la session, et
+ * tant qu'on n'arrive pas à la récupérer après une coupure réseau.
+ *
+ * Il occupe le même gabarit que l'avatar (bouton profil) : rien ne bouge
+ * quand la session arrive, et l'attente est annoncée aux lecteurs d'écran
+ * via `role="status"`. En reconnexion, l'anneau passe en ambre et le libellé
+ * change, pour ne jamais laisser l'utilisateur dans le flou.
+ */
+function SessionStatusIndicator({ reconnecting }: { reconnecting: boolean }) {
+  const label = reconnecting ? "Reconnecting…" : "Loading…";
+
+  return (
+    <div
+      role="status"
+      aria-label={reconnecting ? "Reconnecting to the server" : "Loading session"}
+      className="flex items-center gap-3"
+    >
+      <span className="relative grid size-9 place-items-center">
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-full border border-border"
+        />
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute inset-0 animate-spin rounded-full border-2 border-transparent",
+            reconnecting ? "border-t-amber-500" : "border-t-foreground",
+          )}
+        />
+        {reconnecting ? (
+          <RefreshCw className="size-3.5 text-amber-500" aria-hidden="true" />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="size-2 animate-pulse rounded-full bg-muted-foreground/50"
+          />
+        )}
+      </span>
+      <span
+        aria-hidden="true"
+        className="hidden text-xs font-medium text-muted-foreground sm:inline"
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 export default function Navbar() {
-  const { data: session } = useSession();
+  const { session, isLoadingSession, isReconnecting } = useResilientSession();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const links = session
@@ -108,12 +159,14 @@ export default function Navbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {session ? (
+          {isLoadingSession ? (
+            <SessionStatusIndicator reconnecting={isReconnecting} />
+          ) : session ? (
             <div className="flex items-center gap-4">
               {/* Profile Avatar */}
               <Link
                 href="/profile"
-                className="flex items-center rounded-full border border-border/40 bg-background p-1 transition hover:border-border"
+                className="flex items-center rounded-full border border-border bg-card p-1 transition hover:border-ring/60"
                 aria-label="Open your profile"
               >
                 <Avatar className="size-8 transition hover:ring-2 hover:ring-ring">
@@ -138,7 +191,7 @@ export default function Navbar() {
                 disabled={isLoggingOut}
                 aria-label={isLoggingOut ? "Logging out..." : "Sign out"}
                 title={isLoggingOut ? "Logging out..." : "Sign out"}
-                className="flex size-9 items-center justify-center rounded-full border border-border/40 bg-background text-slate-500 transition hover:border-border hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60 dark:text-white/65 dark:hover:text-white"
+                className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoggingOut ? (
                   <span className="flex size-4 items-center justify-center">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -152,6 +152,10 @@ export default function Dice({
   onRollEnd,
 }: DiceProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  // Reste à false jusqu'à ce que la première image WebGL soit dessinée : le
+  // dé reste invisible jusque-là, puis fond en douceur. Sans ça, on voit une
+  // pose figée (le dé immobile) apparaître avant que l'animation démarre.
+  const [ready, setReady] = useState(false);
 
   const options = useMemo(
     () => ({
@@ -725,6 +729,10 @@ export default function Dice({
     };
 
     const animationFrame = requestAnimationFrame(frame);
+    // La première image est dessinée dans `frame` : on révèle le dé à la
+    // frame suivante, une fois cette image posée (rAF non synchrone, donc pas
+    // de setState dans le corps de l'effet).
+    const revealFrame = requestAnimationFrame(() => setReady(true));
 
     /* =========================================================
        CLEANUP
@@ -734,6 +742,7 @@ export default function Dice({
       disposed = true;
 
       cancelAnimationFrame(animationFrame);
+      cancelAnimationFrame(revealFrame);
 
       resizeObserver.disconnect();
 
@@ -785,6 +794,8 @@ export default function Dice({
         overflow: "hidden",
         cursor: clickable ? "pointer" : "default",
         touchAction: "none",
+        opacity: ready ? 1 : 0,
+        transition: "opacity 500ms ease-out",
         ...style,
       }}
       aria-label={`3D dice showing ${value}`}
