@@ -5,7 +5,7 @@ import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 
 import Navbar from "@/components/navbar";
 import GameUniverseBackground from "@/components/game-universe-background";
-import { LocalRally } from "@/games/rally/local/local-rally";
+import { RallyLocalClient } from "./rally-local-client";
 
 export const metadata: Metadata = {
   title: "Rally — Jouer | Game Arena",
@@ -48,7 +48,7 @@ export default function RallyLocalPage() {
           </nav>
 
           <div className="mt-8">
-            <LocalRally />
+            <RallyLocalClient />
           </div>
         </section>
       </div>

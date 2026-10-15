@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 
 import { RallyScene } from "../components/rally-scene";
@@ -22,7 +22,6 @@ const LEVEL_LABELS: Record<Difficulty, string> = {
  * the same paddle; holding any of them plays a power shot.
  */
 export function LocalRally() {
-  const [level, setLevel] = useState<Difficulty>("club");
   const {
     match,
     hud,
@@ -33,7 +32,7 @@ export function LocalRally() {
     aimAtRatio,
     nudge,
     setPower,
-  } = useRallyLoop(level);
+  } = useRallyLoop("club");
 
   const court = useRef<HTMLDivElement>(null);
   const held = useRef(new Set<string>());
@@ -111,14 +110,6 @@ export function LocalRally() {
     return () => cancelAnimationFrame(frame);
   }, [nudge]);
 
-  const handleLevel = useCallback(
-    (next: Difficulty) => {
-      setLevel(next);
-      start(next);
-    },
-    [start],
-  );
-
   const intro = hud.state === "intro";
   const over = hud.state === "over";
   const paused = hud.state === "paused";
@@ -174,10 +165,10 @@ export function LocalRally() {
           <button
             key={option}
             type="button"
-            onClick={() => handleLevel(option)}
-            aria-pressed={level === option}
+            onClick={() => start(option)}
+            aria-pressed={hud.level === option}
             className={`rounded-full border px-3 py-1 text-[10px] font-bold tracking-[1.4px] transition ${
-              level === option
+              hud.level === option
                 ? "border-[#d9553a] bg-[#d9553a] text-white"
                 : "border-[#c9cdc4] bg-[#ecebe5]/70 text-[#34443c] hover:bg-white"
             }`}
@@ -218,7 +209,7 @@ export function LocalRally() {
 
             <button
               type="button"
-              onClick={() => (paused ? togglePause() : start(level))}
+              onClick={() => (paused ? togglePause() : start(hud.level))}
               className="mt-6 h-11 rounded-full bg-[#d9553a] px-7 text-sm font-bold text-white transition hover:bg-[#c24b32]"
             >
               {intro ? "Commencer" : over ? "Rejouer" : "Reprendre"}

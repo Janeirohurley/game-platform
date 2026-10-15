@@ -5,7 +5,7 @@ import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 
 import Navbar from "@/components/navbar";
 import GameUniverseBackground from "@/components/game-universe-background";
-import { LocalCheckers } from "@/games/checkers/local/local-checkers";
+import { CheckersLocalClient } from "./checkers-local-client";
 
 export const metadata: Metadata = {
   title: "Checkers — Mode local | Game Arena",
@@ -63,7 +63,7 @@ export default function CheckersLocalPage() {
           </div>
 
           <div className="mt-10 flex justify-center">
-            <LocalCheckers />
+            <CheckersLocalClient />
           </div>
         </section>
       </div>

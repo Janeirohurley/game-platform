@@ -18,14 +18,16 @@ import PlayerSetup from "./ui/PlayerSetup";
 import CameraPanel from "./ui/CameraPanel";
 import { useLudoBot } from "../bot/use-ludo-bot";
 import { playSound } from "@/lib/sounds";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { clearGameState, loadGameState, saveGameState } from "@/lib/games/persistence";
 
-// Main Play component
-export default function LudoPlay() {
-  const [isSpacePressed, setIsSpacePressed] = useState(false);
-  const [showBlockedMessage, setShowBlockedMessage] = useState(false);
-  const [resetCamera, setResetCamera] = useState(false);
-  const [cameraView, setCameraView] = useState<string | null>(null);
-  const [gameState, setGameState] = useState<GameState>({
+/** Clé + version de la sauvegarde (reprise après rafraîchissement). */
+const SAVE_KEY = "arena:ludo:local";
+const SAVE_VERSION = 1;
+
+/** Table vierge : l'écran de configuration des joueurs. */
+function emptyGame(): GameState {
+  return {
     players: [],
     currentPlayerIndex: 0,
     diceValue: null,
@@ -38,7 +40,29 @@ export default function LudoPlay() {
     // Tant que la table n'est pas configurée on dessine un plateau à
     // quatre : c'est la forme par défaut de la partie locale.
     playerCount: DEFAULT_PLAYER_COUNT,
-  });
+  };
+}
+
+/**
+ * Reprend une table enregistrée si elle était en cours, sinon ouvre l'écran de
+ * configuration. L'horloge du tour repart de maintenant : le joueur n'était pas
+ * là pendant le chargement, le délai d'auto-play ne doit pas avoir expiré.
+ */
+function bootLudoGame(): GameState {
+  const saved = loadGameState<GameState>(SAVE_KEY, SAVE_VERSION);
+  if (saved?.gamePhase === "playing" && saved.players.length > 0) {
+    return { ...saved, winner: null, turnStartTime: Date.now() };
+  }
+  return emptyGame();
+}
+
+// Main Play component
+export default function LudoPlay() {
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [showBlockedMessage, setShowBlockedMessage] = useState(false);
+  const [resetCamera, setResetCamera] = useState(false);
+  const [cameraView, setCameraView] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<GameState>(bootLudoGame);
 
   // Valeurs les plus récentes pour le gestionnaire clavier global, lié une
   // seule fois : sans ça il lirait un état figé entre deux rendus.
@@ -57,6 +81,20 @@ export default function LudoPlay() {
   // Tant qu'il l'est, tout nouveau lancer est refusé : c'est ce qui ferme la
   // fenêtre pendant laquelle on pouvait relancer et fausser le tour.
   const rollPendingRef = useRef(false);
+
+  // Onglet visible : la partie locale (bot + auto-play) se fige quand on ne la
+  // regarde pas, comme les autres jeux.
+  const visible = useDocumentVisible();
+
+  // Mirroir la table en cours pour la reprendre après un rechargement ; un
+  // écran de configuration ou une partie terminée n'a rien à reprendre.
+  useEffect(() => {
+    if (gameState.gamePhase === "playing") {
+      saveGameState<GameState>(SAVE_KEY, SAVE_VERSION, gameState);
+    } else {
+      clearGameState(SAVE_KEY);
+    }
+  }, [gameState]);
 
   // Tour d'un bot ? Les commandes HUMAINES (lancer, clic de pion) sont
   // alors neutralisées : seul le pilote du bot agit, pour éviter qu'un
@@ -314,7 +352,7 @@ export default function LudoPlay() {
   // Pilote les sièges IA de la partie locale. Ne fait rien s'il n'y a pas
   // de bot assis (voir `use-ludo-bot.ts`).
   useLudoBot(gameState, {
-    enabled: gameState.gamePhase === "playing",
+    enabled: gameState.gamePhase === "playing" && visible,
     onRoll: rollDice,
     onMove: handleBotMove,
   });

@@ -1,13 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { clearGameState, loadGameState, saveGameState } from "@/lib/games/persistence";
 
 import { FIXED_STEP_SECONDS, PADDLE_RANGE } from "../engine/constants";
 import { RallyMatch } from "../engine/rally-match";
-import type { Difficulty, RallyEvent, RallySnapshot } from "../engine/types";
+import type { Difficulty, RallyEvent, RallySave, RallySnapshot } from "../engine/types";
 
 /** Never simulate more than this in one frame after a stall. */
 const MAX_CATCH_UP_SECONDS = 0.25;
+
+/** Clé + version de la sauvegarde (reprise après rafraîchissement). */
+const SAVE_KEY = "arena:rally:local";
+const SAVE_VERSION = 1;
 
 interface RallyLoop {
   match: RallyMatch;
@@ -28,27 +35,38 @@ interface RallyLoop {
  * refresh, so physics behave the same on a 60 Hz laptop and a 144 Hz
  * monitor. Rendering reads the engine directly; only the scoreboard
  * goes through React state.
+ *
+ * The match is mirrored to `localStorage` while it is live and restored on
+ * reload, so a refresh does not throw away a game in progress; the tab is
+ * also frozen while hidden (the page is not being watched — same rule as
+ * Tetris). A manual pause always wins over the automatic one.
  */
 export function useRallyLoop(level: Difficulty): RallyLoop {
   const [lastPoint, setLastPoint] = useState<RallyLoop["lastPoint"]>(null);
 
   // The match is a mutable object created once. A lazy useState holds it
   // for the life of the component and, unlike a ref, is safe to read
-  // while rendering.
-  const [match] = useState(
-    () =>
-      new RallyMatch({
-        level,
-        onEvent: (event: RallyEvent) => {
-          if (event.type === "point") {
-            setLastPoint({ reason: event.reason, side: event.side });
-          }
-          if (event.type === "serve" || event.type === "start") {
-            setLastPoint(null);
-          }
-        },
-      }),
-  );
+  // while rendering. On the very first call we rehydrate a saved match
+  // (unless it was finished or never started) instead of a fresh one.
+  const [match] = useState(() => {
+    const options = {
+      level,
+      onEvent: (event: RallyEvent) => {
+        if (event.type === "point") {
+          setLastPoint({ reason: event.reason, side: event.side });
+        }
+        if (event.type === "serve" || event.type === "start") {
+          setLastPoint(null);
+        }
+      },
+    };
+
+    const saved = loadGameState<RallySave>(SAVE_KEY, SAVE_VERSION);
+    if (saved && saved.state !== "over" && saved.state !== "intro") {
+      return RallyMatch.restore(saved, options);
+    }
+    return new RallyMatch(options);
+  });
 
   const [hud, setHud] = useState<RallySnapshot>(() => match.snapshot());
 
@@ -82,6 +100,39 @@ export function useRallyLoop(level: Difficulty): RallyLoop {
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [match]);
+
+  // Freeze the match when the tab is hidden, and resume it on return — unless
+  // the player paused by hand, which always takes precedence. The engine is
+  // driven directly (no setState here) so this stays a plain side effect.
+  const visible = useDocumentVisible();
+  const autoPaused = useRef(false);
+  useEffect(() => {
+    if (!visible) {
+      if (
+        match.state === "playing" ||
+        match.state === "ready" ||
+        match.state === "point"
+      ) {
+        match.togglePause();
+        autoPaused.current = true;
+      }
+      return;
+    }
+    if (autoPaused.current) {
+      autoPaused.current = false;
+      if (match.state === "paused") match.togglePause();
+    }
+  }, [visible, match]);
+
+  // Mirror the live match; a finished or unstarted one leaves nothing to
+  // resume, so the save is cleared.
+  useEffect(() => {
+    if (hud.state === "over" || hud.state === "intro") {
+      clearGameState(SAVE_KEY);
+      return;
+    }
+    saveGameState<RallySave>(SAVE_KEY, SAVE_VERSION, match.serialize());
+  }, [match, hud]);
 
   const start = useCallback(
     (next: Difficulty) => {

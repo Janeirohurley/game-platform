@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import LudoPlay from "@/games/ludo/components/LudoPlay";
+import { LudoLocalClient } from "./ludo-local-client";
 
 export const metadata: Metadata = {
   title: "Ludo — Mode local | Game Arena",
@@ -16,7 +16,7 @@ export default function LudoLocalPage() {
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
       <div className="fixed inset-0">
-        <LudoPlay />
+        <LudoLocalClient />
       </div>
 
       <a

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import type { GameState } from "../../types/game";
 
 // Auto-play Timer Component
@@ -14,21 +15,44 @@ function AutoPlayTimer({
   gameState: GameState;
 }) {
   const [timeLeft, setTimeLeft] = useState(30);
+  const visible = useDocumentVisible();
+
+  // Temps passé onglet masqué : on le retranche du décompte, sinon le retour
+  // sur l'onglet ferait expirer le délai d'un coup et l'auto-play jouerait le
+  // tour du joueur sans qu'il l'ait vu.
+  const hiddenAt = useRef<number | null>(null);
+  const pausedMs = useRef(0);
+
+  useEffect(() => {
+    if (!visible) {
+      if (hiddenAt.current === null) hiddenAt.current = Date.now();
+      return;
+    }
+    if (hiddenAt.current !== null) {
+      pausedMs.current += Date.now() - hiddenAt.current;
+      hiddenAt.current = null;
+    }
+  }, [visible]);
+
+  // Un nouveau tour remet le compteur du tour à zéro.
+  useEffect(() => {
+    pausedMs.current = 0;
+  }, [startTime]);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const elapsed = Math.floor((Date.now() - pausedMs.current - startTime) / 1000);
       const remaining = Math.max(0, 30 - elapsed);
       setTimeLeft(remaining);
 
-      if (remaining === 0 && gameState.gamePhase === "playing") {
+      if (remaining === 0 && visible && gameState.gamePhase === "playing") {
         onAutoPlay();
         clearInterval(timer);
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [startTime, onAutoPlay, gameState.gamePhase]);
+  }, [startTime, onAutoPlay, gameState.gamePhase, visible]);
 
   if (timeLeft > 25) return null; // Only show when close to auto-play
 
