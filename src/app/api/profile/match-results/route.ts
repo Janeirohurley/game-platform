@@ -8,6 +8,7 @@ import {
     ensureAchievementCatalogue,
     ingestMatchResult,
 } from "@/lib/profile/queries";
+import { getMatchStake, settleStakes } from "@/lib/wallet/match-stakes";
 
 /**
  * Realtime match-result ingestion.
@@ -111,6 +112,23 @@ export async function POST(request: Request) {
                 bestStreak: 0,
             })),
         });
+
+        // Hook: if this was a staked match, settle it
+        try {
+            const stake = await getMatchStake(roomId);
+            if (stake) {
+                await settleStakes({
+                    roomId,
+                    outcomes: outcomes.map((o) => ({
+                        userId: o.userId,
+                        outcome: o.outcome as "win" | "loss" | "draw",
+                    })),
+                });
+            }
+        } catch (e) {
+            // Do not block profile ingestion if settlement fails; log for ops
+            console.error("[wallet] stake settlement failed:", e);
+        }
 
         // The transaction re-reads real streak state; the placeholders
         // above only satisfy the type. Outcomes carry the truth.
