@@ -339,12 +339,16 @@ légale par jeu, reporting régulateur. **À traiter comme un projet séparé.**
   retenues en cours, historique gagné/perdu/remboursé (filtre `type`).
 - **HUD partie** : pot à l'écran.
 
-> **Vigilance signe (Phase 1/3)** : `signedMoney`
-> (`src/components/wallet/wallet-shared.tsx`) ne crédite aujourd'hui que
-> `deposit`. Or `payout` et un remboursement de mise **créditent**, tandis qu'un
-> `refund` de **dépôt** débite : le signe ne peut donc pas se déduire du seul
-> `type`. Il faut le lire depuis le **grand livre** (delta du wallet pour la
-> transaction), pas du type.
+> **Vigilance signe — ✅ corrigé** : `signedMoney`
+> (`src/components/wallet/wallet-shared.tsx`) ne créditait que `deposit`. Or
+> `payout` et un remboursement de mise **créditent**, tandis qu'un `refund` de
+> **dépôt** débite : le signe ne se déduit donc pas du seul `type`.
+> Désormais le signe est lu depuis le **grand livre** : la liste des
+> transactions expose `walletDeltaMinor` (somme des écritures du wallet pour la
+> transaction, sous-requête dans `queries.ts`), et le détail le recalcule depuis
+> ses écritures. Le type ne sert plus que de repli pour les anciennes lignes.
+> Test unitaire : `src/components/wallet/wallet-shared.test.tsx`.
+> Étiquettes `stake`/`payout` ajoutées à `typeLabel`.
 
 ## 15. Plan par phases
 
@@ -365,8 +369,9 @@ légale par jeu, reporting régulateur. **À traiter comme un projet séparé.**
   `/api/wallet/games/hold`, `/api/wallet/games/:roomId` (GET), `/:roomId/cancel`
   (session) ; `settleStakes` branché dans `/api/profile/match-results` ;
   tests d'intégration `src/lib/wallet/__tests__/match-stakes.test.ts` (6).
-  *Reste* : verrou `FOR UPDATE` sur `match_stakes` pour un règlement
-  strictement mono-transaction (Phase 2, avec l'intégration room).
+  **✅ Fait (durcissement)** : `settleStakes`/`voidStakes`/`cancelHold` tournent
+  en **une seule transaction** avec `SELECT … FOR UPDATE` sur `match_stakes`
+  (`postInternalMovementInTx` exporté par `engine.ts`).
 - **Phase 2** — intégration room sur **un** jeu pilote, choisi selon ses règles
   (partie, issue, forfait/égalité) : mise en salon, garde de financement,
   remboursement au départ. On figera sa `SettlementPolicy` (§3.1) en même temps.

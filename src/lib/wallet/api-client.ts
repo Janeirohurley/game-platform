@@ -11,6 +11,7 @@
 
 import type { WalletErrorCode } from "@/lib/wallet/errors";
 import type { TransactionRow } from "@/lib/wallet/engine";
+import type { TransactionListRow } from "@/lib/wallet/queries";
 import type { CurrencyInfo } from "@/lib/wallet/currencies";
 import type { WalletRow } from "@/lib/wallet/wallet";
 import type { PublicProvider } from "@/lib/wallet/provider-config";
@@ -84,7 +85,7 @@ export interface OverviewResponse {
 }
 
 export interface TransactionListResponse {
-  rows: TransactionRow[];
+  rows: TransactionListRow[];
   total: number;
   page: number;
   pageSize: number;

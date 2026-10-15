@@ -131,6 +131,15 @@ export function TransactionDetailDialog({
     }
   }
 
+  // The wallet's own ledger delta is the only reliable direction for
+  // the headline amount (a payout or stake refund credits the wallet;
+  // a deposit refund debits it).
+  const walletDeltaMinor = current
+    ? current.ledger
+        .filter((entry) => entry.walletId === tx?.walletId)
+        .reduce((sum, entry) => sum + entry.amountMinor, 0)
+    : 0;
+
   const metadata = (tx?.metadata ?? null) as MetadataShape | null;
   const pending = !!tx && isPendingStatus(tx.status);
   const confirmValue =
@@ -176,7 +185,7 @@ export function TransactionDetailDialog({
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-lg font-semibold tabular-nums">
-                  {signedMoney(tx, tx.currency)}
+                  {signedMoney({ ...tx, walletDeltaMinor }, tx.currency)}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {typeLabel(tx.type)} · {tx.provider ?? "—"}

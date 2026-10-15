@@ -35,13 +35,25 @@ export function money(minor: number, currency: string): string {
   }
 }
 
-/** Signed display amount: only deposits credit the wallet. */
+/**
+ * Signed display amount. Direction is read from the wallet's own
+ * ledger delta when the row carries one (a `payout` or a stake
+ * `refund` credit the wallet; a deposit `refund` debits it), so the
+ * sign never has to be guessed from the type. Legacy rows without a
+ * delta fall back to the old type rule.
+ */
 export function signedMoney(
-  tx: { type: string; grossAmount: number },
+  tx: { type: string; grossAmount: number; walletDeltaMinor?: number },
   currency: string,
 ): string {
-  const sign = tx.type === "deposit" ? "" : "−";
-  return `${sign}${money(tx.grossAmount, currency)}`;
+  const delta =
+    typeof tx.walletDeltaMinor === "number"
+      ? tx.walletDeltaMinor
+      : tx.type === "deposit"
+        ? tx.grossAmount
+        : -tx.grossAmount;
+  if (delta === 0) return money(tx.grossAmount, currency);
+  return `${delta > 0 ? "+" : "−"}${money(Math.abs(delta), currency)}`;
 }
 
 const STATUS_META: Record<string, { label: string; variant: BadgeVariant }> = {
@@ -70,6 +82,8 @@ const TYPE_LABELS: Record<string, string> = {
   payment: "Payment",
   refund: "Refund",
   reversal: "Reversal",
+  stake: "Stake",
+  payout: "Payout",
 };
 
 export function typeLabel(type: string): string {

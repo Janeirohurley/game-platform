@@ -193,7 +193,7 @@ export function TransactionsTable({
             <EmptyMedia variant="icon">◎</EmptyMedia>
             <EmptyTitle>No transactions yet</EmptyTitle>
             <EmptyDescription>
-              Your deposits, withdrawals and refunds will appear here.
+              Your deposits, withdrawals, refunds and game stakes will appear here.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

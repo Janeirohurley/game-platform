@@ -7,10 +7,11 @@
  * ledger at read time (lib/wallet/ledger.ts).
  */
 
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import {
+  ledgerEntries,
   providerAccounts,
   walletTransactions,
   wallets,
@@ -37,8 +38,16 @@ export async function getWalletOverview(
   return { wallet, balanceMinor };
 }
 
+/**
+ * A transaction row plus the wallet's OWN ledger delta for it. The
+ * delta is the source of truth for direction: a `payout` or a stake
+ * `refund` CREDIT the wallet while a deposit `refund` DEBITS it, so
+ * the sign can never be inferred from `type` alone.
+ */
+export type TransactionListRow = TransactionRow & { walletDeltaMinor: number };
+
 export interface TransactionListResult {
-  rows: TransactionRow[];
+  rows: TransactionListRow[];
   total: number;
   page: number;
   pageSize: number;
@@ -80,7 +89,15 @@ export async function listTransactionsForUser(
       .innerJoin(wallets, eq(walletTransactions.walletId, wallets.id))
       .where(where),
     db
-      .select({ tx: walletTransactions })
+      .select({
+        tx: walletTransactions,
+        walletDeltaMinor: sql<number>`coalesce((
+          select sum(${ledgerEntries.amountMinor})
+          from ${ledgerEntries}
+          where ${ledgerEntries.transactionId} = ${walletTransactions.id}
+            and ${ledgerEntries.walletId} = ${walletTransactions.walletId}
+        ), 0)::bigint`,
+      })
       .from(walletTransactions)
       .innerJoin(wallets, eq(walletTransactions.walletId, wallets.id))
       .where(where)
@@ -91,7 +108,10 @@ export async function listTransactionsForUser(
 
   const total = totalRows[0]?.value ?? 0;
   return {
-    rows: rows.map((row) => row.tx),
+    rows: rows.map((row) => ({
+      ...row.tx,
+      walletDeltaMinor: Number(row.walletDeltaMinor),
+    })),
     total,
     page: filter.page,
     pageSize: filter.pageSize,
