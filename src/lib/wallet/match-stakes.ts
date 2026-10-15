@@ -14,7 +14,6 @@ import {
 import { WalletError } from "./errors";
 import { ensureWallet } from "./wallet";
 import type { GameId } from "@/lib/games/registry";
-import type { CurrencyCode } from "./currencies";
 
 export interface MatchStakeOutcomes {
   userId: string;
@@ -30,7 +29,7 @@ function computeRakeMinor(potMinor: number, rakeBps: number): number {
 export async function createMatchStake(input: {
   roomId: string;
   gameId: GameId;
-  currency: CurrencyCode;
+  currency: string;
   stakeMinor: number;
   rakeBps?: number;
 }): Promise<typeof matchStakes.$inferSelect> {
@@ -67,6 +66,23 @@ export async function getMatchStake(roomId: string) {
     .where(eq(matchStakes.roomId, roomId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** The caller's view of a staked room: the match, plus their own seat. */
+export async function getStakeStateForUser(roomId: string, userId: string) {
+  const stake = await getMatchStake(roomId);
+  if (!stake) return null;
+  const hold = await db
+    .select()
+    .from(matchStakeHolds)
+    .where(
+      and(
+        eq(matchStakeHolds.matchStakeId, stake.id),
+        eq(matchStakeHolds.userId, userId),
+      ),
+    )
+    .limit(1);
+  return { stake, hold: hold[0] ?? null };
 }
 
 export async function holdStake(input: {
@@ -277,10 +293,18 @@ export async function settleStakes(input: {
       });
     }
   }
-  await db
-    .update(matchStakeHolds)
-    .set({ status: "paid" })
-    .where(eq(matchStakeHolds.matchStakeId, stake.id));
+  // Winner's seat is paid; every other seat forfeits its stake.
+  for (const h of holds) {
+    await db
+      .update(matchStakeHolds)
+      .set({ status: h.userId === winner ? "paid" : "forfeited" })
+      .where(
+        and(
+          eq(matchStakeHolds.matchStakeId, stake.id),
+          eq(matchStakeHolds.userId, h.userId),
+        ),
+      );
+  }
   await db
     .update(matchStakes)
     .set({ status: "settled", settledAt: new Date(), winnerUserId: winner })

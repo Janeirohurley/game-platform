@@ -1,8 +1,8 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isGameId } from "@/lib/games/registry";
+import { verifyRealtimeSignature } from "@/lib/realtime/request-signature";
 import {
     ensureProfilesForParticipants,
     ensureAchievementCatalogue,
@@ -41,26 +41,11 @@ const ingestionSchema = z.object({
     participants: z.array(participantSchema).min(1).max(8),
 });
 
-/** Constant-time compare of the request signature against the body. */
-function verifySignature(rawBody: string, signature: string | null): boolean {
-    const secret = process.env.REALTIME_TOKEN_SECRET;
-    if (!secret || secret.length < 16) return false;
-    if (!signature?.startsWith("sha256=")) return false;
-
-    const expected = createHmac("sha256", secret)
-        .update(rawBody, "utf8")
-        .digest("hex");
-    const received = signature.slice("sha256=".length);
-    const a = Buffer.from(expected, "utf8");
-    const b = Buffer.from(received, "utf8");
-    return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function POST(request: Request) {
     const rawBody = await request.text();
 
     if (
-        !verifySignature(
+        !verifyRealtimeSignature(
             rawBody,
             request.headers.get("x-realtime-signature"),
         )

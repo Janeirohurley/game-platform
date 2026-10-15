@@ -1,37 +1,47 @@
+/**
+ * POST /api/wallet/games/hold — a seat funds its stake.
+ *
+ * Session-authenticated (the player consents to the hold). Flow:
+ * session → rate limit → validate → `holdStake` (posts the stake into the
+ * per-match escrow, idempotent per `match:<roomId>:hold:<userId>`). The
+ * seat is marked HELD and the pot grows; a replay returns the same
+ * transaction without a second debit.
+ */
+
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
-import { createMatchStake, holdStake, cancelHold, voidStakes } from "@/lib/wallet/match-stakes";
-import { isGameId } from "@/lib/games/registry";
-import { isSupportedCurrency } from "@/lib/wallet/currencies";
-
-const holdSchema = z.object({
-  roomId: z.string().min(1).max(64),
-  amountMinor: z.coerce.number().int().positive(),
-  currency: z.string().length(3),
-  idempotencyKey: z.string().min(8).max(128),
-});
+import { holdStake } from "@/lib/wallet/match-stakes";
+import {
+  parseJsonBody,
+  rateLimitResponse,
+  walletErrorResponse,
+} from "@/lib/wallet/http";
+import { stakeLimiter } from "@/lib/wallet/rate-limit";
+import { requireWalletSession } from "@/lib/wallet/session";
+import { stakeHoldSchema } from "@/lib/validation/wallet";
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null);
-  const parsed = holdSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  }
-  const { roomId, amountMinor, currency, idempotencyKey } = parsed.data;
-  if (!isSupportedCurrency(currency)) {
-    return NextResponse.json({ error: "Unsupported currency" }, { status: 400 });
-  }
   try {
+    const session = await requireWalletSession(request.headers);
+
+    const decision = stakeLimiter.consume(`stake:${session.user.id}`);
+    if (!decision.allowed) return rateLimitResponse(decision);
+
+    const body = await parseJsonBody(request, stakeHoldSchema);
+
     const result = await holdStake({
-      userId: "user-placeholder", // TODO: auth
-      roomId,
-      amountMinor,
-      currency,
-      idempotencyKey,
+      userId: session.user.id,
+      roomId: body.roomId,
+      amountMinor: body.amountMinor,
+      currency: body.currency,
+      idempotencyKey: body.idempotencyKey,
     });
-    return NextResponse.json({ transactionId: result.transactionId, duplicate: result.duplicate });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message ?? "Failed" }, { status: error.status ?? 500 });
+
+    return NextResponse.json(
+      { transactionId: result.transactionId, duplicate: result.duplicate },
+      { status: result.duplicate ? 200 : 201 },
+    );
+  } catch (error) {
+    return walletErrorResponse(error);
   }
 }

@@ -11,6 +11,7 @@
 
 import { z } from "zod";
 
+import { isGameId } from "@/lib/games/registry";
 import { MAX_AMOUNT_MINOR } from "@/lib/wallet/money";
 import { SUPPORTED_CURRENCY_CODES } from "@/lib/wallet/currencies";
 import {
@@ -132,3 +133,31 @@ export const transactionFilterSchema = z.object({
 });
 
 export type TransactionFilter = z.infer<typeof transactionFilterSchema>;
+
+/** A seat's hold on a match stake (POST /api/wallet/games/hold). */
+export const stakeHoldSchema = z.object({
+  roomId: z.string().min(1).max(64),
+  amountMinor: amountSchema,
+  currency: currencySchema,
+  idempotencyKey: idempotencyKeySchema,
+});
+
+export type StakeHoldInput = z.infer<typeof stakeHoldSchema>;
+
+/** Releasing one's own seat before the match starts (cancel route body). */
+export const stakeCancelSchema = z.object({
+  idempotencyKey: idempotencyKeySchema,
+});
+
+export type StakeCancelInput = z.infer<typeof stakeCancelSchema>;
+
+/** Room → platform: open a match stake (POST /api/internal/match-stakes). */
+export const matchStakeCreateSchema = z.object({
+  roomId: z.string().min(1).max(64),
+  gameId: z.string().refine(isGameId, "Unknown game id"),
+  currency: currencySchema,
+  stakeMinor: amountSchema,
+  rakeBps: z.number().int().min(0).max(10_000).optional(),
+});
+
+export type MatchStakeCreateInput = z.infer<typeof matchStakeCreateSchema>;

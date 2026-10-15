@@ -93,3 +93,4 @@ export const depositLimiter = new RateLimiter({ windowMs: 60_000, max: 10 });
 export const withdrawalLimiter = new RateLimiter({ windowMs: 60_000, max: 10 });
 export const webhookLimiter = new RateLimiter({ windowMs: 60_000, max: 120 });
 export const connectLimiter = new RateLimiter({ windowMs: 60_000, max: 6 });
+export const stakeLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
