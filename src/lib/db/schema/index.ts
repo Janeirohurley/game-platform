@@ -11,6 +11,7 @@ export * from "./profiles";
 export * from "./bots";
 export * from "./audit";
 export * from "./wallet";
+export * from "./match-stakes";
 
 export { type ProviderType, type ProviderStatus, type ProviderEnvironment, type WalletProviderType, type WalletProviderStatus, type WalletProviderEnvironment, type WalletProviderAsset, type ProviderAssetIdentity, type LegacyProviderConfig, isWalletProviderType, isWalletProviderStatus, isWalletProviderEnvironment, isWalletProviderAsset, providers, providerAssets, providerCredentials, providerConfigs } from "./wallet";
 
