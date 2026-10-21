@@ -23,6 +23,11 @@ export const WALLET_TRANSACTION_TYPES = [
    */
   "stake",
   "payout",
+  /**
+   * Manual administrator movement (credit or debit) with a mandatory
+   * reason. No provider, no external rail — see the admin console.
+   */
+  "adjustment",
 ] as const;
 
 export type WalletTransactionType = (typeof WALLET_TRANSACTION_TYPES)[number];
@@ -63,7 +68,7 @@ export function isWalletTransactionStatus(
   return (WALLET_TRANSACTION_STATUSES as readonly string[]).includes(value);
 }
 
-/** Statuses a user may cancel (provider-side cancellation where supported). */
+/** Statuses a user may cancel (a cancellation simply reverses the movement). */
 export const CANCELLABLE_STATUSES: readonly WalletTransactionStatus[] = [
   "created",
   "pending",

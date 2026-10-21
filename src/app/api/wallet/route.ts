@@ -2,10 +2,6 @@
  * GET /api/wallet — the wallet overview for the signed-in user:
  * wallet row, balance derived from the ledger, and the currency's
  * display metadata (exponent) so the client never guesses decimals.
- *
- * Also runs a small, bounded expiry sweep opportunistically — stale
- * operations get their reserved funds released without needing a
- * cron; a sweep failure never breaks the read.
  */
 
 import {
@@ -13,7 +9,6 @@ import {
   normalizeCurrency,
 } from "@/lib/wallet/currencies";
 import { WalletError } from "@/lib/wallet/errors";
-import { expireStaleOperations } from "@/lib/wallet/engine";
 import {
   parseQuery,
   walletErrorResponse,
@@ -43,14 +38,6 @@ export async function GET(request: Request) {
         throw new WalletError("validation", `Unsupported currency: ${query.currency}.`);
       }
       currency = normalized;
-    }
-
-    // Opportunistic, bounded, best-effort: release reservations on
-    // operations that timed out. Never fails the overview read.
-    try {
-      await expireStaleOperations(5);
-    } catch {
-      // sweep is advisory — the reconciliation run catches stragglers
     }
 
     const overview = await getWalletOverview(session.user.id, currency);

@@ -12,7 +12,5 @@ export * from "./bots";
 export * from "./audit";
 export * from "./wallet";
 export * from "./match-stakes";
+export * from "./points";
 
-export { type ProviderType, type ProviderStatus, type ProviderEnvironment, type WalletProviderType, type WalletProviderStatus, type WalletProviderEnvironment, type WalletProviderAsset, type ProviderAssetIdentity, type LegacyProviderConfig, isWalletProviderType, isWalletProviderStatus, isWalletProviderEnvironment, isWalletProviderAsset, providers, providerAssets, providerCredentials, providerConfigs } from "./wallet";
-
-export type { ProviderRow, ProviderAssetRow, ProviderCredentialRow, ProviderConfigRow } from "./wallet";

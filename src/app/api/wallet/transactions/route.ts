@@ -1,6 +1,6 @@
 /**
  * GET /api/wallet/transactions — one page of the user's transactions,
- * newest first, with URL-driven filters (type/status/provider/search).
+ * newest first, with URL-driven filters (type/status/search).
  * All pagination happens SQL-side; the client only ever sees rows
  * belonging to its own wallets (ownership is in the join itself).
  */

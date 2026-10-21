@@ -14,12 +14,10 @@ import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema/auth";
 import {
   ledgerEntries,
-  reconciliationRecords,
   wallets,
   walletTransactions,
 } from "@/lib/db/schema/wallet";
 import { toAmount } from "@/lib/wallet/ledger";
-import { getEventsForTransaction } from "@/lib/wallet/events";
 import type { WalletTransactionType } from "@/lib/wallet/constants";
 
 export interface AdminWalletListRow {
@@ -103,7 +101,6 @@ export interface AdminTransactionFilters {
   pageSize: number;
   type?: WalletTransactionType;
   status?: string;
-  provider?: string;
   search?: string;
 }
 
@@ -131,16 +128,12 @@ export async function listTransactionsAdmin(
   if (filters.status) {
     conditions.push(eq(walletTransactions.status, filters.status));
   }
-  if (filters.provider) {
-    conditions.push(eq(walletTransactions.provider, filters.provider));
-  }
   const query = filters.search?.trim();
   if (query) {
     const needle = `%${query}%`;
     conditions.push(
       or(
         ilike(walletTransactions.id, needle),
-        ilike(walletTransactions.providerTransactionId, needle),
         ilike(walletTransactions.idempotencyKey, needle),
         ilike(user.email, needle),
       )!,
@@ -181,11 +174,9 @@ export interface AdminTransactionDetail {
   ownerEmail: string | null;
   ownerName: string | null;
   ledger: Array<typeof ledgerEntries.$inferSelect>;
-  events: Awaited<ReturnType<typeof getEventsForTransaction>>;
-  issues: Array<typeof reconciliationRecords.$inferSelect>;
 }
 
-/** Full audit view of one transaction (owner, ledger, webhooks, issues). */
+/** Full audit view of one transaction (owner + ledger trail). */
 export async function getTransactionDetailAdmin(
   transactionId: string,
 ): Promise<AdminTransactionDetail | null> {
@@ -203,26 +194,16 @@ export async function getTransactionDetailAdmin(
   const row = rows[0];
   if (!row) return null;
 
-  const [ledger, events, issues] = await Promise.all([
-    db
-      .select()
-      .from(ledgerEntries)
-      .where(eq(ledgerEntries.transactionId, transactionId))
-      .orderBy(ledgerEntries.createdAt),
-    getEventsForTransaction(transactionId),
-    db
-      .select()
-      .from(reconciliationRecords)
-      .where(eq(reconciliationRecords.transactionId, transactionId))
-      .orderBy(desc(reconciliationRecords.detectedAt)),
-  ]);
+  const ledger = await db
+    .select()
+    .from(ledgerEntries)
+    .where(eq(ledgerEntries.transactionId, transactionId))
+    .orderBy(ledgerEntries.createdAt);
 
   return {
     transaction: row.tx,
     ownerEmail: row.ownerEmail,
     ownerName: row.ownerName,
     ledger,
-    events,
-    issues,
   };
 }

@@ -24,6 +24,10 @@ const STYLES: Record<string, string> = {
   resolved: "border-transparent bg-emerald-600 text-white",
   received: "border-border bg-muted text-foreground",
   ignored: "border-border bg-muted text-muted-foreground",
+  // withdrawal request statuses
+  approved: "border-transparent bg-amber-500 text-white",
+  paid: "border-transparent bg-emerald-600 text-white",
+  rejected: "border-transparent bg-destructive text-destructive-foreground",
   // severities
   info: "border-border bg-muted text-muted-foreground",
   warning: "border-transparent bg-amber-500 text-white",

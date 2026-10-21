@@ -12,13 +12,11 @@ import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   ledgerEntries,
-  providerAccounts,
   walletTransactions,
   wallets,
 } from "@/lib/db/schema/wallet";
 import type { TransactionFilter } from "@/lib/validation/wallet";
 import { getBalanceMinor, getLedgerForTransaction } from "./ledger";
-import { getEventsForTransaction } from "./events";
 import { defaultWalletCurrency } from "./currencies";
 import { ensureWallet, type WalletRow } from "./wallet";
 import type { TransactionRow } from "./engine";
@@ -64,9 +62,6 @@ export async function listTransactionsForUser(
   ];
   if (filter.type) conditions.push(eq(walletTransactions.type, filter.type));
   if (filter.status) conditions.push(eq(walletTransactions.status, filter.status));
-  if (filter.provider) {
-    conditions.push(eq(walletTransactions.provider, filter.provider));
-  }
   if (filter.currency) {
     conditions.push(eq(walletTransactions.currency, filter.currency));
   }
@@ -75,7 +70,6 @@ export async function listTransactionsForUser(
     conditions.push(
       or(
         ilike(walletTransactions.id, needle),
-        ilike(walletTransactions.providerTransactionId, needle),
         ilike(walletTransactions.idempotencyKey, needle),
       )!,
     );
@@ -123,8 +117,6 @@ export interface TransactionDetail {
   transaction: TransactionRow;
   /** Ledger legs of this transaction (double-entry audit trail). */
   ledger: Awaited<ReturnType<typeof getLedgerForTransaction>>;
-  /** Provider events that touched it (webhook audit trail). */
-  events: Awaited<ReturnType<typeof getEventsForTransaction>>;
 }
 
 /** Full detail for the OWNER (ownership enforced via the wallet join). */
@@ -145,19 +137,6 @@ export async function getTransactionDetailForUser(
     .limit(1);
   if (!rows[0]) return null;
 
-  const [ledger, events] = await Promise.all([
-    getLedgerForTransaction(transactionId),
-    getEventsForTransaction(transactionId),
-  ]);
-  return { transaction: rows[0].tx, ledger, events };
-}
-
-/** The user's connected provider accounts (across their wallets). */
-export async function listProviderAccountsForUser(userId: string) {
-  return db
-    .select()
-    .from(providerAccounts)
-    .innerJoin(wallets, eq(providerAccounts.walletId, wallets.id))
-    .where(eq(wallets.userId, userId))
-    .orderBy(desc(providerAccounts.createdAt));
+  const ledger = await getLedgerForTransaction(transactionId);
+  return { transaction: rows[0].tx, ledger };
 }

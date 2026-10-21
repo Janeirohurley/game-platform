@@ -14,10 +14,7 @@ import type { TransactionRow } from "@/lib/wallet/engine";
 import type { TransactionListRow } from "@/lib/wallet/queries";
 import type { CurrencyInfo } from "@/lib/wallet/currencies";
 import type { WalletRow } from "@/lib/wallet/wallet";
-import type { PublicProvider } from "@/lib/wallet/provider-config";
-import type { ProviderAccountRow } from "@/lib/wallet/provider-accounts";
 import type { getLedgerForTransaction } from "@/lib/wallet/ledger";
-import type { getEventsForTransaction } from "@/lib/wallet/events";
 
 export class WalletApiError extends Error {
   readonly code: WalletErrorCode;
@@ -93,67 +90,50 @@ export interface TransactionListResponse {
 }
 
 export type LedgerRow = Awaited<ReturnType<typeof getLedgerForTransaction>>[number];
-export type ProviderEventRow = Awaited<ReturnType<typeof getEventsForTransaction>>[number];
 
 export interface TransactionDetailResponse {
   transaction: TransactionRow;
   ledger: LedgerRow[];
-  events: ProviderEventRow[];
 }
 
-export interface QuoteResponse {
-  provider: string;
-  providerName: string;
-  type: "deposit" | "withdrawal";
+/** Public tariff rows — no admin identifiers. */
+export interface WalletSettingsDto {
+  pointsCurrency: string;
   currency: string;
-  grossAmount: number;
-  providerFee: number;
-  platformFee: number;
-  totalFee: number;
-  netAmount: number;
-  totalAmount: number;
+  buyPointsPerUnit: number;
+  sellMinorPerPoint: number;
+  minWithdrawalPoints: number;
+  minStakePoints: number;
+  maxStakePoints: number;
+  contactInstructions: string;
 }
 
-export interface OperationResponse {
-  transaction: TransactionRow;
+/** Withdrawal request as serialized by the API (dates are ISO strings)
+ *  or handed straight from a Server Component (Date objects). */
+export interface WithdrawalRequestDto {
+  id: string;
+  amountMinor: number;
+  currency: string;
+  status: "pending" | "approved" | "paid" | "rejected";
+  userNote: string | null;
+  adminNote: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  decidedAt: string | Date | null;
+  paidAt: string | Date | null;
+}
+
+export interface WithdrawalRequestCreateResponse {
+  request: WithdrawalRequestDto;
+  balanceMinor: number;
   duplicate: boolean;
+  estimate: { points: number; amountMinor: number; currency: string };
 }
-
-export interface WebhookSimulateResponse {
-  outcome: "processed" | "duplicate" | "ignored" | "unresolved";
-  applied: boolean;
-  transactionId?: string;
-  reason?: string;
-}
-
-export type AccountRow = ProviderAccountRow;
 
 // ---- endpoints ----------------------------------------------------------
 
 export const walletApi = {
   overview: () => request<OverviewResponse>("/api/wallet"),
-
-  providers: () =>
-    request<{ providers: PublicProvider[] }>("/api/wallet/providers"),
-
-  accounts: () => request<{ accounts: AccountRow[] }>("/api/wallet/accounts"),
-
-  connectAccount: (body: {
-    provider: string;
-    providerAccountId: string;
-    accountType?: string;
-    displayName?: string;
-    currency?: string;
-  }) =>
-    request<{ account: AccountRow }>("/api/wallet/accounts", {
-      method: "POST",
-      json: body,
-    }),
-
-  disconnectAccount: (id: string) =>
-    request<{ account: AccountRow }>(`/api/wallet/accounts/${id}`, {
-      method: "DELETE",
-    }),
 
   transactions: (params: Record<string, string | number | undefined>) => {
     const search = new URLSearchParams();
@@ -169,65 +149,19 @@ export const walletApi = {
   detail: (id: string) =>
     request<TransactionDetailResponse>(`/api/wallet/transactions/${id}`),
 
-  quote: (body: {
-    provider: string;
-    type: "deposit" | "withdrawal";
-    amount: number;
-    currency: string;
-  }) => request<QuoteResponse>("/api/wallet/quote", { method: "POST", json: body }),
+  settings: () => request<{ settings: WalletSettingsDto }>("/api/wallet/settings"),
 
-  deposit: (body: {
-    provider: string;
-    amount: number;
-    currency: string;
-    providerAccountId?: string;
+  withdrawalRequests: () =>
+    request<{ requests: WithdrawalRequestDto[] }>("/api/wallet/withdrawals"),
+
+  createWithdrawalRequest: (body: {
+    points: number;
+    note?: string;
     idempotencyKey: string;
   }) =>
-    request<OperationResponse>("/api/wallet/deposits", {
+    request<WithdrawalRequestCreateResponse>("/api/wallet/withdrawals", {
       method: "POST",
       json: body,
-    }),
-
-  withdrawal: (body: {
-    provider: string;
-    amount: number;
-    currency: string;
-    providerAccountId?: string;
-    destinationRef?: string;
-    idempotencyKey: string;
-  }) =>
-    request<OperationResponse>("/api/wallet/withdrawals", {
-      method: "POST",
-      json: body,
-    }),
-
-  cancel: (id: string) =>
-    request<{ transaction: TransactionRow }>(
-      `/api/wallet/transactions/${id}/cancel`,
-      { method: "POST", json: {} },
-    ),
-
-  confirm: (id: string, confirmation?: string) =>
-    request<{
-      transaction: TransactionRow;
-      settled: boolean;
-      recognized: boolean;
-      reason: string | null;
-    }>(`/api/wallet/transactions/${id}/confirm`, {
-      method: "POST",
-      json: { confirmation },
-    }),
-
-  refund: (id: string, idempotencyKey: string) =>
-    request<OperationResponse>(`/api/wallet/transactions/${id}/refund`, {
-      method: "POST",
-      json: { idempotencyKey },
-    }),
-
-  simulate: (transactionId: string, outcome: "succeeded" | "failed") =>
-    request<WebhookSimulateResponse>("/api/wallet/simulate", {
-      method: "POST",
-      json: { transactionId, outcome },
     }),
 };
 

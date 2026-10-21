@@ -84,6 +84,7 @@ const TYPE_LABELS: Record<string, string> = {
   reversal: "Reversal",
   stake: "Stake",
   payout: "Payout",
+  adjustment: "Adjustment",
 };
 
 export function typeLabel(type: string): string {

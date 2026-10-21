@@ -210,7 +210,6 @@ export function TransactionsTable({
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead className="hidden sm:table-cell">Provider</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -230,9 +229,6 @@ export function TransactionsTable({
                       {formatDateTime(tx.createdAt)}
                     </TableCell>
                     <TableCell>{typeLabel(tx.type)}</TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      {tx.provider ?? "—"}
-                    </TableCell>
                     <TableCell className="text-right font-medium tabular-nums">
                       {signedMoney(tx, tx.currency)}
                     </TableCell>

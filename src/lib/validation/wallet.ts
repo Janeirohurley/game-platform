@@ -1,8 +1,7 @@
 /**
- * Wallet input validation — provider-agnostic on purpose: the client
- * sends `{ provider, amount, currency }`, never a provider-shaped
- * payload. Amounts are INTEGER MINOR UNITS (`amount`), so no float
- * ever crosses the wire.
+ * Wallet input validation — internal points only: the client sends
+ * `{ amount/points, currency }`, never a provider-shaped payload.
+ * Amounts are INTEGER MINOR UNITS, so no float ever crosses the wire.
  *
  * Absent from every schema BY DESIGN: status, fees, balances, ledger
  * fields — those are server-owned and structurally unreachable from a
@@ -35,12 +34,6 @@ export const currencySchema = z
     "Unsupported currency",
   );
 
-export const providerIdSchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .regex(/^[a-z0-9][a-z0-9-]*$/, "Invalid provider id");
-
 /**
  * Client-supplied idempotency key — REQUIRED for money movement so a
  * retried request can never open a second transaction.
@@ -50,72 +43,6 @@ export const idempotencyKeySchema = z
   .min(8, "Idempotency key must be at least 8 characters")
   .max(128, "Idempotency key is too long")
   .regex(/^[A-Za-z0-9_.:-]+$/, "Invalid idempotency key");
-
-export const depositSchema = z.object({
-  provider: providerIdSchema,
-  amount: amountSchema,
-  currency: currencySchema,
-  /** Connected provider account to collect from, when the user picked one. */
-  providerAccountId: z.string().min(1).max(64).optional(),
-  idempotencyKey: idempotencyKeySchema,
-});
-
-export type DepositInput = z.infer<typeof depositSchema>;
-
-export const withdrawalSchema = z.object({
-  provider: providerIdSchema,
-  amount: amountSchema,
-  currency: currencySchema,
-  providerAccountId: z.string().min(1).max(64).optional(),
-  /** Sanitized payout hint (e.g. the ref of a connected account). */
-  destinationRef: z.string().min(1).max(64).optional(),
-  idempotencyKey: idempotencyKeySchema,
-});
-
-export type WithdrawalInput = z.infer<typeof withdrawalSchema>;
-
-/** Fee preview before confirmation ("see fees before you confirm"). */
-export const quoteSchema = z.object({
-  provider: providerIdSchema,
-  type: z.enum(["deposit", "withdrawal"]),
-  amount: amountSchema,
-  currency: currencySchema,
-});
-
-export type QuoteInput = z.infer<typeof quoteSchema>;
-
-const ACCOUNT_TYPES = [
-  "mobile_money",
-  "bank",
-  "card",
-  "digital_wallet",
-  "other",
-] as const;
-
-export const connectProviderSchema = z.object({
-  /** External identifier: masked phone/account/card-token reference. */
-  providerAccountId: z
-    .string()
-    .min(4)
-    .max(64)
-    .regex(
-      /^\+?[A-Za-z0-9-]{4,64}$/,
-      "Invalid account reference",
-    ),
-  accountType: z.enum(ACCOUNT_TYPES).optional(),
-  /** Optional user label; masked automatically when omitted. */
-  displayName: z.string().trim().min(2).max(48).optional(),
-  currency: currencySchema.optional(),
-});
-
-export type ConnectProviderInput = z.infer<typeof connectProviderSchema>;
-
-/** POST /api/wallet/accounts — provider id travels with the account. */
-export const connectRequestSchema = connectProviderSchema.extend({
-  provider: providerIdSchema,
-});
-
-export type ConnectRequestInput = z.infer<typeof connectRequestSchema>;
 
 /** Transaction list filters (user + admin read models). */
 export const transactionFilterSchema = z.object({
@@ -127,7 +54,6 @@ export const transactionFilterSchema = z.object({
   status: z
     .enum(WALLET_TRANSACTION_STATUSES)
     .optional(),
-  provider: providerIdSchema.optional(),
   currency: currencySchema.optional(),
   search: z.string().trim().max(120).optional(),
 });
@@ -161,3 +87,51 @@ export const matchStakeCreateSchema = z.object({
 });
 
 export type MatchStakeCreateInput = z.infer<typeof matchStakeCreateSchema>;
+
+// ---------------------------------------------------------------------------
+// Manual points — the provider-free replacement surface.
+// ---------------------------------------------------------------------------
+
+/** POST /api/wallet/withdrawals — request a manual payout. */
+export const withdrawalRequestSchema = z.object({
+  points: amountSchema,
+  note: z.string().trim().max(240).optional(),
+  idempotencyKey: idempotencyKeySchema,
+});
+
+export type WithdrawalRequestInput = z.infer<typeof withdrawalRequestSchema>;
+
+/** Admin manual credit/debit (mandatory reason). */
+export const adminAdjustPointsSchema = z.object({
+  targetUserId: z.string().min(1).max(64),
+  amount: amountSchema,
+  direction: z.enum(["credit", "debit"]),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "A reason is required")
+    .max(240, "Reason is too long"),
+});
+
+export type AdminAdjustPointsInput = z.infer<typeof adminAdjustPointsSchema>;
+
+/** Admin tariff update. */
+export const walletSettingsUpdateSchema = z.object({
+  currency: currencySchema,
+  buyPointsPerUnit: z.number().int().positive().max(1_000_000),
+  sellMinorPerPoint: z.number().int().positive().max(1_000_000),
+  minWithdrawalPoints: amountSchema,
+  minStakePoints: amountSchema,
+  maxStakePoints: amountSchema,
+  contactInstructions: z.string().trim().max(2000),
+});
+
+export type WalletSettingsUpdateInput = z.infer<
+  typeof walletSettingsUpdateSchema
+>;
+
+/** Admin withdrawal decision (rejection reason is mandatory). */
+export const withdrawalDecisionSchema = z.object({
+  reason: z.string().trim().max(240).optional(),
+});
+

@@ -10,11 +10,10 @@ import {
 
 /**
  * /wallet route fallback. Next streams it while the page's queries run
- * (session → overview → providers → accounts → history) plus every
- * adapter's availability check. Without it the protected layout stays
+ * (session → overview → history). Without it the protected layout stays
  * blank for the whole round-trip; with it the user sees the exact shape
- * of the page they are about to land on — title, tabs, balance card,
- * connected accounts — so nothing jumps when the data arrives.
+ * of the page they are about to land on — title, tabs, balance card —
+ * so nothing jumps when the data arrives.
  */
 export default function WalletLoading() {
   return (

@@ -13,10 +13,9 @@
  *
  * Accounts:
  *   wallet          the wallet side (walletId set)
- *   external:<id>   clearing account of a provider
+ *   external:manual clearing account of manual, off-platform payments
  *   escrow:<roomId> per-match escrow holding players' stakes (walletId null)
  *   fees:platform   platform fee revenue
- *   fees:provider   provider fee
  */
 
 import { randomUUID } from "node:crypto";
@@ -57,94 +56,55 @@ export function assertBalanced(posting: Posting): void {
   }
 }
 
-/**
- * DEPOSIT success — money enters the ecosystem:
- *   wallet +gross, fees +providerFee +platformFee,
- *   external −(gross + fees)
- */
-export function depositPosting(input: {
-  walletId: string;
-  provider: string;
-  grossAmount: number;
-  providerFee: number;
-  platformFee: number;
-}): Posting {
-  const total = input.grossAmount + input.providerFee + input.platformFee;
-  const legs: PostingLeg[] = [
-    {
-      account: "wallet",
-      walletId: input.walletId,
-      amountMinor: input.grossAmount,
-    },
-  ];
-  if (input.platformFee > 0) {
-    legs.push({ account: "fees:platform", walletId: null, amountMinor: input.platformFee });
-  }
-  if (input.providerFee > 0) {
-    legs.push({ account: "fees:provider", walletId: null, amountMinor: input.providerFee });
-  }
-  legs.push({
-    account: `external:${input.provider}`,
-    walletId: null,
-    amountMinor: -total,
-  });
-  const posting = { legs };
-  assertBalanced(posting);
-  return posting;
-}
-
-/**
- * WITHDRAWAL creation (and its failure/expire/cancel reversal, which is
- * simply the inverse):
- *   wallet −(gross + fees), fees +providerFee +platformFee, external +gross
- */
-export function withdrawalPosting(input: {
-  walletId: string;
-  provider: string;
-  grossAmount: number;
-  providerFee: number;
-  platformFee: number;
-}): Posting {
-  const total = input.grossAmount + input.providerFee + input.platformFee;
-  const legs: PostingLeg[] = [
-    {
-      account: "wallet",
-      walletId: input.walletId,
-      amountMinor: -total,
-    },
-  ];
-  if (input.platformFee > 0) {
-    legs.push({ account: "fees:platform", walletId: null, amountMinor: input.platformFee });
-  }
-  if (input.providerFee > 0) {
-    legs.push({ account: "fees:provider", walletId: null, amountMinor: input.providerFee });
-  }
-  legs.push({
-    account: `external:${input.provider}`,
-    walletId: null,
-    amountMinor: input.grossAmount,
-  });
-  const posting = { legs };
-  assertBalanced(posting);
-  return posting;
-}
-
-/** REFUND of a deposit: the exact inverse of its success posting. */
-export function refundPosting(input: {
-  walletId: string;
-  provider: string;
-  grossAmount: number;
-  providerFee: number;
-  platformFee: number;
-}): Posting {
-  return invert(depositPosting(input));
-}
-
 /** Reverse any posting (compensating entry — history is never erased). */
 export function invert(posting: Posting): Posting {
   return {
     legs: posting.legs.map((leg) => ({ ...leg, amountMinor: -leg.amountMinor })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Manual points — no provider, no rail. Points are credited by an
+// administrator after an off-platform payment, debited when a withdrawal
+// request is opened, and credited back when that request is rejected.
+// `external:manual` is the clearing account representing "outside the app".
+// ---------------------------------------------------------------------------
+
+/** Clearing account for every manual (off-platform) movement. */
+export const MANUAL_ACCOUNT = "external:manual";
+
+/**
+ * MANUAL CREDIT — points enter the user's wallet:
+ *   wallet +amount, external:manual −amount
+ *
+ * Used by an admin credit (`adjustment`) and by a withdrawal refund.
+ */
+export function manualCreditPosting(input: {
+  walletId: string;
+  amountMinor: number;
+}): Posting {
+  const posting: Posting = {
+    legs: [
+      { account: "wallet", walletId: input.walletId, amountMinor: input.amountMinor },
+      { account: MANUAL_ACCOUNT, walletId: null, amountMinor: -input.amountMinor },
+    ],
+  };
+  assertBalanced(posting);
+  return posting;
+}
+
+/**
+ * MANUAL DEBIT — points leave the user's wallet:
+ *   wallet −amount, external:manual +amount
+ *
+ * Used by an admin debit (`adjustment`) and by a withdrawal request at
+ * creation. A rejection simply posts the inverse (`invert`).
+ */
+export function manualDebitPosting(input: {
+  walletId: string;
+  amountMinor: number;
+}): Posting {
+  return invert(manualCreditPosting(input));
 }
 
 // ---------------------------------------------------------------------------
@@ -222,49 +182,6 @@ export function stakeRefundPosting(input: {
   return invert(stakePosting(input));
 }
 
-/** Derive the posting for an existing transaction row + direction. */
-export function postingForTransaction(
-  tx: {
-    walletId: string;
-    provider: string | null;
-    type: string;
-    grossAmount: number;
-    providerFee: number;
-    platformFee: number;
-  },
-  direction: "credit" | "debit",
-): Posting {
-  const provider = tx.provider ?? "unknown";
-  const base = {
-    walletId: tx.walletId,
-    provider,
-    grossAmount: tx.grossAmount,
-    providerFee: tx.providerFee,
-    platformFee: tx.platformFee,
-  };
-  switch (tx.type) {
-    case "deposit":
-      return direction === "credit"
-        ? depositPosting(base)
-        : refundPosting(base);
-    case "withdrawal":
-      return direction === "debit"
-        ? withdrawalPosting(base)
-        : invert(withdrawalPosting(base));
-    case "refund":
-      // A refund transaction debits the wallet at creation; its failure
-      // re-credits (inverse of the refund debit = a deposit credit).
-      return direction === "debit"
-        ? refundPosting(base)
-        : depositPosting(base);
-    default:
-      throw new WalletError(
-        "internal",
-        `No posting rule for transaction type "${tx.type}"`,
-      );
-  }
-}
-
 type DbOrTx = PostgresJsDatabase | Parameters<Parameters<PostgresJsDatabase["transaction"]>[0]>[0];
 
 /**
@@ -335,32 +252,4 @@ export async function getLedgerForTransaction(transactionId: string) {
     .where(sql`${ledgerEntries.transactionId} = ${transactionId}`)
     .orderBy(ledgerEntries.createdAt);
   return rows;
-}
-
-/**
- * The amount the RAIL moves for a transaction (what a provider event
- * must report for the operation to match):
- *
- *   deposit   → gross + providerFee + platformFee (collected inbound)
- *   withdrawal → gross (delivered outbound)
- *   refund    → gross of the original deposit (returned outbound)
- *
- * Used by the engine's webhook verification and by reconciliation —
- * in one place so both always compare the same expectation.
- */
-export function expectedRailAmount(tx: {
-  type: string;
-  grossAmount: number;
-  providerFee: number;
-  platformFee: number;
-}): number {
-  switch (tx.type) {
-    case "deposit":
-      return tx.grossAmount + tx.providerFee + tx.platformFee;
-    case "withdrawal":
-    case "refund":
-      return tx.grossAmount;
-    default:
-      return tx.grossAmount;
-  }
 }

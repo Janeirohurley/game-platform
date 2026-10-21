@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeftRightIcon,
+  BanknoteIcon,
   BarChart3Icon,
   BotIcon,
   Gamepad2Icon,
   LayoutDashboardIcon,
   LogOutIcon,
-  PlugIcon,
   RadioIcon,
-  ScaleIcon,
+  SettingsIcon,
   ShieldAlertIcon,
   SwordsIcon,
   UserIcon,
@@ -87,10 +87,10 @@ const adminNav = [
   {
     label: "Finance",
     items: [
-      { title: "Portefeuilles", href: "/admin/wallets", icon: WalletIcon, phase: 12 },
+      { title: "Points", href: "/admin/wallets", icon: WalletIcon, phase: 12 },
+      { title: "Retraits", href: "/admin/withdrawals", icon: BanknoteIcon, phase: 12 },
+      { title: "Tarifs", href: "/admin/settings", icon: SettingsIcon, phase: 12 },
       { title: "Transactions", href: "/admin/transactions", icon: ArrowLeftRightIcon, phase: 12 },
-      { title: "Fournisseurs", href: "/admin/providers", icon: PlugIcon, phase: 12 },
-      { title: "Réconciliation", href: "/admin/reconciliation", icon: ScaleIcon, phase: 12 },
     ],
   },
   {

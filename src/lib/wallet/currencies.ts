@@ -35,6 +35,13 @@ export const CURRENCIES = {
    * asset with its own deposit/withdrawal surface (see docs/wallet-mises-jeux.md).
    */
   JET: { code: "JET", exponent: 0, name: "Game token" },
+  /**
+   * PTS — the platform's internal point currency. One point = one minor
+   * unit (exponent 0), so every balance and amount is an integer with no
+   * rounding. Points have no external rail: they are credited manually by
+   * an administrator and withdrawn through a manual request workflow.
+   */
+  PTS: { code: "PTS", exponent: 0, name: "Platform points" },
 } as const satisfies Record<string, CurrencyInfo>;
 
 export type CurrencyCode = keyof typeof CURRENCIES;
@@ -48,7 +55,7 @@ export const SUPPORTED_CURRENCY_CODES = Object.keys(
  * Default wallet currency. Overridable per deployment via
  * WALLET_DEFAULT_CURRENCY (validated at use site).
  */
-export const DEFAULT_WALLET_CURRENCY: CurrencyCode = "BIF";
+export const DEFAULT_WALLET_CURRENCY: CurrencyCode = "PTS";
 
 export function isSupportedCurrency(code: string): code is CurrencyCode {
   return Object.prototype.hasOwnProperty.call(CURRENCIES, code.toUpperCase());
@@ -68,7 +75,7 @@ export function normalizeCurrency(code: string): CurrencyCode | null {
   return isSupportedCurrency(upper) ? (upper as CurrencyCode) : null;
 }
 
-/** The deployment default, falling back to BIF when env is absent/invalid. */
+/** The deployment default, falling back to PTS when env is absent/invalid. */
 export function defaultWalletCurrency(): CurrencyCode {
   const fromEnv = process.env.WALLET_DEFAULT_CURRENCY;
   if (fromEnv && isSupportedCurrency(fromEnv)) {

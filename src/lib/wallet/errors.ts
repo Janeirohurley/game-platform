@@ -5,7 +5,7 @@
  * surfaces without parsing prose.
  *
  * Nothing here ever carries a secret: messages are written to be shown
- * to a user, provider payloads never reach them.
+ * to a user; raw payloads never reach them.
  */
 
 export type WalletErrorCode =
@@ -14,15 +14,10 @@ export type WalletErrorCode =
   | "not_found"
   | "validation"
   | "idempotency_conflict"
-  | "capability_not_supported"
-  | "provider_unavailable"
-  | "provider_error"
-  | "provider_timeout"
   | "insufficient_funds"
   | "invalid_state"
   | "currency_mismatch"
   | "amount_mismatch"
-  | "webhook_verification_failed"
   | "rate_limited"
   | "internal";
 
@@ -32,15 +27,10 @@ const STATUS_BY_CODE: Record<WalletErrorCode, number> = {
   not_found: 404,
   validation: 400,
   idempotency_conflict: 409,
-  capability_not_supported: 422,
-  provider_unavailable: 503,
-  provider_error: 502,
-  provider_timeout: 504,
   insufficient_funds: 409,
   invalid_state: 409,
   currency_mismatch: 409,
   amount_mismatch: 409,
-  webhook_verification_failed: 401,
   rate_limited: 429,
   internal: 500,
 };
@@ -79,8 +69,8 @@ export interface WalletErrorBody {
 
 /**
  * Map any thrown value to a safe response body + status. Unknown errors
- * collapse to a generic 500: internal messages may contain provider
- * payload fragments and must not leak to clients.
+ * collapse to a generic 500: internal messages may contain raw internal
+ * fragments and must not leak to clients.
  */
 export function toWalletErrorBody(
   error: unknown,

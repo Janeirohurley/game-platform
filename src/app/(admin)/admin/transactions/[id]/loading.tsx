@@ -7,9 +7,8 @@ import {
 } from "@/components/loading/skeletons";
 
 /**
- * /admin/transactions/[id] fallback — three stacked panels: the
- * operation facts, its double-entry ledger lines, then the provider
- * webhook events.
+ * /admin/transactions/[id] fallback — two stacked panels: the
+ * operation facts and its double-entry ledger lines.
  */
 export default function AdminTransactionDetailLoading() {
   return (

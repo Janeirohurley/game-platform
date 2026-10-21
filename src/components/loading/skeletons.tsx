@@ -267,7 +267,7 @@ export function TableSkeleton({
   );
 }
 
-/** A bordered card (one provider, one room, one LiveKit room). */
+/** A bordered card (one room, one LiveKit room). */
 export function CardSkeleton({
   className,
   lines = 3,
@@ -294,7 +294,7 @@ export function CardSkeleton({
   );
 }
 
-/** Responsive card grid (providers, rooms). */
+/** Responsive card grid (rooms). */
 export function CardGridSkeleton({
   count = 4,
   className,

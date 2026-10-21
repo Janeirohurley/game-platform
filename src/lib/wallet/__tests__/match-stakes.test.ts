@@ -58,7 +58,6 @@ async function fund(walletId: string, amountMinor: number): Promise<void> {
     currency: CURRENCY,
     grossAmount: amountMinor,
     netAmount: amountMinor,
-    provider: "test-faucet",
     idempotencyKey: `faucet-${id}`,
     completedAt: new Date(),
   });

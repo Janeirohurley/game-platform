@@ -83,7 +83,7 @@ export function rateLimitResponse(decision: RateLimitDecision): NextResponse {
   );
 }
 
-/** Best-effort caller identity for unauthenticated endpoints (webhooks). */
+/** Best-effort caller identity for unauthenticated endpoints. */
 export function clientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {

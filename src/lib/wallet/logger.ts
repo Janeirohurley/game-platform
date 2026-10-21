@@ -2,11 +2,10 @@
  * Structured wallet logging — correlation-first, secret-hostile.
  *
  * Every money-relevant event is one JSON line carrying the ids needed
- * to trace: user action → wallet transaction → provider request →
- * provider transaction → webhook → ledger entry.
+ * to trace: user action → wallet transaction → ledger entry.
  *
- * NEVER logged: secrets, tokens, signatures, card data, raw provider
- * payloads. `redact()` walks every field and replaces values whose KEY
+ * NEVER logged: secrets, tokens, signatures, card data, raw payloads.
+ * `redact()` walks every field and replaces values whose KEY
  * looks sensitive with "[REDACTED]", truncates long strings and caps
  * array depth so a payload can never be dumped wholesale by accident.
  */
@@ -20,9 +19,6 @@ export interface WalletLogFields {
   userId?: string;
   walletId?: string;
   transactionId?: string;
-  provider?: string;
-  providerTransactionId?: string;
-  providerEventId?: string;
   status?: string;
   currency?: string;
   amountMinor?: number;

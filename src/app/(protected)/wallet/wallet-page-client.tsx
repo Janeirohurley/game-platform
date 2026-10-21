@@ -15,42 +15,40 @@ import { RefreshOverlay } from "@/components/loading/refresh-overlay";
 import {
   walletApi,
   type OverviewResponse,
-  type AccountRow,
   type TransactionListResponse,
+  type WalletSettingsDto,
+  type WithdrawalRequestDto,
 } from "@/lib/wallet/api-client";
-import type { PublicProvider } from "@/lib/wallet/provider-config";
-import { AccountsPanel } from "@/components/wallet/accounts-panel";
-import { AddMoneyPanel } from "@/components/wallet/add-money-panel";
+import { BuyPointsPanel } from "@/components/wallet/buy-points-panel";
 import { TransactionDetailDialog } from "@/components/wallet/transaction-detail-dialog";
 import { TransactionsTable } from "@/components/wallet/transactions-table";
-import { WithdrawPanel } from "@/components/wallet/withdraw-panel";
+import { WithdrawPointsPanel } from "@/components/wallet/withdraw-points-panel";
 import { money, showWalletError } from "@/components/wallet/wallet-shared";
 
 type Props = {
   initialOverview: OverviewResponse;
-  initialProviders: PublicProvider[];
-  initialAccounts: AccountRow[];
+  initialSettings: WalletSettingsDto;
+  initialWithdrawals: WithdrawalRequestDto[];
   initialTransactions: TransactionListResponse;
 };
 
-type Tab = "overview" | "add" | "withdraw" | "history";
+type Tab = "overview" | "buy" | "withdraw" | "history";
 
 /**
- * Wallet shell: balance card + quick actions, add-money / withdraw
- * flows fed by the DYNAMIC provider list, connected accounts and the
- * transaction history. Every mutation refreshes balance, accounts and
- * providers together, and any opened transaction stays live (polled)
- * in the detail dialog until it settles.
+ * Points shell: live balance, the manual purchase instructions, the
+ * withdrawal request form + history, and the append-only ledger. Every
+ * mutation refreshes the balance and the request queue together.
  */
 export default function WalletPageClient({
   initialOverview,
-  initialProviders,
-  initialAccounts,
+  initialSettings,
+  initialWithdrawals,
   initialTransactions,
 }: Props) {
   const [overview, setOverview] = useState(initialOverview);
-  const [providers, setProviders] = useState(initialProviders);
-  const [accounts, setAccounts] = useState(initialAccounts);
+  const [settings, setSettings] = useState(initialSettings);
+  const [withdrawals, setWithdrawals] =
+    useState<WithdrawalRequestDto[]>(initialWithdrawals);
   const [tab, setTab] = useState<Tab>("overview");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -61,15 +59,15 @@ export default function WalletPageClient({
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [nextOverview, nextProviders, nextAccounts] = await Promise.all([
+      const [nextOverview, nextSettings, nextWithdrawals] = await Promise.all([
         walletApi.overview(),
-        walletApi.providers(),
-        walletApi.accounts(),
+        walletApi.settings(),
+        walletApi.withdrawalRequests(),
       ]);
       setOverview(nextOverview);
-      setProviders(nextProviders.providers);
-      setAccounts(nextAccounts.accounts);
-      setRefreshToken((v) => v + 1);
+      setSettings(nextSettings.settings);
+      setWithdrawals(nextWithdrawals.requests);
+      setRefreshToken((value) => value + 1);
     } catch (error) {
       showWalletError(error);
     } finally {
@@ -77,43 +75,30 @@ export default function WalletPageClient({
     }
   }, []);
 
-  const handleChanged = useCallback(() => {
-    void refreshAll();
-  }, [refreshAll]);
-
   const openDetail = useCallback((id: string) => setDetailId(id), []);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
       <div>
-        <h1 className="text-2xl font-semibold">Wallet</h1>
+        <h1 className="text-2xl font-semibold">Points</h1>
         <p className="text-sm text-muted-foreground">
-          Add money, withdraw and audit every movement — fees always shown
-          before you confirm.
+          Solde, achats manuels, demandes de retrait et historique complet.
         </p>
       </div>
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="add">Add money</TabsTrigger>
-          <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="overview">Solde</TabsTrigger>
+          <TabsTrigger value="buy">Acheter</TabsTrigger>
+          <TabsTrigger value="withdraw">Retirer</TabsTrigger>
+          <TabsTrigger value="history">Historique</TabsTrigger>
         </TabsList>
 
-        {/*
-         * Every refresh (after a deposit/withdrawal/refund, or the manual
-         * Refresh button) refetches overview + providers + accounts. The
-         * content stays mounted under RefreshOverlay: a sweeping highlight
-         * plus aria-busy marks the numbers as "being updated" instead of
-         * blanking a balance the user is reading.
-         */}
-        <RefreshOverlay busy={refreshing} label="Wallet data is refreshing…">
-          {/* ---- Overview ---------------------------------------------- */}
+        <RefreshOverlay busy={refreshing} label="Mise à jour des points…">
           <TabsContent value="overview" className="flex flex-col gap-4">
             <Card>
               <CardHeader>
-                <CardDescription>Available balance</CardDescription>
+                <CardDescription>Solde disponible</CardDescription>
                 <CardTitle
                   className="text-3xl tabular-nums transition-opacity"
                   aria-busy={refreshing}
@@ -122,53 +107,67 @@ export default function WalletPageClient({
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
-                <Button onClick={() => setTab("add")}>Add money</Button>
+                <Button onClick={() => setTab("buy")}>Acheter des points</Button>
                 <Button variant="outline" onClick={() => setTab("withdraw")}>
-                  Withdraw
+                  Demander un retrait
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => void refreshAll()}
                   disabled={refreshing}
                 >
-                  {refreshing ? "Refreshing…" : "Refresh"}
+                  {refreshing ? "Actualisation…" : "Actualiser"}
                 </Button>
               </CardContent>
             </Card>
 
-            <AccountsPanel
-              providers={providers}
-              accounts={accounts}
-              currency={currency}
-              onChanged={handleChanged}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Tarifs en vigueur</CardTitle>
+                <CardDescription>
+                  Fixés par l&apos;administrateur, ils s&apos;appliquent aux
+                  nouvelles demandes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+                <p>
+                  <span className="text-muted-foreground">Achat : </span>1{" "}
+                  {settings.currency} ={" "}
+                  {settings.buyPointsPerUnit.toLocaleString("fr-FR")} points
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Retrait : </span>1
+                  point = {money(settings.sellMinorPerPoint, settings.currency)}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">
+                    Retrait minimum :{" "}
+                  </span>
+                  {settings.minWithdrawalPoints.toLocaleString("fr-FR")} points
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Mise : </span>
+                  {settings.minStakePoints.toLocaleString("fr-FR")} –{" "}
+                  {settings.maxStakePoints.toLocaleString("fr-FR")} points
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* ---- Add money -------------------------------------------- */}
-          <TabsContent value="add" className="flex flex-col gap-4">
-            <AddMoneyPanel
-              providers={providers}
-              accounts={accounts}
-              currency={currency}
-              onCreated={openDetail}
-              onChanged={handleChanged}
-            />
+          <TabsContent value="buy">
+            <BuyPointsPanel settings={settings} />
           </TabsContent>
 
-          {/* ---- Withdraw ---------------------------------------------- */}
-          <TabsContent value="withdraw" className="flex flex-col gap-4">
-            <WithdrawPanel
-              providers={providers}
-              accounts={accounts}
-              currency={currency}
+          <TabsContent value="withdraw">
+            <WithdrawPointsPanel
+              settings={settings}
               balanceMinor={overview.balanceMinor}
-              onCreated={openDetail}
-              onChanged={handleChanged}
+              requests={withdrawals}
+              onChanged={() => void refreshAll()}
             />
           </TabsContent>
 
-          {/* ---- History ----------------------------------------------- */}
-          <TabsContent value="history" className="flex flex-col gap-4">
+          <TabsContent value="history">
             <TransactionsTable
               refreshToken={refreshToken}
               onOpenDetail={openDetail}
@@ -180,9 +179,8 @@ export default function WalletPageClient({
 
       <TransactionDetailDialog
         transactionId={detailId}
-        providers={providers}
         onClose={() => setDetailId(null)}
-        onChanged={handleChanged}
+        onChanged={() => void refreshAll()}
       />
     </div>
   );

@@ -30,9 +30,9 @@ export const metadata: Metadata = {
 const PAGE_SIZE = 20;
 
 /**
- * Phase 12 — every wallet transaction on the platform, URL-driven
- * filters (type, status, provider, search), owner email inline. The
- * detail view carries the ledger + webhook audit trail.
+ * Every wallet transaction on the platform, URL-driven filters
+ * (type, status, search), owner email inline. The detail view carries
+ * the ledger audit trail.
  */
 export default async function AdminTransactionsPage({
   searchParams,
@@ -42,7 +42,6 @@ export default async function AdminTransactionsPage({
     q?: string;
     type?: string;
     status?: string;
-    provider?: string;
   }>;
 }) {
   await requireAdminSession();
@@ -59,7 +58,6 @@ export default async function AdminTransactionsPage({
   )
     ? params.status
     : undefined;
-  const provider = params.provider?.trim() || undefined;
   const page = parsePositiveInt(params.page, 1);
 
   const list = await listTransactionsAdmin({
@@ -67,7 +65,6 @@ export default async function AdminTransactionsPage({
     pageSize: PAGE_SIZE,
     type: validType,
     status: validStatus,
-    provider,
     search: search || undefined,
   });
 
@@ -77,7 +74,6 @@ export default async function AdminTransactionsPage({
     if (search) query.set("q", search);
     if (params.type) query.set("type", params.type);
     if (params.status) query.set("status", params.status);
-    if (provider) query.set("provider", provider);
     return `/admin/transactions?${query.toString()}`;
   };
 
@@ -127,7 +123,7 @@ export default async function AdminTransactionsPage({
         <Button type="submit" size="sm" variant="outline">
           Filtrer
         </Button>
-        {(search || params.type || params.status || provider) && (
+        {(search || params.type || params.status) && (
           <Link
             href="/admin/transactions"
             className="text-sm text-muted-foreground underline underline-offset-4"
@@ -144,7 +140,6 @@ export default async function AdminTransactionsPage({
               <TableHead>Date</TableHead>
               <TableHead>Propriétaire</TableHead>
               <TableHead className="hidden sm:table-cell">Type</TableHead>
-              <TableHead className="hidden md:table-cell">Fournisseur</TableHead>
               <TableHead className="text-right">Montant</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead />
@@ -160,9 +155,6 @@ export default async function AdminTransactionsPage({
                   {ownerEmail ?? "—"}
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">{tx.type}</TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {tx.provider ?? "—"}
-                </TableCell>
                 <TableCell className="text-right font-medium tabular-nums">
                   {tx.type === "deposit" ? "" : "−"}
                   {formatMoney(tx.grossAmount, tx.currency)}

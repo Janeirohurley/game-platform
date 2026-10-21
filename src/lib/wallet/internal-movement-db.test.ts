@@ -73,7 +73,6 @@ async function fund(walletId: string, amountMinor: number): Promise<void> {
     currency: CURRENCY,
     grossAmount: amountMinor,
     netAmount: amountMinor,
-    provider: "test-faucet",
     idempotencyKey: `faucet-${id}`,
     completedAt: new Date(),
   });
@@ -138,7 +137,6 @@ dbSuite("postInternalMovement (game stakes, database)", () => {
     expect(res.transaction.type).toBe("stake");
     expect(res.transaction.status).toBe("succeeded");
     expect(res.transaction.grossAmount).toBe(1_000);
-    expect(res.transaction.provider).toBeNull();
     expect(await getBalanceMinor(walletA)).toBe(before - 1_000);
     expect(await escrowBalance(roomId)).toBe(1_000);
   }, 30_000);
