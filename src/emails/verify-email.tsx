@@ -34,7 +34,7 @@ export function VerifyEmail({ username, verificationUrl }: VerifyEmailProps) {
       </Link>
 
       <Section style={styles.notice}>
-        <Text style={styles.noticeTitle}>Didn't create this account?</Text>
+        <Text style={styles.noticeTitle}>Didn&apos;t create this account?</Text>
 
         <Text style={styles.noticeText}>
           You can safely ignore this email. No changes will be made to your

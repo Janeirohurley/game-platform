@@ -1,9 +1,5 @@
 import type { ComponentProps } from "react";
 import ControllerViewer from "@/components/controller-viewer";
-import {
-  DiscordIcon,
-  YoutubeIcon,
-} from "@hugeicons/core-free-icons";
 
 
 export const controllerViewerConfig: ComponentProps<

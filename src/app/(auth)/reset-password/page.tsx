@@ -12,7 +12,7 @@ import {
   EyeOffIcon,
   LockPasswordIcon,
 } from "@hugeicons/core-free-icons";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import Dice from "@/components/dice";
@@ -62,13 +62,17 @@ function ResetPasswordContent() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setError,
     formState: { errors, isSubmitting },
   } = form;
 
-  const password = watch("password");
-  const confirmPassword = watch("confirmPassword");
+  const password = useWatch({ control, name: "password", defaultValue: "" });
+  const confirmPassword = useWatch({
+    control,
+    name: "confirmPassword",
+    defaultValue: "",
+  });
 
   const passwordsMatch =
     password.length > 0 &&

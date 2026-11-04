@@ -144,7 +144,7 @@ export default function ForgotPasswordPage() {
                     </h1>
 
                     <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-white/45">
-                      Enter the email associated with your account and we'll
+                      Enter the email associated with your account and we&apos;ll
                       send you a link to reset your password.
                     </p>
                   </>
@@ -167,7 +167,7 @@ export default function ForgotPasswordPage() {
                       <span className="font-medium text-slate-800 dark:text-white/80">
                         {submittedEmail}
                       </span>
-                      , we've sent instructions to reset your password.
+                      , we&apos;ve sent instructions to reset your password.
                     </p>
                   </>
                 )}

@@ -7,7 +7,6 @@ import {
   AiBrainIcon,
   Clock01Icon,
   CrownIcon,
-  Doctor02Icon,
   EyeIcon,
 } from "@hugeicons/core-free-icons";
 
@@ -21,7 +20,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
@@ -186,7 +184,6 @@ function PlayerAvatar({
 
 export function MatchHud({
   snapshot,
-  isAdmin,
 }: MatchHudProps) {
   const phase = snapshot.phase;
 

@@ -5,7 +5,7 @@ import type { Room } from "@colyseus/sdk";
 import { Canvas } from "@react-three/fiber";
 
 import { RoomChat } from "@/components/realtime/chat";
-import { RallyScene } from "../components/rally-scene";
+import { RALLY_CAMERA, RALLY_RENDERER, RallyScene } from "../components/rally-scene";
 import { PADDLE_RANGE } from "../engine/constants";
 import { useOnlineRally } from "./use-online-rally";
 
@@ -136,8 +136,6 @@ export function RallyRoomView({
 
   const mine = side === 1 ? scores[1] : scores[0];
   const theirs = side === 1 ? scores[0] : scores[1];
-  const myName = side === 1 ? names[1] : names[0];
-  const theirName = side === 1 ? names[0] : names[1];
   const over = matchState === "over";
   const iWon = over && winnerUserId === viewerUserId;
 
@@ -153,55 +151,51 @@ export function RallyRoomView({
         }}
         onPointerUp={() => setPower(false)}
         onPointerLeave={() => setPower(false)}
-        className="relative aspect-[4/3] w-full max-w-4xl touch-none overflow-hidden rounded-2xl border border-[#d6d8cf] bg-[#e9e7df] select-none sm:aspect-[16/10] dark:border-white/10"
+        className="relative aspect-[4/3] w-full max-w-4xl touch-none overflow-hidden rounded-2xl border border-[#b6c4bd] bg-[#738589] select-none sm:aspect-[16/10] dark:border-white/10"
       >
-        <Canvas shadows camera={{ position: [0, 3.35, 8.6], fov: 42 }}>
-          <color attach="background" args={["#e9e7df"]} />
-          <fog attach="fog" args={["#e9e7df", 12, 24]} />
-          <RallyScene read={read} />
+        <Canvas
+          shadows="percentage"
+          camera={RALLY_CAMERA}
+          dpr={[1, 1.75]}
+          gl={RALLY_RENDERER}
+        >
+          <color attach="background" args={["#738589"]} />
+          <RallyScene read={read} scores={scores} scoreLabels={names} />
         </Canvas>
 
-        {/* Scoreboard */}
-        <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2">
-          <div className="flex items-center gap-6 rounded-[17px] border border-[#d6d8cf] bg-[#f5f4ee]/90 px-6 py-3 backdrop-blur-sm">
-            <Score label={truncate(myName)} value={mine} accent />
-            <span className="-mt-1 text-[#b5bcb0]">·</span>
-            <Score label={truncate(theirName)} value={theirs} />
-          </div>
-
-          <p className="mt-2 text-center text-[9px] font-bold tracking-[2.2px] text-[#768170]">
-            {matchState === "ready"
-              ? mustServe
-                ? "À TOI DE SERVIR"
-                : "SERVICE ADVERSE"
-              : `ÉCHANGE ${rally} · RECORD ${best}`}
-          </p>
-        </div>
+        {/* Le score reste sur le tableau mural ; ici, on garde seulement l'etat du match. */}
+        <p className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-cyan-100/15 bg-[#102126]/88 px-3 py-1.5 text-[10px] font-semibold tracking-[0.14em] text-cyan-50/75">
+          {matchState === "ready"
+            ? mustServe
+              ? "À TOI DE SERVIR"
+              : "SERVICE ADVERSE"
+            : `ÉCHANGE ${rally} · RECORD ${best}`}
+        </p>
 
         {lastPoint && !over && (
-          <p className="pointer-events-none absolute bottom-14 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[#20302a]/85 px-4 py-1.5 text-xs font-medium text-[#e9e7df]">
+          <p className="pointer-events-none absolute bottom-14 left-1/2 z-10 -translate-x-1/2 rounded-md border border-cyan-100/15 bg-[#102126]/92 px-4 py-1.5 text-xs font-medium text-[#e7f1ed]">
             {lastPoint.side === side ? "Point pour toi" : "Point adverse"} ·{" "}
             {lastPoint.reason}
           </p>
         )}
 
-        <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 text-center text-[9px] font-bold tracking-[2px] text-[#768170]">
+        <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 text-center text-xs font-semibold tracking-[0.14em] text-cyan-50/60">
           SOURIS OU A/D POUR BOUGER · MAINTIENS POUR FRAPPER FORT
         </p>
 
         {mustServe && (
-          <p className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center text-sm font-semibold text-[#20302a]">
+          <p className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-md bg-[#071116]/80 px-4 py-2 text-center text-sm font-semibold text-[#f0f8f3]">
             Clique ou appuie sur Espace pour servir
           </p>
         )}
 
         {over && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#e9e7df]/85 backdrop-blur-sm">
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#071116]/85 backdrop-blur-sm">
             <div className="px-6 text-center">
-              <h2 className="text-3xl font-black tracking-[-1.6px] text-[#202c28]">
+              <h2 className="text-3xl font-black tracking-[-1.6px] text-[#f0f8f3]">
                 {iWon ? "Bien joué." : "On remet ça ?"}
               </h2>
-              <p className="mt-3 text-sm text-[#5d675e]">
+              <p className="mt-3 text-sm text-cyan-50/65">
                 {mine} – {theirs} · meilleur échange : {best}
               </p>
             </div>
@@ -214,28 +208,3 @@ export function RallyRoomView({
   );
 }
 
-const truncate = (name: string) =>
-  (name.length > 7 ? `${name.slice(0, 7)}…` : name).toUpperCase();
-
-function Score({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: boolean;
-}) {
-  return (
-    <span className="flex min-w-[46px] flex-col gap-1 text-[9px] font-bold tracking-[2px] text-[#737d72]">
-      {label}
-      <span
-        className={`text-[31px] font-medium leading-none tracking-[-1px] tabular-nums ${
-          accent ? "text-[#cf583c]" : "text-[#273d31]"
-        }`}
-      >
-        {String(value).padStart(2, "0")}
-      </span>
-    </span>
-  );
-}

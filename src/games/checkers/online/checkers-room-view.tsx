@@ -25,7 +25,15 @@ export function CheckersRoomView({
   room,
   viewerUserId,
 }: CheckersRoomViewProps) {
-  const { state, viewerColor, canPlay, labels, lastMove, sendMove } =
+  const {
+    state,
+    viewerColor,
+    canPlay,
+    labels,
+    lastMove,
+    turnSecondsLeft,
+    sendMove,
+  } =
     useOnlineCheckers(room, viewerUserId);
 
   const { from, pending, targets, movableFrom, rejected, select } =
@@ -41,7 +49,20 @@ export function CheckersRoomView({
         viewerColor={viewerColor ?? undefined}
         invalidHint={rejected !== null}
       />
-
+      {state.outcome.kind === "playing" && turnSecondsLeft > 0 && (
+        <p
+          className={`text-sm font-semibold tabular-nums ${
+            turnSecondsLeft <= 15
+              ? "text-red-500 dark:text-red-400"
+              : "text-slate-600 dark:text-white/65"
+          }`}
+          role="status"
+        >
+          <span>{canPlay ? "À toi" : "Tour adverse"}</span>
+          <span aria-hidden> · </span>
+          <span>{`${turnSecondsLeft}s`}</span>
+        </p>
+      )}
       <CheckersBoard
         board={state.board}
         orientation={viewerColor ?? "white"}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 
-import { RallyScene } from "../components/rally-scene";
+import { RALLY_CAMERA, RALLY_RENDERER, RallyScene } from "../components/rally-scene";
 import { TARGET_SCORE } from "../engine/constants";
 import type { Difficulty } from "../engine/types";
 import { useRallyLoop } from "./use-rally-loop";
@@ -131,16 +131,19 @@ export function LocalRally() {
       onPointerDown={handlePointerDown}
       onPointerUp={() => setPower(false)}
       onPointerLeave={() => setPower(false)}
-      className="relative aspect-[4/3] w-full touch-none overflow-hidden rounded-2xl border border-[#d6d8cf] bg-[#e9e7df] select-none sm:aspect-[16/10] dark:border-white/10"
+      className="relative aspect-[4/3] w-full touch-none overflow-hidden rounded-2xl border border-[#b6c4bd] bg-[#738589] select-none sm:aspect-[16/10] dark:border-white/10"
     >
       <Canvas
-        shadows
-        camera={{ position: [0, 3.35, 8.6], fov: 42 }}
+        shadows="percentage"
+        camera={RALLY_CAMERA}
+        dpr={[1, 1.75]}
+        gl={RALLY_RENDERER}
         className="absolute inset-0"
       >
-        <color attach="background" args={["#e9e7df"]} />
-        <fog attach="fog" args={["#e9e7df", 12, 24]} />
+        <color attach="background" args={["#738589"]} />
         <RallyScene
+          scores={hud.scores}
+          scoreLabels={["TOI", "CPU"]}
           read={() => ({
             ball: match.ball,
             near: { x: match.player.x, y: match.player.y, vx: match.player.vx },
@@ -149,24 +152,16 @@ export function LocalRally() {
         />
       </Canvas>
 
-      {/* Scoreboard */}
-      <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2">
-        <div className="flex items-center gap-6 rounded-[17px] border border-[#d6d8cf] bg-[#f5f4ee]/90 px-6 py-3 backdrop-blur-sm">
-          <Score label="TOI" value={hud.scores[0]} accent />
-          <span className="-mt-1 text-[#b5bcb0]">·</span>
-          <Score label="CPU" value={hud.scores[1]} />
-        </div>
-
-        <p className="mt-2 text-center text-[9px] font-bold tracking-[2.2px] text-[#768170]">
-          {paused
-            ? "EN PAUSE"
-            : awaitingServe
-              ? hud.server === 0
-                ? "À TOI DE SERVIR"
-                : "SERVICE ADVERSE"
-              : `ÉCHANGE ${hud.rally} · RECORD ${hud.best}`}
-        </p>
-      </div>
+      {/* L'etat du match n'est pas un deuxieme tableau : le score reste sur le mur. */}
+      <p className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-cyan-100/15 bg-[#102126]/88 px-3 py-1.5 text-[10px] font-semibold tracking-[0.14em] text-cyan-50/75">
+        {paused
+          ? "EN PAUSE"
+          : awaitingServe
+            ? hud.server === 0
+              ? "À TOI DE SERVIR"
+              : "SERVICE ADVERSE"
+            : `ÉCHANGE ${hud.rally} · RECORD ${hud.best}`}
+      </p>
 
       {/* Difficulty */}
       <div className="absolute right-3 top-3 z-10 flex gap-1.5">
@@ -176,10 +171,10 @@ export function LocalRally() {
             type="button"
             onClick={() => handleLevel(option)}
             aria-pressed={level === option}
-            className={`rounded-full border px-3 py-1 text-[10px] font-bold tracking-[1.4px] transition ${
+            className={`rounded-md border px-3 py-1 text-[10px] font-bold tracking-[1.4px] transition ${
               level === option
-                ? "border-[#d9553a] bg-[#d9553a] text-white"
-                : "border-[#c9cdc4] bg-[#ecebe5]/70 text-[#34443c] hover:bg-white"
+                ? "border-[#d96d53] bg-[#d9553a] text-white"
+                : "border-cyan-50/15 bg-[#102126]/85 text-cyan-50/70 hover:bg-[#183037]"
             }`}
           >
             {LEVEL_LABELS[option].toUpperCase()}
@@ -189,26 +184,26 @@ export function LocalRally() {
 
       {/* Point feedback */}
       {lastPoint && !over && (
-        <p className="pointer-events-none absolute bottom-16 left-1/2 z-10 -translate-x-1/2 rounded-full bg-[#20302a]/85 px-4 py-1.5 text-xs font-medium text-[#e9e7df]">
+        <p className="pointer-events-none absolute bottom-16 left-1/2 z-10 -translate-x-1/2 rounded-md border border-cyan-100/15 bg-[#102126]/92 px-4 py-1.5 text-xs font-medium text-[#e7f1ed]">
           {lastPoint.side === 0 ? "Point pour toi" : "Point pour le CPU"} ·{" "}
           {lastPoint.reason}
         </p>
       )}
 
       {/* Controls hint */}
-      <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 text-center text-[9px] font-bold tracking-[2px] text-[#768170]">
+      <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 text-center text-xs font-semibold tracking-[0.14em] text-cyan-50/60">
         SOURIS OU A/D POUR BOUGER · MAINTIENS POUR FRAPPER FORT · P POUR LA PAUSE
       </p>
 
       {/* Overlays */}
       {(intro || over || paused) && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#e9e7df]/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#071116]/85 backdrop-blur-sm">
           <div className="max-w-sm px-6 text-center">
-            <h2 className="text-3xl font-black tracking-[-1.6px] text-[#202c28]">
+            <h2 className="text-3xl font-black tracking-[-1.6px] text-[#f0f8f3]">
               {intro ? "Rally" : over ? (hud.winner === 0 ? "Bien joué." : "On remet ça ?") : "Pause"}
             </h2>
 
-            <p className="mt-3 text-sm text-[#5d675e]">
+            <p className="mt-3 text-sm text-cyan-50/65">
               {intro
                 ? `Premier à ${TARGET_SCORE} points, avec deux points d'écart. Prends ton temps.`
                 : over
@@ -219,7 +214,7 @@ export function LocalRally() {
             <button
               type="button"
               onClick={() => (paused ? togglePause() : start(level))}
-              className="mt-6 h-11 rounded-full bg-[#d9553a] px-7 text-sm font-bold text-white transition hover:bg-[#c24b32]"
+              className="mt-6 h-11 rounded-md bg-[#d9553a] px-7 text-sm font-bold text-white transition hover:bg-[#c24b32]"
             >
               {intro ? "Commencer" : over ? "Rejouer" : "Reprendre"}
             </button>
@@ -230,25 +225,3 @@ export function LocalRally() {
   );
 }
 
-function Score({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: boolean;
-}) {
-  return (
-    <span className="flex min-w-[38px] flex-col gap-1 text-[9px] font-bold tracking-[2px] text-[#737d72]">
-      {label}
-      <span
-        className={`text-[31px] font-medium leading-none tracking-[-1px] tabular-nums ${
-          accent ? "text-[#cf583c]" : "text-[#273d31]"
-        }`}
-      >
-        {String(value).padStart(2, "0")}
-      </span>
-    </span>
-  );
-}

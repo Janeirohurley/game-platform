@@ -22,7 +22,7 @@ export default function CheckersLocalPage() {
       <div className="relative z-20">
         <Navbar />
 
-        <section className="mx-auto w-full max-w-3xl px-4 pb-20 pt-8 sm:px-6">
+        <section className="mx-auto w-full max-w-7xl px-4 pb-20 pt-8 sm:px-6">
           <nav
             aria-label="Fil d'Ariane"
             className="flex items-center gap-2 text-xs text-slate-400 dark:text-white/35"

@@ -10,6 +10,7 @@ interface CheckersRoomState {
   board?: string;
   turnColor?: string;
   currentTurn?: string;
+  turnSecondsLeft?: number;
   idlePlies?: number;
   outcome?: string;
   outcomeReason?: string;
@@ -27,6 +28,8 @@ export interface OnlineCheckers {
   /** Display names keyed by colour. */
   labels: Record<Color, string>;
   lastMove: readonly number[];
+  /** Secondes restantes du tour, calculees par le serveur. */
+  turnSecondsLeft: number;
   /** Send a move intent. The server decides whether it happens. */
   sendMove: (move: Move) => void;
 }
@@ -120,5 +123,13 @@ export function useOnlineCheckers(
     [room],
   );
 
-  return { state, viewerColor, canPlay, labels, lastMove, sendMove };
+  return {
+    state,
+    viewerColor,
+    canPlay,
+    labels,
+    lastMove,
+    turnSecondsLeft: raw.turnSecondsLeft ?? 0,
+    sendMove,
+  };
 }

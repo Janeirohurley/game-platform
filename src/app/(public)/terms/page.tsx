@@ -64,7 +64,7 @@ export default function TermsPage() {
           <li>impersonate another user or organization;</li>
           <li>spam, scam or deliberately mislead other players;</li>
           <li>share malicious software or harmful links;</li>
-          <li>attempt to access another user's account;</li>
+          <li>attempt to access another user&apos;s account;</li>
           <li>interfere with the operation of the platform;</li>
           <li>use cheats, exploits, bots or unauthorized automation;</li>
           <li>use the platform for unlawful activities.</li>
@@ -77,7 +77,7 @@ export default function TermsPage() {
         <p>
           Realtime games depend on a fair and reliable environment. You must
           not manipulate matchmaking, falsify game results, exploit technical
-          vulnerabilities or interfere with another player's connection.
+          vulnerabilities or interfere with another player&apos;s connection.
         </p>
 
         <p>

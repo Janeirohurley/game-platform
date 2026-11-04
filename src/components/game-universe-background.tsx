@@ -322,7 +322,9 @@ export default function GameUniverseBackground() {
     // Animation
     // ---------------------------------------------------------------------------
 
-    const clock = new THREE.Clock();
+    // THREE.Clock est déprécié depuis three 0.186 : Timer fournit les mêmes
+    // mesures (écoulé/delta) et sait geler le temps quand l'onglet est masqué.
+    const timer = new THREE.Timer();
 
     let animationFrame = 0;
 
@@ -330,8 +332,10 @@ export default function GameUniverseBackground() {
       animationFrame =
         requestAnimationFrame(animate);
 
+      timer.update();
+
       const elapsed =
-        clock.getElapsedTime();
+        timer.getElapsed();
 
       pointer.x = lerp(
         pointer.x,

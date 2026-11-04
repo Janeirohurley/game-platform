@@ -163,6 +163,7 @@ export interface CheckersSnapshot extends LobbySnapshot {
   turnColor: string;
   currentTurn: string;
   turnDeadline: number;
+  turnSecondsLeft: number;
   idlePlies: number;
   /** "playing" | "win" | "draw". */
   outcome: string;

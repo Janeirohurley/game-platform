@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -9,7 +10,6 @@ import {
 
 import { getGameBySlug } from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
-import GameUniverseBackground from "@/components/game-universe-background";
 
 export const metadata: Metadata = {
   title: "Tetris | Game Arena",
@@ -27,16 +27,27 @@ export default function TetrisPage() {
   if (!game) return null;
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
-      <GameUniverseBackground />
+    <main className="relative isolate min-h-screen overflow-x-clip bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-184 mask-[radial-gradient(ellipse_60%_72%_at_78%_38%,#000_18%,transparent_76%)]"
+      >
+        <Image
+          src="/tetris.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[75%_40%] opacity-[.16] contrast-125 sm:opacity-[.2] dark:opacity-[.24]"
+        />
+      </div>
 
       <div className="relative z-20">
         <Navbar />
 
         {/* Hero */}
         <section className="mx-auto max-w-7xl px-4 pt-10 sm:px-6 lg:px-8">
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div>
+          <div className="max-w-xl">
               <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-purple-600 dark:text-purple-300">
                 <HugeiconsIcon icon={TimeIcon} size={14} strokeWidth={1.8} />
                 {game.category} · Parties de 5 à 15 min
@@ -81,27 +92,7 @@ export default function TetrisPage() {
                   </Link>
                 )}
               </div>
-            </div>
 
-            {/* Visuel : un aperçu de pile de pièces, purement décoratif. */}
-            <div className="relative" aria-hidden="true">
-              <div
-                className={`relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-3xl border border-slate-200/70 bg-linear-to-br shadow-2xl dark:border-white/10 ${game.accent ?? ""}`}
-              >
-                <div className="grid grid-cols-6 gap-1">
-                  {HERO_CELLS.map((color, index) => (
-                    <div
-                      key={index}
-                      className={`size-8 sm:size-10 ${color}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div
-                className={`absolute -right-6 -top-6 -z-10 size-40 rounded-full blur-3xl ${game.glow ?? ""}`}
-              />
-            </div>
           </div>
         </section>
 
@@ -161,10 +152,3 @@ export default function TetrisPage() {
   );
 }
 
-/** Mini-pile décorative : 6 colonnes x 4 lignes, `bg-white/10` = case vide. */
-const HERO_CELLS = [
-  "bg-white/10", "bg-white/10", "bg-violet-500", "bg-violet-500", "bg-violet-500", "bg-white/10",
-  "bg-white/10", "bg-white/10", "bg-white/10", "bg-violet-500", "bg-white/10", "bg-white/10",
-  "bg-cyan-500", "bg-cyan-500", "bg-white/10", "bg-emerald-500", "bg-emerald-500", "bg-white/10",
-  "bg-cyan-500", "bg-amber-500", "bg-amber-500", "bg-amber-500", "bg-rose-500", "bg-rose-500",
-];

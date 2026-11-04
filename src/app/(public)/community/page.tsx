@@ -16,22 +16,6 @@ import GameUniverseBackground from "@/components/game-universe-background";
 import Dice from "@/components/dice";
 import Image from "next/image";
 import { socialLinks } from "@/lib/social-config";
-type Player = {
-  name: string;
-  status: string;
-  game: string;
-  initials: string;
-  accent: string;
-};
-
-type Activity = {
-  player: string;
-  action: string;
-  game: string;
-  time: string;
-  accent: string;
-};
-
 type Community = {
   name: string;
   description: string;
@@ -39,89 +23,6 @@ type Community = {
   category: string;
   accent: string;
 };
-
-const players: Player[] = [
-  {
-    name: "Nova",
-    status: "In match",
-    game: "Neon Drift",
-    initials: "N",
-    accent: "bg-cyan-500",
-  },
-  {
-    name: "Kairo",
-    status: "Looking for player",
-    game: "Hex Clash",
-    initials: "K",
-    accent: "bg-violet-500",
-  },
-  {
-    name: "Lumi",
-    status: "In match",
-    game: "Pixel Duel",
-    initials: "L",
-    accent: "bg-rose-500",
-  },
-  {
-    name: "Orbit",
-    status: "Online",
-    game: "Orbital Chess",
-    initials: "O",
-    accent: "bg-emerald-500",
-  },
-  {
-    name: "Rex",
-    status: "Looking for player",
-    game: "Gravity Run",
-    initials: "R",
-    accent: "bg-orange-500",
-  },
-  {
-    name: "Mika",
-    status: "In match",
-    game: "Mind Grid",
-    initials: "M",
-    accent: "bg-indigo-500",
-  },
-];
-
-const activities: Activity[] = [
-  {
-    player: "Nova",
-    action: "joined a match in",
-    game: "Neon Drift",
-    time: "Just now",
-    accent: "bg-cyan-500",
-  },
-  {
-    player: "Kairo",
-    action: "is looking for players in",
-    game: "Hex Clash",
-    time: "1 min ago",
-    accent: "bg-violet-500",
-  },
-  {
-    player: "Lumi",
-    action: "finished a match in",
-    game: "Pixel Duel",
-    time: "3 min ago",
-    accent: "bg-rose-500",
-  },
-  {
-    player: "Orbit",
-    action: "started playing",
-    game: "Orbital Chess",
-    time: "5 min ago",
-    accent: "bg-emerald-500",
-  },
-  {
-    player: "Rex",
-    action: "joined the community",
-    game: "",
-    time: "8 min ago",
-    accent: "bg-orange-500",
-  },
-];
 
 const communities: Community[] = [
   {
@@ -215,7 +116,7 @@ export default function CommunityPage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base dark:text-white/50">
-              See who's online, discover active groups and find players who
+              See who&apos;s online, discover active groups and find players who
               enjoy the same games as you.
             </p>
 
@@ -455,21 +356,13 @@ export default function CommunityPage() {
                     aria-label={social.name}
                     className="text-slate-400 transition hover:text-slate-950 dark:text-white/40 dark:hover:text-white"
                   >
-                    {social.type === "image" ? (
-                      <Image
-                        src={social.src}
-                        alt={social.name}
-                        width={24}
-                        height={24}
-                        className="object-contain"
-                      />
-                    ) : (
-                      <HugeiconsIcon
-                        icon={social.icon}
-                        size={21}
-                        strokeWidth={1.6}
-                      />
-                    )}
+                    <Image
+                      src={social.src}
+                      alt={social.name}
+                      width={24}
+                      height={24}
+                      className="object-contain"
+                    />
                   </a>
                 ))}
               </div>
@@ -478,34 +371,5 @@ export default function CommunityPage() {
         </section>
       </div>
     </main>
-  );
-}
-
-function StatCard({
-  icon,
-  value,
-  label,
-}: {
-  icon: typeof UserGroupIcon;
-  value: string;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-4 border-b border-slate-200 px-4 py-5 sm:border-b-0 sm:border-r dark:border-white/10">
-      <HugeiconsIcon
-        icon={icon}
-        size={20}
-        strokeWidth={1.6}
-        className="shrink-0 text-slate-500 dark:text-white/50"
-      />
-
-      <div>
-        <p className="text-lg font-semibold tracking-tight">{value}</p>
-
-        <p className="mt-0.5 text-xs text-slate-400 dark:text-white/30">
-          {label}
-        </p>
-      </div>
-    </div>
   );
 }

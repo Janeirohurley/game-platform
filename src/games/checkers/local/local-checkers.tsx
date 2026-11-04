@@ -59,7 +59,7 @@ export function LocalCheckers() {
         className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-5 text-sm font-semibold transition hover:bg-slate-950 hover:text-white dark:border-white/10 dark:hover:bg-white dark:hover:text-black"
       >
         <HugeiconsIcon icon={RefreshIcon} size={16} strokeWidth={1.8} />
-        {playing ? "Recommencer" : "Nouvelle partie"}
+        <span>{playing ? "Recommencer" : "Nouvelle partie"}</span>
       </button>
     </div>
   );
