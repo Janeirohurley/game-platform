@@ -11,6 +11,17 @@ COPY package.json bun.lock ./
 
 RUN bun install --frozen-lockfile
 
+# ---------------------------------------------------------------------------
+# tools: source + dev dependencies, without building Next.js. Used by compose
+# for one-shot jobs (drizzle migrations, admin:create).
+# ---------------------------------------------------------------------------
+FROM deps AS tools
+
+WORKDIR /app
+
+COPY . .
+
+CMD ["bun", "run", "db:migrate"]
 
 # ---------------------------------------------------------------------------
 # builder: compiles the app.
@@ -19,7 +30,7 @@ RUN bun install --frozen-lockfile
 # so the realtime URL has to be known HERE, not at `docker run`. It arrives as
 # a build arg from compose.yaml; changing it requires a rebuild.
 # ---------------------------------------------------------------------------
-FROM oven/bun:1.4.2 AS builder
+FROM deps AS builder
 
 WORKDIR /app
 
@@ -42,10 +53,14 @@ ENV NEXT_PUBLIC_TURN_USERNAME=${NEXT_PUBLIC_TURN_USERNAME}
 ARG NEXT_PUBLIC_TURN_CREDENTIAL=
 ENV NEXT_PUBLIC_TURN_CREDENTIAL=${NEXT_PUBLIC_TURN_CREDENTIAL}
 
+# LiveKit endpoint the BROWSER dials; inlined at build time, same reason
+# as the TURN args above.
+ARG NEXT_PUBLIC_LIVEKIT_URL=
+ENV NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL}
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN bun run build
