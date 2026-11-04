@@ -188,7 +188,7 @@ const nodeTypes = {
 };
 
 export default function MatchWorkflow() {
-  const [nodes, setNodes, onNodesChange] =
+  const [nodes, , onNodesChange] =
     useNodesState<MatchNode>(initialNodes);
 
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);

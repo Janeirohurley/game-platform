@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -117,9 +117,15 @@ export default function ProfilePageClient({ data }: Props) {
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     formState: { errors, isSubmitting, isDirty },
   } = form;
+
+  const favoriteGames = useWatch({
+    control,
+    name: "favoriteGames",
+    defaultValue: defaultValues.favoriteGames,
+  }) ?? [];
 
   useEffect(() => {
     reset(defaultValues);
@@ -164,6 +170,18 @@ export default function ProfilePageClient({ data }: Props) {
     setSessionsLoading(false);
   }
 
+  function handleTabChange(nextTab: Tab) {
+    if (nextTab === tab) return;
+
+    setTab(nextTab);
+
+    // Le changement d'onglet est une intention utilisateur : le chargement
+    // demarre ici plutot que dans un effet qui provoquerait un rendu en cascade.
+    if (nextTab === "security") {
+      void loadSessions();
+    }
+  }
+
   async function revokeOtherSessions() {
     setRevoking(true);
     setSessionError("");
@@ -198,12 +216,6 @@ export default function ProfilePageClient({ data }: Props) {
     setRevoking(false);
   }
 
-  useEffect(() => {
-    if (tab === "security") {
-      void loadSessions();
-    }
-  }, [tab]);
-
   if (isPending && !liveSession) {
     return (
       <main className="min-h-svh bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
@@ -234,7 +246,7 @@ export default function ProfilePageClient({ data }: Props) {
             <button
               key={value}
               type="button"
-              onClick={() => setTab(value)}
+              onClick={() => handleTabChange(value)}
               className={[
                 "border-b-2 px-4 py-3 text-sm font-medium transition",
                 tab === value
@@ -503,8 +515,7 @@ export default function ProfilePageClient({ data }: Props) {
                   </legend>
                   <div className="flex flex-wrap gap-2">
                     {games.map((game) => {
-                      const current = watch("favoriteGames") ?? [];
-                      const checked = current.includes(game.id);
+                      const checked = favoriteGames.includes(game.id);
                       return (
                         <label
                           key={game.id}

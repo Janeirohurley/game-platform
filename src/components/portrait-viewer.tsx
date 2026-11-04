@@ -413,8 +413,9 @@ export default function PortraitViewer({
     // Animation
     // -------------------------------------------------------------------------
 
-    const clock =
-      new THREE.Clock();
+    // THREE.Clock est déprécié depuis three 0.186 : Timer le remplace.
+    const timer =
+      new THREE.Timer();
 
     let animationFrame = 0;
 
@@ -424,8 +425,10 @@ export default function PortraitViewer({
           animate,
         );
 
+      timer.update();
+
       const elapsed =
-        clock.getElapsedTime();
+        timer.getElapsed();
 
       /*
        * Very subtle breathing movement.

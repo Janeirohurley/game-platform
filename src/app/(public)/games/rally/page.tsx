@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -5,7 +6,6 @@ import { Globe02Icon, JoystickIcon, TimeIcon, UserGroupIcon } from "@hugeicons/c
 
 import { getGameBySlug } from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
-import GameUniverseBackground from "@/components/game-universe-background";
 
 export const metadata: Metadata = {
   title: "Rally | Game Arena",
@@ -37,15 +37,26 @@ export default function RallyPage() {
   if (!game) return null;
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
-      <GameUniverseBackground />
+    <main className="relative isolate min-h-screen overflow-x-clip bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-184 mask-[radial-gradient(ellipse_60%_72%_at_78%_38%,#000_18%,transparent_76%)]"
+      >
+        <Image
+          src="/Rally.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[75%_40%] opacity-[.16] contrast-125 sm:opacity-[.2] dark:opacity-[.24]"
+        />
+      </div>
 
       <div className="relative z-20">
         <Navbar />
 
         <section className="mx-auto max-w-7xl px-4 pt-10 sm:px-6 lg:px-8">
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div>
+          <div className="max-w-xl">
               <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-orange-600 dark:text-orange-300">
                 <HugeiconsIcon icon={TimeIcon} size={14} strokeWidth={1.8} />
                 {game.category} · 5–10 min par partie
@@ -87,25 +98,6 @@ export default function RallyPage() {
                   Solo contre l&apos;ordinateur
                 </Link>
               </div>
-            </div>
-
-            {/* Hero: a still of the table, in the game's own palette. */}
-            <div className="relative">
-              <div
-                aria-hidden
-                className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-[#d6d8cf] bg-[#e9e7df] shadow-2xl"
-              >
-                <div className="absolute inset-x-[14%] top-[26%] bottom-[14%] rounded-sm bg-[#1d4f3f]">
-                  <div className="absolute left-1/2 top-0 h-full w-[2px] -translate-x-1/2 bg-[#f4f2ec]/85" />
-                  <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 bg-[#f4f2ec]/90" />
-                </div>
-                <div className="absolute left-[30%] top-[62%] size-10 rounded-full border-2 border-[#b8492f] bg-[#d9553a]" />
-                <div className="absolute right-[30%] top-[30%] size-9 rounded-full border-2 border-[#161f1b] bg-[#24302b]" />
-                <div className="absolute left-[52%] top-[46%] size-3 rounded-full bg-[#fffdf5] shadow" />
-              </div>
-
-              <div className="absolute -right-6 -top-6 -z-10 size-40 rounded-full bg-orange-400/20 blur-3xl" />
-            </div>
           </div>
         </section>
 

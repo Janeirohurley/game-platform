@@ -15,7 +15,7 @@
  * Dépendances : react, three >= 0.152.   npm i three && npm i -D @types/three
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 import * as THREE from "three";
 
@@ -537,18 +537,39 @@ export default function PlayingCard({
   });
 
   // Options « à chaud » : lues par la boucle de rendu, sans reconstruire la scène.
-  const live: LiveOptions = {
-    width, height, clickable, rotateSpeed, flipDuration, tilt, float, showShadow,
-    colorAnimation: {
-      enabled: colorAnimation?.enabled ?? false,
-      duration: colorAnimation?.duration ?? 4000,
-      palettes: colorAnimation?.palettes ?? [],
-    },
-    camera: { fov: camera?.fov ?? 30, distance: camera?.distance, y: camera?.y ?? 1 },
-    onFlip,
-  };
+  const live = useMemo<LiveOptions>(
+    () => ({
+      width, height, clickable, rotateSpeed, flipDuration, tilt, float, showShadow,
+      colorAnimation: {
+        enabled: colorAnimation?.enabled ?? false,
+        duration: colorAnimation?.duration ?? 4000,
+        palettes: colorAnimation?.palettes ?? [],
+      },
+      camera: { fov: camera?.fov ?? 30, distance: camera?.distance, y: camera?.y ?? 1 },
+      onFlip,
+    }),
+    [
+      width,
+      height,
+      clickable,
+      rotateSpeed,
+      flipDuration,
+      tilt,
+      float,
+      showShadow,
+      colorAnimation,
+      camera,
+      onFlip,
+    ],
+  );
   const liveRef = useRef(live);
-  liveRef.current = live;
+
+  // La boucle Three.js lit les options courantes sans reconstruire la scene.
+  // Les ecrire apres le rendu respecte le cycle React tout en evitant une frame
+  // de rendu avec des props perimees apres la synchronisation de l'effet.
+  useEffect(() => {
+    liveRef.current = live;
+  }, [live]);
 
   const frontHex = hex(frontColor);
   const backHex = hex(backColor);

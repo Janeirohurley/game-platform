@@ -41,6 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# one-off typecheck configs generated during reviews
+.codex-rally-typecheck.json
+
 certificates
 /.freebuff/
 

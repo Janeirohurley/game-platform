@@ -20,8 +20,10 @@ import { ContactShadows } from "@react-three/drei";
 
 /** Props de <Canvas> pour un rendu net, y compris sur écran 4K. */
 export const LUDO_CANVAS_PROPS: Partial<CanvasProps> = {
-  // Ombres douces projetées par les pions et le dé sur la table.
-  shadows: true,
+  // Ombres projetées par les pions et le dé sur la table. "percentage"
+  // (PCFShadowMap) remplace les anciennes ombres douces : three 0.186 a
+  // retiré PCFSoftShadowMap, que `shadows: true` sélectionnait.
+  shadows: "percentage",
   // Densité de pixels : jusqu'à 2x. Sans ça R3F reste à 1x et le plateau est
   // flou sur un écran 4K / Retina.
   dpr: [1, 2],

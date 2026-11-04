@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -12,7 +13,6 @@ import {
 import { auth } from "@/lib/auth";
 import { getGameBySlug } from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
-import GameUniverseBackground from "@/components/game-universe-background";
 import { CheckersEntryActions } from "./checkers-entry-actions";
 
 export const metadata: Metadata = {
@@ -51,8 +51,20 @@ export default async function CheckersPage() {
   const session = await auth.api.getSession({ headers: await headers() });
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
-      <GameUniverseBackground />
+    <main className="relative isolate min-h-screen overflow-x-clip bg-slate-50 text-slate-950 dark:bg-[#05070b] dark:text-white">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-184 mask-[radial-gradient(ellipse_60%_72%_at_78%_38%,#000_18%,transparent_76%)]"
+      >
+        <Image
+          src="/checkers.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[75%_40%] opacity-[.16] contrast-125 sm:opacity-[.2] dark:opacity-[.24]"
+        />
+      </div>
 
       <div className="relative z-20">
         <Navbar />

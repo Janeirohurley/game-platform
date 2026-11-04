@@ -1,19 +1,10 @@
-import { DiscordIcon, YoutubeIcon } from "@hugeicons/core-free-icons";
-
 // ===============social link ========================
-type SocialLink =
-  | {
-      name: string;
-      href: string;
-      type: "image";
-      src: string;
-    }
-  | {
-      name: string;
-      href: string;
-      type: "icon";
-      icon: typeof YoutubeIcon;
-    };
+type SocialLink = {
+  name: string;
+  href: string;
+  type: "image";
+  src: string;
+};
 
 export const socialLinks: SocialLink[] = [
   {

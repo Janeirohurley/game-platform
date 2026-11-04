@@ -291,29 +291,3 @@ export default function HowItWorksPage() {
     </main>
   );
 }
-
-function FlowItem({
-  icon,
-  label,
-}: {
-  icon: typeof Search01Icon;
-  label: string;
-}) {
-  return (
-    <div className="flex shrink-0 flex-col items-center text-center">
-      <div className="flex size-14 items-center justify-center rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/5">
-        <HugeiconsIcon icon={icon} size={22} strokeWidth={1.7} />
-      </div>
-
-      <span className="mt-3 text-xs font-medium text-slate-500 dark:text-white/55">
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function FlowLine() {
-  return (
-    <div className="mx-5 h-px flex-1 bg-linear-to-r from-slate-200 via-cyan-300/60 to-slate-200 dark:from-white/10 dark:via-cyan-400/30 dark:to-white/10" />
-  );
-}

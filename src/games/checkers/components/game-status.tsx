@@ -59,7 +59,7 @@ export function GameStatus({
           className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-700 dark:text-emerald-300"
         >
           <HugeiconsIcon icon={CrownIcon} size={16} strokeWidth={1.8} />
-          {outcomeText(outcome, labels)}
+          <span>{outcomeText(outcome, labels)}</span>
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035]">
@@ -86,9 +86,9 @@ export function GameStatus({
           </p>
 
           <p className="flex items-center gap-3 text-xs text-slate-500 dark:text-white/45">
-            <span>{labels.white} : {countPieces(board, "white")}</span>
+            <span>{`${labels.white} : ${countPieces(board, "white")}`}</span>
             <span aria-hidden>·</span>
-            <span>{labels.black} : {countPieces(board, "black")}</span>
+            <span>{`${labels.black} : ${countPieces(board, "black")}`}</span>
           </p>
         </div>
       )}
