@@ -57,7 +57,10 @@ export interface GameEntry {
  * foreign-ish validation) so a gameId can only ever be one the registry
  * knows. Add a game above and this follows automatically.
  */
-export const GAME_IDS = ["ludo", "checkers", "rally", "tetris"] as const;
+// GAME_IDS feeds the DB CHECK constraints (profiles, bots, stakes). Adding a
+// game here changes the generated DDL, so a migration must ship in the same
+// change — otherwise Drizzle and Postgres disagree.
+export const GAME_IDS = ["ludo", "checkers", "rally", "tetris", "chess"] as const;
 
 export type GameId = (typeof GAME_IDS)[number];
 
@@ -135,6 +138,21 @@ export const GAMES: readonly GameEntry[] = [
     icon: "RA",
     accent: "from-orange-300 via-red-500 to-emerald-800",
     glow: "bg-orange-400/20",
+  },
+  {
+    id: "chess",
+    slug: "chess",
+    title: "Chess",
+    description:
+      "Échecs 3D : deux joueurs sur un écran ou contre Stockfish. Règles complètes, promotion, roque et échec et mat.",
+    category: "Strategy",
+    minPlayers: 2,
+    maxPlayers: 2,
+    status: "live",
+    playableOnline: true,
+    icon: "EC",
+    accent: "from-stone-200 via-amber-300 to-amber-800",
+    glow: "bg-amber-300/20",
   },
 ] as const;
 
