@@ -15,11 +15,17 @@
 # For a Docker host to pull it without credentials, flip it to public under
 # the repo's Packages settings, or `docker login ghcr.io` on that host.
 #
-# NOTE (build args): the realtime URL is inlined into the JS bundle at BUILD
-# time. Set the repository variables NEXT_PUBLIC_REALTIME_URL (and optionally
-# NEXT_PUBLIC_TURN_*) under Settings → Secrets and variables → Actions →
-# Variables BEFORE relying on a published image — an empty value makes the
-# app derive the realtime URL from the page origin at runtime.
+# NOTE (build args): every NEXT_PUBLIC_* value is inlined at BUILD time —
+# and Next.js substitutes it in the SERVER bundle too, not only the browser
+# one, so a container environment can never override it afterwards. Set the
+# repository variables NEXT_PUBLIC_REALTIME_URL, NEXT_PUBLIC_LIVEKIT_URL (and
+# optionally NEXT_PUBLIC_TURN_*) under Settings → Secrets and variables →
+# Actions → Variables BEFORE relying on a published image — an empty value
+# makes the app derive the realtime URL from the page origin at runtime.
+#
+# The LiveKit address additionally has a RUNTIME escape hatch,
+# LIVEKIT_PUBLIC_URL (no prefix, read first by src/lib/livekit/config.ts),
+# so a deployment can repoint the media server without rebuilding.
 #
 # Deploy without building locally afterwards:
 #   compose: replace `build:` with `image: ghcr.io/janeirohurley/game-platform:develop`
@@ -88,6 +94,7 @@ jobs:
             NEXT_PUBLIC_TURN_URL=${{ vars.NEXT_PUBLIC_TURN_URL }}
             NEXT_PUBLIC_TURN_USERNAME=${{ vars.NEXT_PUBLIC_TURN_USERNAME }}
             NEXT_PUBLIC_TURN_CREDENTIAL=${{ vars.NEXT_PUBLIC_TURN_CREDENTIAL }}
+            NEXT_PUBLIC_LIVEKIT_URL=${{ vars.NEXT_PUBLIC_LIVEKIT_URL }}
 
       # ---------------------------------------------------------------------
       # Tooling image (`tools` stage): source + dev dependencies, no Next.js

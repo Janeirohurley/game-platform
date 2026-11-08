@@ -107,9 +107,31 @@ export function readLiveKitServerCredentials(): LiveKitServerCredentials | null 
 /**
  * The WebSocket endpoint the BROWSER dials.
  *
- * `NEXT_PUBLIC_LIVEKIT_URL` is intentionally public: it is the address
- * of the media server, not a credential, and the browser needs it to
- * open the WebSocket.
+ * The address is public by design — it is where the media server lives,
+ * not a credential — but it is handed to the browser BY THE SERVER, in
+ * the token response. No client bundle reads it.
+ *
+ * Resolution order, and why it is not the obvious one:
+ *
+ *   1. `LIVEKIT_PUBLIC_URL` — a PLAIN variable, deliberately without the
+ *      `NEXT_PUBLIC_` prefix. That prefix is precisely the trap: at build
+ *      time Next.js substitutes every `process.env.NEXT_PUBLIC_*`
+ *      occurrence textually, in the SERVER bundle as much as the browser
+ *      one. An image built without the matching build arg therefore
+ *      carries the empty value FOREVER, and no runtime environment on the
+ *      container can override it. That is exactly how this route came to
+ *      answer `url: null` in production while compose was dutifully
+ *      passing `NEXT_PUBLIC_LIVEKIT_URL` — and a `url: null` makes the
+ *      client abort before it ever asks for the microphone, so the user
+ *      sees a mic button that does nothing and no permission prompt.
+ *
+ *      This function is only ever called from server code, so a plain
+ *      variable is read from the live `process.env` on every request and
+ *      is genuinely reconfigurable by a restart.
+ *
+ *   2. `NEXT_PUBLIC_LIVEKIT_URL` — the value baked at build time. Kept as
+ *      a fallback so an image built WITH the build arg still works on a
+ *      deployment that has not been told about the runtime variable.
  *
  * The browser must never be pointed at a Docker-internal hostname
  * (`ws://livekit:7880`): that name only resolves inside the compose
@@ -117,6 +139,8 @@ export function readLiveKitServerCredentials(): LiveKitServerCredentials | null 
  * address (`ws://localhost:7880` in local development).
  */
 export function resolveLiveKitUrl(): string | null {
-  const configured = process.env.NEXT_PUBLIC_LIVEKIT_URL?.trim();
-  return configured ? configured : null;
+  const runtime = process.env.LIVEKIT_PUBLIC_URL?.trim();
+  if (runtime) return runtime;
+  const baked = process.env.NEXT_PUBLIC_LIVEKIT_URL?.trim();
+  return baked ? baked : null;
 }

@@ -2,7 +2,10 @@ import "server-only";
 
 import { RoomServiceClient } from "livekit-server-sdk";
 
-import { readLiveKitServerCredentials } from "@/lib/livekit/config";
+import {
+  readLiveKitServerCredentials,
+  resolveLiveKitUrl,
+} from "@/lib/livekit/config";
 
 /**
  * Admin → LiveKit client for the media operational page (Phase 8).
@@ -13,14 +16,15 @@ import { readLiveKitServerCredentials } from "@/lib/livekit/config";
  * same LIVEKIT_API_KEY/SECRET the token route signs with — this is a
  * server-only module, they never reach a client bundle.
  *
- * The internal address is NOT the browser-facing NEXT_PUBLIC_LIVEKIT_URL
- * per se, but the same HOST with an http scheme: the platform dials the
- * media server server-to-server. Resolution order:
+ * The internal address is NOT the browser-facing media URL per se, but
+ * the same HOST with an http scheme: the platform dials the media server
+ * server-to-server. Resolution order:
  *
  *   1. LIVEKIT_INTERNAL_URL (explicit override, mirrors
  *      INTERNAL_REALTIME_URL for the realtime server),
- *   2. NEXT_PUBLIC_LIVEKIT_URL with ws(s):// → http(s):// (works when
- *      the platform runs on the host, the dev setup here),
+ *   2. the browser-facing URL from `resolveLiveKitUrl()` with
+ *      ws(s):// → http(s):// (works when the platform runs on the host,
+ *      the dev setup here),
  *   3. http://localhost:7880 as the last dev fallback.
  *
  * Never throws: every failure becomes an honest `unavailable` state —
@@ -54,7 +58,11 @@ function resolveInternalMediaUrl(): string {
   const override = process.env.LIVEKIT_INTERNAL_URL?.trim();
   if (override) return override.replace(/^ws(s?):\/\//, "http$1://");
 
-  const publicUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL?.trim();
+  // Through the resolver, not `process.env` directly: reading
+  // `NEXT_PUBLIC_LIVEKIT_URL` here would read the value FROZEN AT BUILD
+  // TIME (see lib/livekit/config), so this fallback would silently skip
+  // to localhost on a correctly configured deployment.
+  const publicUrl = resolveLiveKitUrl();
   if (publicUrl) return publicUrl.replace(/^ws(s?):\/\//, "http$1://");
 
   // Same dev default as resolveRealtimeServerUrl in the membership module.

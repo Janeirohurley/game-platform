@@ -52,6 +52,24 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // The media address is as load-bearing as the credentials: without it
+  // the client has a valid token and nowhere to dial. Answering 200 with
+  // `url: null` is what made this failure invisible — the browser aborted
+  // with a generic "jeton invalide" and the server logged nothing at all.
+  // Fail here instead, named, so the next person reads one log line
+  // instead of bisecting a build.
+  const mediaUrl = resolveLiveKitUrl();
+  if (!mediaUrl) {
+    console.error(
+      "[livekit-token] no media URL: set LIVEKIT_PUBLIC_URL (runtime) " +
+        "or build with NEXT_PUBLIC_LIVEKIT_URL",
+    );
+    return NextResponse.json(
+      { error: "Service vocal indisponible (configuration)." },
+      { status: 500 },
+    );
+  }
+
   // ---- 1. Validate the request shape ----------------------------------
   const url = new URL(request.url);
   const scope = url.searchParams.get("scope");
@@ -95,7 +113,7 @@ export async function GET(request: NextRequest) {
     at.addGrant(grantsForRole("spectator", mediaRoom));
     const token = await at.toJwt();
     return NextResponse.json(
-      { token, identity: guestIdentity, url: resolveLiveKitUrl(), room: mediaRoom },
+      { token, identity: guestIdentity, url: mediaUrl, room: mediaRoom },
       { headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -173,7 +191,7 @@ export async function GET(request: NextRequest) {
       // The browser-facing media URL is public by design (it is an
       // address, not a credential) but it still comes from the server
       // so the client never reads env vars itself.
-      url: resolveLiveKitUrl(),
+      url: mediaUrl,
       room: mediaRoom,
     },
     { headers: { "Cache-Control": "no-store" } },
