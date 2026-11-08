@@ -4,7 +4,12 @@ import Link from "next/link";
 import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
-import { getGameBySlug, isGamePlayableOnline } from "@/lib/games/registry";
+import {
+  gameSupportsBots,
+  getGameBySlug,
+  isGamePlayableOnline,
+  tablePlayerCounts,
+} from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
 import { GameUnavailableNotice } from "@/components/game-unavailable-notice";
 
@@ -64,7 +69,7 @@ export default async function LudoPlayOnlinePage() {
 
   const viewerUserId = session?.user?.id ?? "";
 
-  const allowedPlayerCounts = game?.allowedPlayerCounts ?? [2, 3, 4];
+  const allowedPlayerCounts = tablePlayerCounts("ludo");
 
   const button =
     "inline-flex h-11 items-center justify-center rounded-md px-5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700";
@@ -195,6 +200,7 @@ export default async function LudoPlayOnlinePage() {
             <PlayOnlineLudo
               gameId={game?.slug ?? "ludo"}
               allowedPlayerCounts={allowedPlayerCounts}
+              supportsBots={gameSupportsBots("ludo")}
               viewerUserId={viewerUserId}
             />
           </div>

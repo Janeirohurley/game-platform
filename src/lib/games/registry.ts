@@ -39,6 +39,16 @@ export interface GameEntry {
    * room creator picks a capacity among these — nothing else is valid.
    */
   allowedPlayerCounts?: readonly number[];
+  /**
+   * Whether the realtime server can seat platform bots for this game.
+   *
+   * Not cosmetic: the server attaches a brain to a bot seat through
+   * `attachBrain`, which only `LudoRoom` overrides. A bot seated in any
+   * other game would hold a seat and never play — it would freeze the
+   * table rather than fill it. Flip this on only once that game's room
+   * implements a brain.
+   */
+  supportsBots?: boolean;
   status: GameStatus;
   /** Whether /games/<slug>/play (online rooms) is available. */
   playableOnline: boolean;
@@ -81,6 +91,8 @@ export const GAMES: readonly GameEntry[] = [
     // client offers but the server refuses would only fail at creation.
     maxPlayers: 6,
     allowedPlayerCounts: [2, 3, 4, 5, 6],
+    // The only game with a brain today (bots/brain/ludo-bot-driver.ts).
+    supportsBots: true,
     status: "live",
     playableOnline: true,
     image: "/ludo.jpg",
@@ -171,4 +183,31 @@ export function isGameLive(slug: string): boolean {
 export function isGamePlayableOnline(slug: string): boolean {
   const game = getGameBySlug(slug);
   return Boolean(game && game.status === "live" && game.playableOnline);
+}
+
+/**
+ * The table sizes a game can offer online, ascending.
+ *
+ * One function instead of a literal in every play page: those fallbacks
+ * had already drifted — Ludo's page defaulted to `[2, 3, 4]` while the
+ * registry (and the server) allow up to six, so a server outage on the
+ * registry read would have silently hidden the 5- and 6-player tables.
+ */
+export function tablePlayerCounts(slug: string): number[] {
+  const game = getGameBySlug(slug);
+  if (!game) return [2];
+  if (game.allowedPlayerCounts && game.allowedPlayerCounts.length > 0) {
+    return [...game.allowedPlayerCounts].sort((a, b) => a - b);
+  }
+  // An online table always seats at least two. `minPlayers` can be 1 for
+  // a game that also has a solo-versus-AI local mode (Rally), and the
+  // realtime server refuses a one-seat room.
+  const min = Math.max(2, game.minPlayers);
+  const max = Math.max(min, game.maxPlayers);
+  return Array.from({ length: max - min + 1 }, (_, index) => min + index);
+}
+
+/** True when the realtime server can seat bots for this game. */
+export function gameSupportsBots(slug: string): boolean {
+  return Boolean(getGameBySlug(slug)?.supportsBots);
 }

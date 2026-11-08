@@ -5,7 +5,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 
 import { auth } from "@/lib/auth";
-import { getGameBySlug, isGamePlayableOnline } from "@/lib/games/registry";
+import {
+  getGameBySlug,
+  isGamePlayableOnline,
+  tablePlayerCounts,
+} from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
 import GameUniverseBackground from "@/components/game-universe-background";
 import { GameUnavailableNotice } from "@/components/game-unavailable-notice";
@@ -78,7 +82,11 @@ export default async function RallyPlayOnlinePage() {
           </div>
 
           <div className="mt-10">
-            <PlayOnlineRally gameId={game?.slug ?? "rally"} viewerUserId={viewerUserId} />
+            <PlayOnlineRally
+              gameId={game?.slug ?? "rally"}
+              allowedPlayerCounts={tablePlayerCounts("rally")}
+              viewerUserId={viewerUserId}
+            />
           </div>
         </section>
       </div>

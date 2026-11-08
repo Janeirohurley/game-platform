@@ -5,7 +5,11 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 
 import { auth } from "@/lib/auth";
-import { getGameBySlug, isGamePlayableOnline } from "@/lib/games/registry";
+import {
+  getGameBySlug,
+  isGamePlayableOnline,
+  tablePlayerCounts,
+} from "@/lib/games/registry";
 import Navbar from "@/components/navbar";
 import GameUniverseBackground from "@/components/game-universe-background";
 import { GameUnavailableNotice } from "@/components/game-unavailable-notice";
@@ -80,7 +84,7 @@ export default async function TetrisPlayOnlinePage() {
           <div className="mt-10">
             <PlayOnlineTetris
               gameId={game?.slug ?? "tetris"}
-              allowedPlayerCounts={game?.allowedPlayerCounts ?? [2, 3, 4, 5, 6, 7, 8, 9, 10]}
+              allowedPlayerCounts={tablePlayerCounts("tetris")}
               viewerUserId={viewerUserId}
             />
           </div>

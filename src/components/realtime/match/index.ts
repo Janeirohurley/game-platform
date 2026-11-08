@@ -38,6 +38,11 @@ export {
 } from "./room-closed-notice";
 export { MatchList, type MatchListProps } from "./match-list";
 export {
+  PlayOnline,
+  type PlayOnlineProps,
+  type PlayOnlineRoomRenderArgs,
+} from "./play-online";
+export {
   AuthRequiredDialog,
   type AuthRequiredDialogProps,
 } from "./auth-required-dialog";
