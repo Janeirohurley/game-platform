@@ -4,6 +4,15 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.7] - 2026-11-08
+
+### Added
+
+* Publish the `tools` build stage as a `-tools` image. The runtime image is
+  the `runner` stage and ships neither source nor drizzle-kit, so it cannot
+  apply its own migrations; a deployment against a fresh database had no way
+  to create the schema.
+
 ## [0.5.6] - 2026-11-08
 
 ### Fixed
