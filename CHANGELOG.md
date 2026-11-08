@@ -4,6 +4,28 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.8] - 2026-11-08
+
+### Fixed
+
+* Stop polling `/api/auth/get-session` forever for signed-out visitors.
+  `useResilientSession` treated any absent session as a network failure, but
+  a logged-out visitor gets `200` with `null` — a valid answer. The hook
+  retried it on a backoff that could never succeed, and the header stayed on
+  "Reconnecting…" so the "Sign in" link was never reachable. Retries now
+  happen only on a real fetch error or when the browser is offline.
+
+### Changed
+
+* Header: three distinct session states instead of one. A silent skeleton on
+  the first round-trip, an amber pulsing pill while reconnecting, and a flat
+  pill when the browser is offline — the two are different situations and
+  only one of them is something the visitor can act on.
+* `/games`: gallery layout — a persistent category sidebar and rows of square
+  tiles, with a hero tile leading the picks. Searching or filtering switches
+  to a single flat grid, since a stated intent should not be scattered across
+  themed rows.
+
 ## [0.5.7] - 2026-11-08
 
 ### Added

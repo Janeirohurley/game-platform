@@ -21,19 +21,29 @@ const getOfflineSnapshot = () =>
 const getOfflineServerSnapshot = () => false;
 
 /**
- * Session better-auth, mais qui NE renonce JAMAIS sur une erreur réseau.
+ * Session better-auth qui ne renonce jamais sur une PANNE réseau — et qui
+ * ne confond pas une panne avec un visiteur anonyme.
  *
- * `useSession` seul laisse l'utilisateur « dans l'ombre » dès que le premier
- * appel échoue : plus d'avatar, plus de nom, et aucun signe qu'une nouvelle
- * tentative est en cours. Ici on réessaie tant qu'aucune session n'est
- * revenue :
- *   - hors-ligne : on attend l'événement `online` du navigateur (inutile de
- *     marteler le réseau alors qu'il est coupé) ;
- *   - en ligne mais en échec : on relance `refetch` avec un délai qui double
- *     à chaque essai (1 s, 2 s, 4 s… plafonné à 30 s), sans jamais abandonner.
+ * La distinction est tout l'enjeu de ce hook :
  *
- * Le hook expose `isReconnecting` pour que l'interface puisse dire clairement
- * « Reconnecting… » au lieu de laisser croire que tout va bien.
+ *   `GET /api/auth/get-session` → 200 `null`   visiteur non connecté.
+ *                                              C'est une RÉPONSE VALIDE.
+ *   `GET /api/auth/get-session` → échec fetch  panne réelle : on réessaie.
+ *
+ * Une version antérieure ne regardait que `session`, et traitait donc tout
+ * `null` comme un échec. Conséquence sur un visiteur simplement déconnecté :
+ * une requête `get-session` en boucle (1 s, 2 s, 4 s… sans jamais aboutir,
+ * puisque `null` est la bonne réponse) et un header bloqué sur
+ * « Reconnecting… » qui n'affichait jamais « Sign in ».
+ *
+ * La règle est donc : on ne réessaie que si `error` est renseignée ou si le
+ * navigateur est hors-ligne. Jamais sur l'absence de session seule.
+ *
+ * Stratégie de reprise :
+ *   - hors-ligne : aucune requête, on attend l'événement `online` du
+ *     navigateur (marteler un réseau coupé ne sert à rien) ;
+ *   - en ligne mais en échec : `refetch` avec un délai qui double à chaque
+ *     essai (1 s, 2 s, 4 s… plafonné à 30 s), sans jamais abandonner.
  */
 export function useResilientSession() {
   const { data: session, isPending, error, refetch } = useSession();
@@ -42,50 +52,60 @@ export function useResilientSession() {
     getOfflineSnapshot,
     getOfflineServerSnapshot,
   );
-  const attempts = useRef(0);
-  // Passe à `true` dès le premier essai de reconnexion : l'interface peut
-  // alors dire « Reconnecting… » au lieu de rester muette.
-  const [hasRetried, setHasRetried] = useState(false);
 
-  // `refetch` peut changer d'identité : on la garde dans une ref pour ne pas
-  // relancer le minuteur de reconnexion à chaque rendu.
+  // `refetch` peut changer d'identité d'un rendu à l'autre : on la garde dans
+  // une ref pour ne pas relancer le minuteur de reconnexion à chaque rendu.
   const refetchRef = useRef(refetch);
   useEffect(() => {
     refetchRef.current = refetch;
   }, [refetch]);
 
+  // Une panne, c'est une requête qui a ÉCHOUÉ ou un réseau coupé — jamais
+  // une réponse réussie qui dit « pas de session ».
+  const hasFailed = Boolean(error) || isOffline;
+
+  // Le compteur d'essais est une REF : le faire évoluer ne doit pas, à soi
+  // seul, provoquer un rendu. Le `retryTick` à côté est un état, mais il
+  // n'est incrémenté que depuis le callback du minuteur — jamais dans le
+  // corps d'un effet, ce qui éviterait des rendus en cascade.
+  //
+  // Les deux sont nécessaires : la ref porte le délai, le tick garantit que
+  // l'effet est bien replanifié après chaque tentative, y compris si
+  // better-auth sert une réponse en cache sans repasser par `isPending`.
+  const attempts = useRef(0);
+  const [retryTick, setRetryTick] = useState(0);
+
   useEffect(() => {
-    // Une session existe (même après une coupure réseau) : rien à surveiller.
-    if (session) {
+    if (!hasFailed) {
+      // Mutation de ref : aucun rendu déclenché, donc pas de cascade.
       attempts.current = 0;
       return;
     }
-    // Première réponse encore en cours, sans échec : rien à ajouter.
-    if (isPending && !error && !isOffline) return;
-    // Hors-ligne : on attend le retour du réseau (qui relancera l'effet).
+    // Hors-ligne : l'événement `online` relancera cet effet. Rien à planifier.
     if (isOffline) return;
 
-    const delay = Math.min(FIRST_RETRY_MS * 2 ** attempts.current, MAX_RETRY_MS);
+    const delay = Math.min(
+      FIRST_RETRY_MS * 2 ** attempts.current,
+      MAX_RETRY_MS,
+    );
     const timer = window.setTimeout(() => {
       attempts.current += 1;
-      setHasRetried(true);
       void Promise.resolve(refetchRef.current()).catch(() => {
-        /* l'effet suivant replanifie un nouvel essai */
+        /* le tick ci-dessous replanifie un nouvel essai */
       });
+      setRetryTick((value) => value + 1);
     }, delay);
 
     return () => window.clearTimeout(timer);
-  }, [session, isPending, error, isOffline]);
-
-  const isReconnecting =
-    !session && (isOffline || Boolean(error) || hasRetried);
-  const isLoadingSession = !session && (isPending || isReconnecting);
+  }, [hasFailed, isOffline, retryTick]);
 
   return {
     session,
     error,
     isOffline,
-    isReconnecting,
-    isLoadingSession,
+    /** Une panne est en cours et on réessaie. Jamais vrai pour un anonyme. */
+    isReconnecting: hasFailed,
+    /** Tout premier aller-retour, avant toute réponse. */
+    isLoadingSession: isPending && !session && !hasFailed,
   };
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LogOut, RefreshCw } from "lucide-react";
 
 import Dice from "@/components/dice";
+import { WifiOff } from "lucide-react";
 import { useResilientSession } from "@/components/auth/use-resilient-session";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { signOut } from "@/lib/auth-client";
@@ -26,47 +27,101 @@ const navigation = [
 ];
 
 /**
- * Indicateur affiché dans le header pendant le chargement de la session, et
- * tant qu'on n'arrive pas à la récupérer après une coupure réseau.
+ * Placeholder du tout premier aller-retour de session.
  *
- * Il occupe le même gabarit que l'avatar (bouton profil) : rien ne bouge
- * quand la session arrive, et l'attente est annoncée aux lecteurs d'écran
- * via `role="status"`. En reconnexion, l'anneau passe en ambre et le libellé
- * change, pour ne jamais laisser l'utilisateur dans le flou.
+ * Volontairement muet : à ce stade on ne sait pas encore si le visiteur est
+ * connecté, et annoncer quoi que ce soit serait un mensonge une fois sur
+ * deux. Il occupe EXACTEMENT le gabarit de ce qui va le remplacer (avatar +
+ * bouton, ou lien « Sign in »), pour que le header ne sursaute pas à
+ * l'arrivée de la réponse.
  */
-function SessionStatusIndicator({ reconnecting }: { reconnecting: boolean }) {
-  const label = reconnecting ? "Reconnecting…" : "Loading…";
+function SessionSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex items-center gap-3"
+      data-testid="session-skeleton"
+    >
+      <span className="size-9 animate-pulse rounded-full bg-muted" />
+      <span className="hidden h-4 w-16 animate-pulse rounded bg-muted sm:block" />
+    </div>
+  );
+}
+
+/**
+ * État de panne réseau, affiché à la place (ou à côté) du bloc profil.
+ *
+ * N'apparaît QUE sur un échec réel — requête en erreur ou navigateur
+ * hors-ligne. Un visiteur simplement déconnecté voit « Sign in », jamais
+ * ceci : c'est précisément la confusion que corrige `useResilientSession`.
+ *
+ * Deux variantes, parce que les deux situations n'appellent pas la même
+ * réaction de l'utilisateur :
+ *   - hors-ligne  → c'est SON réseau, il peut agir. Point fixe, pas
+ *     d'animation : rien n'est en cours, on attend le retour du réseau.
+ *   - reconnexion → c'est NOUS qui réessayons. Point pulsé : quelque chose
+ *     se passe, il n'a rien à faire.
+ *
+ * `aria-live="polite"` annonce le changement sans interrompre la navigation
+ * au clavier ou la lecture en cours.
+ */
+function ConnectionStatus({
+  offline,
+  compact = false,
+}: {
+  offline: boolean;
+  compact?: boolean;
+}) {
+  const label = offline ? "Offline" : "Reconnecting…";
 
   return (
     <div
       role="status"
-      aria-label={reconnecting ? "Reconnecting to the server" : "Loading session"}
-      className="flex items-center gap-3"
+      aria-live="polite"
+      aria-label={
+        offline
+          ? "You are offline. Waiting for the network to come back."
+          : "Connection lost. Reconnecting to the server."
+      }
+      title={label}
+      className={cn(
+        "flex h-9 items-center gap-2 rounded-full border px-2.5 text-xs font-medium",
+        "transition-colors",
+        offline
+          ? "border-border bg-muted/60 text-muted-foreground"
+          : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      )}
     >
-      <span className="relative grid size-9 place-items-center">
-        <span
-          aria-hidden="true"
-          className="absolute inset-0 rounded-full border border-border"
-        />
+      <span className="relative grid size-2.5 shrink-0 place-items-center">
+        {!offline && (
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 animate-ping rounded-full bg-amber-500/60"
+          />
+        )}
         <span
           aria-hidden="true"
           className={cn(
-            "absolute inset-0 animate-spin rounded-full border-2 border-transparent",
-            reconnecting ? "border-t-amber-500" : "border-t-foreground",
+            "relative size-2 rounded-full",
+            offline ? "bg-muted-foreground/60" : "bg-amber-500",
           )}
         />
-        {reconnecting ? (
-          <RefreshCw className="size-3.5 text-amber-500" aria-hidden="true" />
-        ) : (
-          <span
-            aria-hidden="true"
-            className="size-2 animate-pulse rounded-full bg-muted-foreground/50"
-          />
-        )}
       </span>
+
+      {offline ? (
+        <WifiOff className="size-3.5 shrink-0 sm:hidden" aria-hidden="true" />
+      ) : (
+        <RefreshCw
+          className="size-3.5 shrink-0 animate-spin sm:hidden"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Le libellé disparaît sous `sm` (l'icône porte alors le sens) et dans
+          la variante compacte, qui vit à côté d'un avatar déjà présent. */}
       <span
         aria-hidden="true"
-        className="hidden text-xs font-medium text-muted-foreground sm:inline"
+        className={cn("hidden whitespace-nowrap", !compact && "sm:inline")}
       >
         {label}
       </span>
@@ -75,7 +130,8 @@ function SessionStatusIndicator({ reconnecting }: { reconnecting: boolean }) {
 }
 
 export default function Navbar() {
-  const { session, isLoadingSession, isReconnecting } = useResilientSession();
+  const { session, isLoadingSession, isReconnecting, isOffline } =
+    useResilientSession();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const links = session
@@ -159,10 +215,24 @@ export default function Navbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Ordre des cas, et il compte:
+              1. premier chargement        → squelette muet
+              2. panne SANS session connue → pastille de statut seule
+              3. session                   → profil (+ pastille si panne, car
+                                             les données affichées datent
+                                             alors du dernier aller-retour)
+              4. rien de tout ça           → visiteur anonyme → « Sign in »
+
+              Le cas 4 est celui qui était inatteignable avant le correctif
+              de `useResilientSession`. */}
           {isLoadingSession ? (
-            <SessionStatusIndicator reconnecting={isReconnecting} />
+            <SessionSkeleton />
+          ) : isReconnecting && !session ? (
+            <ConnectionStatus offline={isOffline} />
           ) : session ? (
             <div className="flex items-center gap-4">
+              {isReconnecting && <ConnectionStatus offline={isOffline} compact />}
+
               {/* Profile Avatar */}
               <Link
                 href="/profile"
