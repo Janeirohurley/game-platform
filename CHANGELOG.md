@@ -4,6 +4,15 @@ All notable changes to Game Arena are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows semantic versioning where applicable.
 
+## [0.5.6] - 2026-11-08
+
+### Fixed
+
+* Build the production bundle with an explicit `NEXT_PUBLIC_REALTIME_URL`.
+  Left unset, `resolveRealtimeUrl()` derives the Colyseus address from the
+  page origin and appends port 2567 — behind a reverse proxy that port is
+  not published, so every room join failed before reaching the network.
+
 ## [0.5.5] - 2026-10-11
 
 ### Fixed
