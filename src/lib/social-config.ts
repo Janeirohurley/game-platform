@@ -37,4 +37,10 @@ export const socialLinks: SocialLink[] = [
     type: "image",
     src: "/discord.svg",
   },
+  {
+    name: "TikTok",
+    href: "https://tiktok.com/@janeirohurley",
+    type: "image",
+    src: "/tiktok.svg",
+  },
 ];
