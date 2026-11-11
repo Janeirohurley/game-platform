@@ -184,6 +184,33 @@ export interface CheckersSnapshot extends LobbySnapshot {
 }
 
 /**
+ * Chess-specific fields of the synchronized state (client view).
+ * Mirrors `server-games/src/games/chess/chess-state.ts`.
+ */
+export interface ChessPlayerView extends LobbyPlayerView {
+  /** "w" or "b"; empty until the match starts. */
+  color: string;
+}
+
+export interface ChessSnapshot extends LobbySnapshot {
+  /** FEN of the authoritative position, empty before the match starts. */
+  fen: string;
+  /** "w", "b", or empty between matches. */
+  turnColor: string;
+  currentTurn: string;
+  turnDeadline: number;
+  turnSecondsLeft: number;
+  /** Space-separated SAN history. */
+  history: string;
+  lastFrom: string;
+  lastTo: string;
+  /** "playing" | "win" | "draw". */
+  outcome: string;
+  outcomeReason: string;
+  winnerUserId: string;
+}
+
+/**
  * A chat message exactly as the room created it.
  * Mirrors `server-games/src/rooms/room-chat.ts` — the client authors
  * none of these fields, it only ever sends `{ content }`.
@@ -220,6 +247,7 @@ export const CHAT_MAX_CONTENT_LENGTH = 300;
 export const TURN_DURATION_MS_BY_GAME: Record<string, number> = {
   ludo: 30_000,
   checkers: 60_000,
+  chess: 60_000,
 };
 
 /**

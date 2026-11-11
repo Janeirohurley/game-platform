@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored decoders/engine (Basis, Draco, Stockfish) served as static
+    // assets. They are not authored by us and must not be linted.
+    "public/chess/basis/**",
+    "public/chess/draco/**",
+    "public/chess/stockfish/**",
   ]),
 ]);
 

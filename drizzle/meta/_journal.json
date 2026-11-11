@@ -120,6 +120,13 @@
       "when": 1792580945901,
       "tag": "0016_secret_justice",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794046123165,
+      "tag": "0017_short_champions",
+      "breakpoints": true
     }
   ]
 }
