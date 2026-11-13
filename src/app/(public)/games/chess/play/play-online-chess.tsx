@@ -50,20 +50,26 @@ export function PlayOnlineChess({
       try {
         const roomId = readRoomIdFromUrl();
         const session = roomId ? readRoomSession(roomId) : null;
-        const restored = roomId
-          ? session
-            ? await reconnectRoom(session.reconnectionToken).catch(() =>
-                joinRoom(gameId, roomId, session.mode),
-              )
-            : await joinRoom(gameId, roomId, "play")
-          : await createRoom(gameId, 2);
-        if (cancelled) {
-          void restored.leave();
-          return;
+
+        // A `?room=` marker only means something when this very tab still
+        // holds the matching reconnection token. Otherwise it points at a
+        // table that no longer exists (server restart, closed lobby), and
+        // replaying it would wedge the play page on `room "…" not found`
+        // forever. The play page always wants a table of its own — joining
+        // a known id is the invite route's job.
+        let restored: Room | null = null;
+        if (roomId && session) {
+          restored = await reconnectRoom(session.reconnectionToken).catch(() =>
+            joinRoom(gameId, roomId, session.mode).catch(() => null),
+          );
         }
-        // Fresh table (created or first join): hold the loader until the
-        // server has acknowledged the lobby before dropping onto the board.
-        if (!session) await waitForRoomReady(restored);
+        if (!restored) {
+          if (roomId) clearRoomSession(roomId);
+          restored = await createRoom(gameId, 2);
+          // Fresh table: hold the loader until the server has acknowledged
+          // the lobby before dropping onto the board.
+          await waitForRoomReady(restored);
+        }
         if (cancelled) {
           void restored.leave();
           return;
