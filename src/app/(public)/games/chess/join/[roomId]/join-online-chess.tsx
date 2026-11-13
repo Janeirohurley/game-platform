@@ -20,6 +20,15 @@ export interface JoinOnlineChessProps {
 
 type JoinChoice = null | "play" | "watch";
 
+/** Turn the raw Colyseus matchmaking failure into something actionable. */
+function describeJoinError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/not found/i.test(message)) {
+    return "Cette table n'existe plus (le serveur a peut-être redémarré ou le créateur l'a fermée). Demande un nouveau lien d'invitation.";
+  }
+  return message || "Impossible de rejoindre cette partie.";
+}
+
 /**
  * Client part of the invitation flow: join as a player (admin approval
  * required, read-only pending view meanwhile) or watch as a spectator
@@ -81,11 +90,8 @@ export function JoinOnlineChess({
         persistRoomSession(joined, mode);
         setRoom(joined);
       } catch (joinError) {
-        setError(
-          joinError instanceof Error
-            ? joinError.message
-            : "Impossible de rejoindre cette partie.",
-        );
+        clearRoomSession(roomId);
+        setError(describeJoinError(joinError));
       }
     })();
   };
